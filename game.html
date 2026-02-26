@@ -3079,15 +3079,18 @@ function doEndTurn() {
         }
       } else {
         G.phase = 'PLAY';
-        G.currentPlayer = 1;
+        // First to move in PLAY is the player who did NOT go first in setup
+        // stored in window.ONLINE.firstPlayer; default to 1 for pass-and-play
+        const playFirst = window.ONLINE.mode ? (window.ONLINE.firstPlayer === 1 ? 2 : 1) : 1;
+        G.currentPlayer = playFirst;
         if (window.ONLINE.mode) {
           if (window.ONLINE.onEndTurn) window.ONLINE.onEndTurn(G);
-          // P1 goes first — if I'm P1, start my turn; if P2, wait
-          if (window.ONLINE.myPlayer === 1) {
+          if (window.ONLINE.myPlayer === playFirst) {
             startTimerTick();
             render();
           } else {
-            showOnlineWaiting("Game started! Waiting for Player 1's first move…");
+            const oppName = PLAYER_CONFIG.names[playFirst] || `Player ${playFirst}`;
+            showOnlineWaiting(`Game started! Waiting for ${oppName}'s first move…`);
           }
         } else {
           startTimerTick();
@@ -3452,6 +3455,9 @@ function showReportDialog(player) {
 //  STARTUP MODAL
 // ============================================================
 (function() {
+  // Online mode: skip this entire pass-and-play setup modal
+  if (window.ONLINE && window.ONLINE.mode) return;
+
   // Time control mode config
   const TC_MODES = {
     unlimited:  { desc: 'No time limit per turn.',                                                       inputs: [] },
@@ -3657,11 +3663,15 @@ function renderMobileLog() {
         advancedMode: config.advancedMode || false,
       };
       G = makeInitialState();
+      // Apply random first-setup player chosen by online.js
+      if (config.firstPlayer === 2) {
+        G.currentPlayer = 2;
+      }
       if (modal) modal.remove();
       initChat();
       renderPlayerCards();
       render();
-      // If rejoining a game in progress, online.js will immediately push the current state
+      // online.js will call window.doStartMyTurn() or showOnlineWaiting() next
     };
     return; // don't run pass-and-play modal code
   }

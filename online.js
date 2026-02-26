@@ -96,6 +96,22 @@ async function boot(user) {
   const myProfileSnap = await get(ref(db, `players/${myUid}`));
   const myProfile = myProfileSnap.val() || {};
 
+  // ── Determine who goes first (random, decided by P1, stored in room) ──
+  let firstPlayer = room.firstPlayer || null;
+  if (!firstPlayer && MY_PLAYER === 1) {
+    // Host picks randomly and saves it — P2 will read it back
+    firstPlayer = Math.random() < 0.5 ? 1 : 2;
+    await update(ref(db, `rooms/${ROOM_ID}`), { firstPlayer });
+  } else if (!firstPlayer) {
+    // P2 joined before host wrote it — poll briefly
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 250));
+      const snap2 = await get(ref(db, `rooms/${ROOM_ID}/firstPlayer`));
+      if (snap2.exists()) { firstPlayer = snap2.val(); break; }
+    }
+    firstPlayer = firstPlayer || 1; // fallback
+  }
+
   // Build PLAYER_CONFIG for startOnlineGame
   const config = {
     p1Name:      room.player1?.name  || 'Player 1',
@@ -106,6 +122,7 @@ async function boot(user) {
     tcMode:      room.settings?.tcMode    || 'unlimited',
     tcTurnMs:    room.settings?.tcTurnMs  || 0,
     advancedMode: myProfile.advancedMode  || false,
+    firstPlayer,   // 1 or 2 — randomly chosen
   };
 
   // Wait for game.html's startOnlineGame to be ready (it's defined in the INIT block)
@@ -117,6 +134,7 @@ async function boot(user) {
   window.ONLINE.onEndTurn = handleLocalEndTurn;
   window.ONLINE.onWin     = handleLocalWin;
   window.ONLINE.sendChat  = sendChat;
+  window.ONLINE.firstPlayer = firstPlayer; // store for game.html logic
 
   // ── Presence ────────────────────────────────────────────
   const presenceRef = ref(db, `rooms/${ROOM_ID}/presence/p${MY_PLAYER}`);
@@ -156,12 +174,16 @@ function waitForFn(name, maxMs = 5000) {
 async function maybeRestoreState() {
   const stateSnap = await get(ref(db, `rooms/${ROOM_ID}/state`));
   if (!stateSnap.exists()) {
-    // Fresh game — setup phase
-    // P1 goes first for setup
-    if (MY_PLAYER === 1) {
-      window.doStartMyTurn(); // remove loading, show board
+    // Fresh game — whoever goes first (from config.firstPlayer) sets up first
+    const roomSnap2 = await get(ref(db, `rooms/${ROOM_ID}/firstPlayer`));
+    const firstPlayer = roomSnap2.val() || 1;
+    if (MY_PLAYER === firstPlayer) {
+      window.doStartMyTurn(); // remove loading, show board, it's my setup turn
     } else {
-      window.showOnlineWaiting('Waiting for Player 1 to set up their homeworld…');
+      const firstPlayerName = firstPlayer === 1
+        ? (window.getPlayerConfig?.()?.names[1] || 'Player 1')
+        : (window.getPlayerConfig?.()?.names[2] || 'Player 2');
+      window.showOnlineWaiting(`${firstPlayerName} is setting up their homeworld first…`);
       window.renderGame();
     }
     return;
