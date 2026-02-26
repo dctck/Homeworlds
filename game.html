@@ -3281,10 +3281,6 @@ function escapeHtml(s) {
 function MY_PLAYER_FOR_CHAT() {
   return window.ONLINE.mode ? window.ONLINE.myPlayer : (G ? G.currentPlayer : 1);
 }
-  }
-  if (sendBtnM) sendBtnM.addEventListener('click', sendMsgM);
-  if (inputM)   inputM.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendMsgM(); } });
-})();
 
 // ============================================================
 //  TIMER
@@ -3679,6 +3675,7 @@ function renderMobileLog() {
   // ── PASS AND PLAY — existing startup modal ──
   // (original code below, unchanged)
 
+})(); // end INIT IIFE
 </script>
 </body>
 </html>
