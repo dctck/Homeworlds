@@ -154,7 +154,7 @@ async function startOnlineMatch(room, user) {
   update(ref(db, 'stats'), { online: increment(1) });
   onDisconnect(ref(db, 'stats')).update({ online: increment(-1) });
 
-  subscribeActions();
+  await subscribeActions();  // await: must load existing keys before restoring state
   subscribeThinking();
   subscribeChat();
   await maybeRestoreState(firstPlayer);
@@ -212,8 +212,14 @@ async function maybeRestoreState(firstPlayer) {
 
 // ── Subscribe: opponent END_TURN actions ────────────────────
 let _lastKey = null;
-function subscribeActions() {
+async function subscribeActions() {
+  // Snapshot existing keys BEFORE subscribing so we skip history on startup.
+  // onChildAdded fires immediately for all existing children — we only want NEW ones.
+  const existingSnap = await get(ref(db, `rooms/${ROOM_ID}/actions`));
+  const existingKeys = new Set(existingSnap.exists() ? Object.keys(existingSnap.val()) : []);
+
   onChildAdded(ref(db, `rooms/${ROOM_ID}/actions`), snap => {
+    if (existingKeys.has(snap.key)) return; // skip historical actions
     const action = snap.val();
     if (!action || snap.key === _lastKey) return;
     _lastKey = snap.key;

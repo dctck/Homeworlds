@@ -1335,8 +1335,10 @@ function shipImgHTML(color, size, player, opts = {}) {
   const letter = COLOR_LETTER_MAP[color];
   const src = `assets/ships/${prefix}${letter}.webp`;
   const [w, h] = SHIP_DIMS[size];
-  // Player 2 ships flip vertically
-  const flip = player === 2 ? 'transform:scaleY(-1);' : '';
+  // In online mode: opponent's ships flip (point toward you), your ships don't.
+  // In pass-and-play: Player 2 ships always flip (classic layout).
+  const viewerNum = window.ONLINE?.mode ? window.ONLINE.myPlayer : 1;
+  const flip = (player !== viewerNum) ? 'transform:scaleY(-1);' : '';
   const filter = opts.glow ? `filter:drop-shadow(0 0 6px ${COLOR_HEX[color]}) drop-shadow(0 0 3px #fff);` : '';
   return `<img src="${src}" width="${w}" height="${h}" style="display:block;${flip}${filter}" draggable="false">`;
 }
@@ -1460,6 +1462,7 @@ function getCatastrophes() {
 }
 
 function triggerCatastrophe(sysId, color) {
+  if (window.ONLINE.lockInput()) return;
   const sys = findSystem(sysId);
   if (!sys) return;
   saveHistory();
@@ -2022,6 +2025,7 @@ function isSelectableShip(ship, sys) {
  * Routes to the appropriate action for that color.
  */
 function onPowerClick(color, sys) {
+  if (window.ONLINE.lockInput()) return;
   const ship = findShip(G.selectedShipId);
   if (!ship) return;
   const shipSys = findSystemByShip(G.selectedShipId);
@@ -2068,6 +2072,7 @@ function onPowerClick(color, sys) {
  * Used when clicking an attackable enemy in SHIP_SELECTED state.
  */
 function directAttack(targetShip, sys) {
+  if (window.ONLINE.lockInput()) return;
   saveHistory();
   logAction(Note.hijack(targetShip, sys.name));
   targetShip.owner = G.currentPlayer;
@@ -2260,8 +2265,9 @@ function renderSystem(sys) {
   }
 
   // Single inline row: ▽ ships (left) · stars (centre) · △ ships (right)
-  const downShips = sys.ships.filter(s => s.owner === 2);
-  const upShips   = sys.ships.filter(s => s.owner === 1);
+  const viewerNum = window.ONLINE?.mode ? window.ONLINE.myPlayer : 1;
+  const downShips = sys.ships.filter(s => s.owner !== viewerNum);  // opponent ships, left side
+  const upShips   = sys.ships.filter(s => s.owner === viewerNum);  // own ships, right side
 
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:36px;margin-top:6px;';
@@ -2324,7 +2330,7 @@ function renderSystem(sys) {
         wrap.classList.add('valid-attack-direct');
         wrap.onclick = (e) => {
           e.stopPropagation();
-          // Use largest own ship in this system as attacker
+          if (window.ONLINE.lockInput()) return;
           saveHistory();
           logAction(Note.hijack(ship, sys.name));
           ship.owner = G.currentPlayer;
@@ -2905,6 +2911,7 @@ function onShipClick(shipId) {
 }
 
 function onAttackTargetClick(targetShipId) {
+  if (window.ONLINE.lockInput()) return;
   if (G.interaction !== 'ATTACKING') return;
   const sys = findSystemByShip(targetShipId);
   const target = findShip(targetShipId);
@@ -2925,6 +2932,7 @@ function onAttackTargetClick(targetShipId) {
 }
 
 function onMoveTargetClick(sysId) {
+  if (window.ONLINE.lockInput()) return;
   if (G.interaction !== 'MOVING') return;
   const ship = findShip(G.selectedShipId);
   const fromSys = findSystemByShip(G.selectedShipId);
@@ -3000,6 +3008,7 @@ function startBuild(ship, sys) {
 
 // ---- EXECUTE ACTIONS ----
 function doTrade(ship, newColor) {
+  if (window.ONLINE.lockInput()) return;
   if (G.interaction !== 'TRADING' && G.interaction !== 'SHIP_SELECTED') return;
   G.interaction = 'IDLE';
   saveHistory();
@@ -3015,6 +3024,7 @@ function doTrade(ship, newColor) {
 }
 
 function doBuild(sys, color) {
+  if (window.ONLINE.lockInput()) return;
   if (G.interaction !== 'BUILDING' && G.interaction !== 'SHIP_SELECTED') return;
   const sz = [1,2,3].find(s => G.bank[color][s] > 0);
   if (!sz) { alert('Bank empty for this color!'); return; }
@@ -3031,6 +3041,7 @@ function doBuild(sys, color) {
 }
 
 function doDiscover(starColor, starSize) {
+  if (window.ONLINE.lockInput()) return;
   const ship = findShip(G.selectedShipId);
   const fromSys = findSystemByShip(G.selectedShipId);
   if (!ship || !fromSys) return;
@@ -3069,6 +3080,7 @@ function doDiscover(starColor, starSize) {
 }
 
 function doSacrifice(ship, sys) {
+  if (window.ONLINE.lockInput()) return;
   const isOnlyShipInHW = sys.isHomeworld === G.currentPlayer && sys.ships.filter(s => s.owner === G.currentPlayer).length === 1;
   if (isOnlyShipInHW) { alert('Cannot sacrifice your only ship in your homeworld!'); return; }
   if (G.turnUsed) { alert('Already used your action this turn!'); return; }
