@@ -237,7 +237,8 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
   <div class="main-hdr">
     <div class="main-title"><span class="live-dot"></span>OPEN ROOMS</div>
     <div class="filter-tabs">
-      <div class="ftab active" data-filter="waiting">WAITING</div>
+      <div class="ftab active" data-filter="all">ALL</div>
+      <div class="ftab" data-filter="waiting">WAITING</div>
       <div class="ftab" data-filter="playing">IN PROGRESS</div>
     </div>
   </div>
@@ -300,7 +301,7 @@ const TC_DESC = {
 let selectedTc  = 'unlimited';
 let ME          = null;
 let lastRooms   = {};
-let currentFilter = 'waiting';
+let currentFilter = 'all';
 let pendingJoin   = null;
 
 // ── Auth guard ───────────────────────────────────────────────
@@ -386,30 +387,39 @@ function subscribeRooms(){
 
 function renderRooms(rooms){
   const list = document.getElementById('room-list');
-  const entries = Object.values(rooms)
-    .filter(r => r.status === currentFilter)
+  const myUid = ME?.uid;
+  let entries = Object.values(rooms)
+    .filter(r => r.status !== 'finished')
     .sort((a,b) => b.createdAt - a.createdAt);
-
+  if (currentFilter !== 'all') {
+    entries = entries.filter(r => r.status === currentFilter);
+  }
   if (!entries.length){
-    list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">${currentFilter==='waiting'?'🌌':'⚔️'}</div><div class="empty-state-text">${currentFilter==='waiting'?'No open rooms yet.<br>Create one to challenge the galaxy.':'No games currently in progress.'}</div></div>`;
+    const icons = {all:'🌌',waiting:'🌌',playing:'⚔️'};
+    const msgs  = {all:'No active rooms.<br>Create one to challenge the galaxy.',waiting:'No open rooms yet.<br>Create one to challenge the galaxy.',playing:'No games currently in progress.'};
+    list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">${icons[currentFilter]||'🌌'}</div><div class="empty-state-text">${msgs[currentFilter]||''}</div></div>`;
     return;
   }
   list.innerHTML='';
   entries.forEach(room => {
     const card = document.createElement('div');
     card.className='room-card';
-    const isMyRoom = room.hostUid === ME?.uid;
+    const isHost  = room.hostUid === myUid;
+    const isGuest = room.player2?.uid === myUid;
+    const isParticipant = isHost || isGuest;
     const hostTier = tierHTML(room.player1?.stars||0);
     const tc = formatTc(room.settings);
     card.innerHTML=`
       <div>
-        <div class="room-name">${esc(room.name)}${room.isPrivate?'<span class="room-priv">🔒 PRIVATE</span>':''}</div>
+        <div class="room-name">${esc(room.name)}${room.isPrivate?'<span class="room-priv">🔒 PRIVATE</span>':''} ${isParticipant?'<span class="room-priv" style="color:#22dd77;border-color:#22dd7740;background:#22dd7712">★ YOURS</span>':''}</div>
         <div class="room-meta">HOST: ${esc(room.player1?.name||'—')} &nbsp;${hostTier}&nbsp; · ${tc}</div>
       </div>
       <div class="room-actions">
         <span class="room-status ${room.status==='waiting'?'s-wait':'s-play'}">${room.status==='waiting'?'OPEN':'PLAYING'}</span>
-        ${room.status==='waiting'&&!isMyRoom?`<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password||''}">JOIN</button>`:''}
-        ${isMyRoom&&room.status==='waiting'?`<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=1'">REJOIN</button>`:''}
+        ${isHost?`<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=1'">REJOIN</button>`:
+          isGuest?`<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=2'">REJOIN</button>`:
+          room.status==='waiting'?`<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password||''}">JOIN</button>`:
+          ''}
       </div>`;
     list.appendChild(card);
   });

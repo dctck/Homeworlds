@@ -943,6 +943,7 @@ body::before {
 
 <!-- BOTTOM BUTTONS (direct body child for mobile ordering) -->
 <div id="bottom-btns">
+  <button class="ctrl-btn" id="btn-lobby" title="Back to Lobby" onclick="location.href='lobby.html'" style="display:none">⬡ Lobby</button>
   <button class="ctrl-btn" id="btn-forfeit" title="Forfeit">⚑</button>
   <button class="ctrl-btn" id="btn-undo">↺ Undo</button>
   <button class="ctrl-btn" id="btn-end"><span class="btn-label">Skip Turn ›</span><div class="hold-fill"></div></button>
@@ -1066,6 +1067,7 @@ body::before {
       ⎘ COPY LOG
     </button>
     <button id="btn-newgame" onclick="location.reload()">NEW GAME</button>
+    <button id="btn-win-lobby" onclick="location.href='lobby.html'" style="display:none;padding:14px 40px;background:transparent;border:2px solid #4488ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:var(--fs-md);letter-spacing:3px;cursor:pointer;border-radius:4px;transition:all 0.2s;">LOBBY</button>
   </div>
 </div>
 
@@ -1149,6 +1151,16 @@ let PLAYER_CONFIG = {
   timeMs: 0,
   advancedMode: false,
 };
+
+// ── Tier system (shared with lobby) ────────────────────────
+const TIERS = [
+  {name:'Iron',min:0,max:4,color:'#8a9bb0'},{name:'Bronze',min:5,max:9,color:'#cd7f32'},
+  {name:'Silver',min:10,max:14,color:'#c0c0c0'},{name:'Gold',min:15,max:19,color:'#ffd700'},
+  {name:'Platinum',min:20,max:24,color:'#00d4ff'},{name:'Emerald',min:25,max:29,color:'#22dd77'},
+  {name:'Diamond',min:30,max:34,color:'#b9f2ff'},{name:'Master',min:35,max:39,color:'#9b59b6'},
+  {name:'Grandmaster',min:40,max:44,color:'#ff6b35'},{name:'Star Captain',min:45,max:Infinity,color:'#ffcc00'},
+];
+function getTier(stars) { return TIERS.find(t => stars >= t.min && stars <= t.max) || TIERS[0]; }
 
 // ── Online mode (injected by online.js when URL has ?room=) ──
 window.ONLINE   = {
@@ -1520,6 +1532,14 @@ function showWin(player) {
   _chatMessages = [];
   document.getElementById('win-player').textContent = player;
   document.getElementById('win-overlay').classList.add('show');
+
+  // Online: show Lobby button, hide New Game
+  if (window.ONLINE.mode) {
+    const ng = document.getElementById('btn-newgame');
+    const lb = document.getElementById('btn-win-lobby');
+    if (ng) ng.style.display = 'none';
+    if (lb) lb.style.display = '';
+  }
 
   // Wire up copy log button
   const copyBtn = document.getElementById('btn-copy-log');
@@ -3359,7 +3379,12 @@ function renderPlayerCards() {
     const avatarEl = document.getElementById(`pcard-avatar-${p}`);
 
     if (nameEl) nameEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
-    if (eloEl)  eloEl.textContent  = `◆ ${PLAYER_CONFIG.elos[p] || 1200}`;
+    if (eloEl) {
+      const stars = parseInt(PLAYER_CONFIG.elos[p]) || 0;
+      const tier  = getTier(stars);
+      eloEl.textContent = tier.name.toUpperCase();
+      eloEl.style.color = tier.color;
+    }
 
     const isActiveSetup = G && G.phase === 'SETUP' && G.currentPlayer === p;
     const isActivePlay  = G && G.phase === 'PLAY'  && G.currentPlayer === p;
@@ -3626,7 +3651,10 @@ function renderMobileProfiles() {
     const avatarEl= document.getElementById(`pcard-avatar-${p}m`);
     if (!nameEl) return;
     nameEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
-    eloEl.textContent  = `◆ ${PLAYER_CONFIG.elos[p] || 1200}`;
+    const mStars = parseInt(PLAYER_CONFIG.elos[p]) || 0;
+    const mTier  = getTier(mStars);
+    eloEl.textContent = mTier.name.toUpperCase();
+    eloEl.style.color = mTier.color;
     const isUnlimited = !PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs;
     const isActivePlay = G && G.phase === 'PLAY' && G.currentPlayer === p;
     const timeMs = G ? G.timers[p] : (PLAYER_CONFIG.timeMs || PLAYER_CONFIG.tcTurnMs || 0);
@@ -3700,7 +3728,7 @@ function renderMobileLog() {
           </button>
 
           <div style="margin-top:16px">
-            <a href="lobby.html" style="font-size:10px;color:#253040;text-decoration:none;letter-spacing:1px">← BACK TO LOBBY</a>
+            <button onclick="location.href='lobby.html'" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:4px;transition:all 0.2s;" onmouseover="this.style.borderColor='#3a5080';this.style.color='#7090b0'" onmouseout="this.style.borderColor='#253040';this.style.color='#4a6080'">← BACK TO LOBBY</button>
           </div>
         </div>`;
     }
@@ -3714,12 +3742,13 @@ function renderMobileLog() {
         tcTurnMs:     config.tcTurnMs || 0,
         advancedMode: config.advancedMode || false,
       };
+      window.ONLINE.mode = true;
       G = makeInitialState();
-      // Apply random first-setup player chosen by online.js
-      if (config.firstPlayer === 2) {
-        G.currentPlayer = 2;
-      }
+      if (config.firstPlayer === 2) G.currentPlayer = 2;
       if (modal) modal.remove();
+      // Show the Lobby back button
+      const lobbyBtn = document.getElementById('btn-lobby');
+      if (lobbyBtn) lobbyBtn.style.display = '';
       initChat();
       renderPlayerCards();
       render();
