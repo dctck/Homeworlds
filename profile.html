@@ -3,173 +3,116 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Profile — Homeworlds</title>
+<title>Profile — Homeworlds Duel</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #060912; --panel: #0c1120; --border: #1c2840;
-  --text: #a8c0e0; --bright: #ddeeff;
-  --p1: #4488ff; --p2: #ff4455; --green: #22dd77;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; }
+:root{--bg:#060912;--panel:#0c1120;--border:#1c2840;--text:#a8c0e0;--bright:#ddeeff;--p1:#4488ff;--p2:#ff4455;--green:#22dd77}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(circle at 20% 30%,rgba(255,255,255,.5) 1px,transparent 1px),radial-gradient(circle at 60% 70%,rgba(255,255,255,.3) 1px,transparent 1px),radial-gradient(circle at 80% 20%,rgba(255,255,255,.4) 1px,transparent 1px),radial-gradient(circle at 40% 85%,rgba(255,255,255,.5) 1px,transparent 1px);
+  background-size:800px 800px}
 
-body::before {
-  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-  background-image:
-    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.5) 1px, transparent 1px),
-    radial-gradient(circle at 60% 70%, rgba(255,255,255,0.3) 1px, transparent 1px),
-    radial-gradient(circle at 80% 20%, rgba(255,255,255,0.4) 1px, transparent 1px),
-    radial-gradient(circle at 40% 85%, rgba(255,255,255,0.5) 1px, transparent 1px),
-    radial-gradient(circle at 90% 55%, rgba(255,255,255,0.3) 1px, transparent 1px);
-  background-size: 800px 800px;
-}
+header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:48px;background:rgba(6,9,18,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.logo{font-family:'Orbitron',sans-serif;font-weight:900;font-size:13px;letter-spacing:3px;color:var(--bright);text-decoration:none}
+.logo span{color:var(--p1)}
+.nav-links{display:flex;gap:20px}
+.nav-link{font-size:10px;letter-spacing:2px;color:#4a6080;text-decoration:none;font-family:'Orbitron',sans-serif;transition:color .2s}
+.nav-link:hover{color:var(--bright)}
 
-header {
-  position: sticky; top: 0; z-index: 10;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 32px; height: 48px;
-  background: rgba(6,9,18,0.92); backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-}
-.logo { font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 13px; letter-spacing: 4px; color: var(--bright); text-decoration: none; }
-.logo span { color: var(--p1); }
-.nav-links { display: flex; gap: 20px; }
-.nav-link { font-size: 10px; letter-spacing: 2px; color: #4a6080; text-decoration: none; font-family: 'Orbitron', sans-serif; transition: color 0.2s; }
-.nav-link:hover { color: var(--bright); }
-
-.page { max-width: 780px; margin: 0 auto; padding: 48px 24px 80px; position: relative; z-index: 1; }
+.page{max-width:760px;margin:0 auto;padding:40px 20px 80px;position:relative;z-index:1}
 
 /* ── Profile card ── */
-.profile-card {
-  background: rgba(12,17,32,0.9); border: 1px solid var(--border);
-  border-radius: 12px; padding: 32px; margin-bottom: 24px;
-  display: flex; align-items: center; gap: 28px;
-}
-.big-avatar {
-  width: 80px; height: 80px; border-radius: 50%; flex-shrink: 0;
-  background: rgba(68,136,255,0.15); border: 2px solid var(--p1);
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 900;
-  color: var(--p1); overflow: hidden;
-}
-.big-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.profile-info { flex: 1; }
-.profile-name-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.profile-display-name {
-  font-family: 'Orbitron', sans-serif; font-size: 22px;
-  font-weight: 700; color: var(--bright); letter-spacing: 2px;
-}
-.edit-icon {
-  cursor: pointer; color: #3a5060; font-size: 14px; transition: color 0.2s;
-  background: none; border: none; padding: 4px;
-}
-.edit-icon:hover { color: var(--bright); }
-.profile-email { font-size: 11px; color: #3a5060; margin-bottom: 12px; }
-.profile-elo-badge {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: rgba(68,136,255,0.08); border: 1px solid rgba(68,136,255,0.3);
-  border-radius: 4px; padding: 6px 14px;
-}
-.elo-label { font-size: 9px; letter-spacing: 3px; color: #4a6080; }
-.elo-value { font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 700; color: var(--p1); }
+.profile-card{background:rgba(12,17,32,.92);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:20px;display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap}
+/* Avatar area */
+.avatar-wrap{position:relative;flex-shrink:0}
+.big-avatar{width:88px;height:88px;border-radius:50%;background:rgba(68,136,255,.15);border:2px solid var(--p1);display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:30px;font-weight:900;color:var(--p1);overflow:hidden;cursor:pointer;transition:filter .2s}
+.big-avatar:hover{filter:brightness(0.7)}
+.big-avatar img{width:100%;height:100%;object-fit:cover}
+.avatar-hint{font-size:9px;color:#3a5060;text-align:center;margin-top:5px;letter-spacing:.5px;cursor:pointer}
+.avatar-hint:hover{color:var(--text)}
+#avatar-file-input{display:none}
+
+.profile-info{flex:1;min-width:0}
+/* Name row */
+.name-display{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:700;color:var(--bright);letter-spacing:2px;word-break:break-all}
+.name-edit-row{display:none;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.name-edit-row.show{display:flex}
+.form-input{padding:9px 12px;background:rgba(255,255,255,.04);border:1px solid #3a5080;border-radius:4px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;flex:1;min-width:0;transition:border-color .2s;letter-spacing:1px}
+.form-input:focus{border-color:var(--p1)}
+.name-status{font-size:10px;letter-spacing:.5px;margin-top:4px;min-height:15px}
+.name-status.ok{color:var(--green)}.name-status.err{color:var(--p2)}
+.profile-email{font-size:11px;color:#3a5060;margin:6px 0 12px}
+/* Tier display */
+.tier-display{display:inline-flex;align-items:center;gap:12px;padding:10px 16px;border-radius:6px;margin-bottom:4px}
+.tier-name{font-family:'Orbitron',sans-serif;font-size:16px;font-weight:700;letter-spacing:2px}
+.tier-stars{font-size:11px;color:#4a6080;letter-spacing:1px}
+/* Star progress */
+.star-bar-wrap{margin-top:8px}
+.star-bar-label{font-size:10px;color:#4a6080;letter-spacing:1px;margin-bottom:5px;display:flex;justify-content:space-between}
+.star-bar{height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.star-bar-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.star-count-row{display:flex;align-items:center;gap:16px;margin-top:10px;flex-wrap:wrap}
+.star-pill{display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:1px;padding:3px 10px;border-radius:3px}
+
+/* Edit buttons */
+.btn-small{padding:7px 14px;cursor:pointer;border-radius:4px;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;transition:all .15s;border:1px solid var(--border);background:rgba(255,255,255,.03);color:#506070}
+.btn-small:hover{border-color:#3a5080;color:var(--text)}
+.btn-small.green{background:rgba(34,221,119,.1);border-color:rgba(34,221,119,.5);color:var(--green)}
+.btn-small.green:hover{background:rgba(34,221,119,.2)}
+.btn-small.danger{background:rgba(255,68,85,.08);border-color:rgba(255,68,85,.3);color:var(--p2)}
+.btn-small.danger:hover{background:rgba(255,68,85,.18)}
 
 /* ── Stats grid ── */
-.stats-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 12px; margin-bottom: 24px;
-}
-.stat-card {
-  background: rgba(12,17,32,0.8); border: 1px solid var(--border);
-  border-radius: 8px; padding: 20px; text-align: center;
-}
-.stat-n {
-  font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 900;
-  color: var(--bright); display: block; margin-bottom: 4px;
-}
-.stat-l { font-size: 10px; letter-spacing: 2px; color: #4a6080; }
-.stat-card.wins .stat-n   { color: var(--green); }
-.stat-card.losses .stat-n { color: var(--p2); }
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:500px){.stats-grid{grid-template-columns:1fr 1fr}}
+.stat-card{background:rgba(12,17,32,.85);border:1px solid var(--border);border-radius:8px;padding:18px;text-align:center}
+.stat-n{font-family:'Orbitron',sans-serif;font-size:26px;font-weight:900;color:var(--bright);display:block;margin-bottom:4px}
+.stat-l{font-size:10px;letter-spacing:2px;color:#4a6080}
+.stat-card.wins .stat-n{color:var(--green)}.stat-card.losses .stat-n{color:var(--p2)}
 
 /* ── Section ── */
-.section {
-  background: rgba(12,17,32,0.8); border: 1px solid var(--border);
-  border-radius: 10px; padding: 24px; margin-bottom: 16px;
-}
-.section-title {
-  font-family: 'Orbitron', sans-serif; font-size: 10px;
-  letter-spacing: 3px; color: #4a6080; margin-bottom: 20px;
-  padding-bottom: 10px; border-bottom: 1px solid rgba(28,40,64,0.6);
-}
+.section{background:rgba(12,17,32,.85);border:1px solid var(--border);border-radius:10px;padding:22px;margin-bottom:16px}
+.section-title{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:3px;color:#4a6080;margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid rgba(28,40,64,.6)}
+.setting-row{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 0;border-bottom:1px solid rgba(28,40,64,.4)}
+.setting-row:last-child{border-bottom:none;padding-bottom:0}
+.setting-info{flex:1}
+.setting-name{font-size:12px;color:var(--bright);margin-bottom:4px}
+.setting-desc{font-size:11px;color:#4a6080;line-height:1.6}
+.toggle{position:relative;width:44px;height:24px;display:inline-block;cursor:pointer;flex-shrink:0;margin-top:2px}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--border);transition:.2s}
+.toggle input:checked+.toggle-track{background:rgba(68,136,255,.25);border-color:var(--p1)}
+.toggle-thumb{position:absolute;top:4px;left:4px;width:14px;height:14px;border-radius:50%;background:#4a6080;transition:.2s}
+.toggle input:checked~.toggle-thumb{background:var(--p1);transform:translateX(20px)}
 
-/* Settings rows */
-.setting-row {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 20px; padding: 14px 0;
-  border-bottom: 1px solid rgba(28,40,64,0.4);
-}
-.setting-row:last-child { border-bottom: none; padding-bottom: 0; }
-.setting-info { flex: 1; }
-.setting-name { font-size: 12px; color: var(--bright); margin-bottom: 4px; }
-.setting-desc { font-size: 11px; color: #4a6080; line-height: 1.6; }
+/* ── All tiers table ── */
+.tiers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.tier-row{padding:8px 12px;border-radius:5px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);display:flex;align-items:center;gap:8px}
+.tier-row.current-tier{border-width:1px}
+.tier-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.tier-info{flex:1}
+.tier-info-name{font-size:10px;font-family:'Orbitron',sans-serif;letter-spacing:1px}
+.tier-info-range{font-size:9px;color:#3a5060}
+.tier-check{font-size:12px;margin-left:auto}
 
-/* Toggle */
-.toggle { position: relative; width: 44px; height: 24px; display: inline-block; cursor: pointer; flex-shrink: 0; margin-top: 2px; }
-.toggle input { opacity: 0; width: 0; height: 0; }
-.toggle-track { position: absolute; inset: 0; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); transition: 0.2s; }
-.toggle input:checked + .toggle-track { background: rgba(68,136,255,0.25); border-color: var(--p1); }
-.toggle-thumb { position: absolute; top: 4px; left: 4px; width: 14px; height: 14px; border-radius: 50%; background: #4a6080; transition: 0.2s; }
-.toggle input:checked ~ .toggle-thumb { background: var(--p1); transform: translateX(20px); }
+/* ── Match history ── */
+.match-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(28,40,64,.4);font-size:11px;gap:8px;flex-wrap:wrap}
+.match-row:last-child{border-bottom:none}
+.match-result{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;min-width:36px}
+.match-result.win{color:var(--green)}.match-result.loss{color:var(--p2)}
+.match-opp{color:var(--text);flex:1}
+.match-stars{font-size:10px}
+.match-date{color:#2a3850;font-size:10px}
+.no-history{color:#253040;font-size:11px;letter-spacing:1px;text-align:center;padding:20px}
 
-/* Inline name edit */
-.name-edit-row {
-  display: none; align-items: center; gap: 8px; margin-top: 8px;
-}
-.name-edit-row.show { display: flex; }
-.form-input {
-  padding: 8px 12px; background: rgba(255,255,255,0.04);
-  border: 1px solid #3a5080; border-radius: 4px;
-  color: var(--bright); font-family: 'Share Tech Mono', monospace;
-  font-size: 13px; outline: none; flex: 1; letter-spacing: 1px;
-}
-.form-input:focus { border-color: var(--p1); }
-.btn-save {
-  padding: 8px 18px; cursor: pointer;
-  background: rgba(34,221,119,0.1); border: 1px solid var(--green);
-  color: var(--green); font-family: 'Orbitron', sans-serif;
-  font-size: 10px; letter-spacing: 1px; border-radius: 4px; transition: all 0.15s;
-}
-.btn-save:hover { background: rgba(34,221,119,0.2); }
-
-/* Match history */
-.match-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 0; border-bottom: 1px solid rgba(28,40,64,0.4);
-  font-size: 11px;
-}
-.match-row:last-child { border-bottom: none; }
-.match-result { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px; }
-.match-result.win  { color: var(--green); }
-.match-result.loss { color: var(--p2); }
-.match-opp { color: var(--text); }
-.match-elo { color: #4a6080; font-size: 10px; }
-.match-date { color: #2a3850; font-size: 10px; }
-.no-history { color: #253040; font-size: 11px; letter-spacing: 1px; text-align: center; padding: 20px; }
-
-/* Danger zone */
-.btn-danger {
-  padding: 10px 20px; cursor: pointer;
-  background: rgba(255,68,85,0.08); border: 1px solid rgba(255,68,85,0.3);
-  color: var(--p2); font-family: 'Orbitron', sans-serif;
-  font-size: 10px; letter-spacing: 1px; border-radius: 4px; transition: all 0.15s;
-}
-.btn-danger:hover { background: rgba(255,68,85,0.18); }
+/* ── Avatar upload state ── */
+.avatar-uploading{opacity:.5;pointer-events:none}
 </style>
 </head>
 <body>
-
 <header>
-  <a href="index.html" class="logo">HOME<span>W</span>ORLDS</a>
+  <a href="index.html" class="logo">HOME<span>W</span>ORLDS DUEL</a>
   <div class="nav-links">
     <a href="lobby.html" class="nav-link">LOBBY</a>
     <a href="#" class="nav-link" id="btn-signout">SIGN OUT</a>
@@ -180,203 +123,317 @@ header {
 
   <!-- PROFILE CARD -->
   <div class="profile-card">
-    <div class="big-avatar" id="big-avatar"></div>
+    <!-- Avatar -->
+    <div class="avatar-wrap">
+      <div class="big-avatar" id="big-avatar" title="Click to change avatar"></div>
+      <div class="avatar-hint" id="avatar-hint">CLICK TO CHANGE</div>
+      <input type="file" id="avatar-file-input" accept="image/*">
+    </div>
+
+    <!-- Info -->
     <div class="profile-info">
-      <div class="profile-name-row">
-        <div class="profile-display-name" id="display-name">—</div>
-        <button class="edit-icon" id="btn-edit-name" title="Edit name">✎</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <div class="name-display" id="display-name">—</div>
+        <button class="btn-small" id="btn-edit-name">EDIT</button>
       </div>
       <div class="name-edit-row" id="name-edit-row">
-        <input class="form-input" id="name-input" maxlength="24" placeholder="Your callsign">
-        <button class="btn-save" id="btn-save-name">SAVE</button>
-        <button class="btn-save" id="btn-cancel-name" style="border-color:var(--border);color:#506070;background:transparent">✕</button>
+        <input class="form-input" id="name-input" maxlength="24" placeholder="New callsign" autocomplete="off" spellcheck="false">
+        <button class="btn-small green" id="btn-save-name">SAVE</button>
+        <button class="btn-small" id="btn-cancel-name">✕</button>
       </div>
+      <div class="name-status" id="name-status"></div>
+
       <div class="profile-email" id="profile-email"></div>
-      <div class="profile-elo-badge">
-        <span class="elo-label">ELO</span>
-        <span class="elo-value" id="elo-value">—</span>
+
+      <!-- Tier display -->
+      <div class="tier-display" id="tier-display">
+        <span class="tier-name" id="tier-name">—</span>
+        <span class="tier-stars" id="tier-stars-label"></span>
+      </div>
+
+      <!-- Star bar -->
+      <div class="star-bar-wrap">
+        <div class="star-bar-label">
+          <span id="bar-label-l">Progress</span>
+          <span id="bar-label-r"></span>
+        </div>
+        <div class="star-bar"><div class="star-bar-fill" id="star-bar-fill" style="width:0%"></div></div>
+      </div>
+
+      <div class="star-count-row">
+        <div class="star-pill" id="star-pill-total"></div>
+        <div style="font-size:10px;color:#3a5060;letter-spacing:.5px">+1★ win · +2★ beat higher tier</div>
       </div>
     </div>
   </div>
 
   <!-- STATS -->
   <div class="stats-grid">
-    <div class="stat-card">
-      <span class="stat-n" id="stat-total">—</span>
-      <span class="stat-l">GAMES PLAYED</span>
-    </div>
-    <div class="stat-card wins">
-      <span class="stat-n" id="stat-wins">—</span>
-      <span class="stat-l">VICTORIES</span>
-    </div>
-    <div class="stat-card losses">
-      <span class="stat-n" id="stat-losses">—</span>
-      <span class="stat-l">DEFEATS</span>
-    </div>
+    <div class="stat-card"><span class="stat-n" id="stat-total">—</span><span class="stat-l">GAMES PLAYED</span></div>
+    <div class="stat-card wins"><span class="stat-n" id="stat-wins">—</span><span class="stat-l">VICTORIES</span></div>
+    <div class="stat-card losses"><span class="stat-n" id="stat-losses">—</span><span class="stat-l">DEFEATS</span></div>
   </div>
 
   <!-- SETTINGS -->
   <div class="section">
     <div class="section-title">GAME SETTINGS</div>
-
     <div class="setting-row">
       <div class="setting-info">
         <div class="setting-name">ADVANCED MODE</div>
-        <div class="setting-desc">
-          Hides action buttons. Interact entirely by clicking colored stars and ships directly.
-          Best for experienced players. Arrows still work in this mode.
-        </div>
+        <div class="setting-desc">Hides action buttons. Interact entirely by clicking colored stars and ships directly. Best for experienced players.</div>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-advanced">
-        <div class="toggle-track"></div>
-        <div class="toggle-thumb"></div>
-      </label>
+      <label class="toggle"><input type="checkbox" id="toggle-advanced"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
     </div>
-
     <div class="setting-row">
       <div class="setting-info">
         <div class="setting-name">MY HOMEWORLD AT BOTTOM</div>
-        <div class="setting-desc">
-          Your homeworld always renders at the bottom of the board. Currently always on.
-        </div>
+        <div class="setting-desc">Your homeworld always renders at the bottom of the board.</div>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-hwbottom" checked disabled>
-        <div class="toggle-track"></div>
-        <div class="toggle-thumb"></div>
-      </label>
+      <label class="toggle"><input type="checkbox" id="toggle-hwbottom" checked disabled><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
     </div>
+  </div>
+
+  <!-- ALL TIERS -->
+  <div class="section">
+    <div class="section-title">RANK TIERS</div>
+    <div class="tiers-grid" id="tiers-grid"></div>
   </div>
 
   <!-- MATCH HISTORY -->
   <div class="section">
     <div class="section-title">RECENT MATCHES</div>
-    <div id="match-history">
-      <div class="no-history">No matches recorded yet.</div>
-    </div>
+    <div id="match-history"><div class="no-history">No matches recorded yet.</div></div>
   </div>
 
-  <!-- DANGER ZONE -->
+  <!-- ACCOUNT -->
   <div class="section">
     <div class="section-title">ACCOUNT</div>
     <div class="setting-row">
       <div class="setting-info">
         <div class="setting-name">SIGN OUT</div>
-        <div class="setting-desc">Sign out from this device. Your data is saved.</div>
+        <div class="setting-desc">Sign out from this device. Your rank and history are saved.</div>
       </div>
-      <button class="btn-danger" id="btn-signout2">SIGN OUT</button>
+      <button class="btn-small danger" id="btn-signout2">SIGN OUT</button>
     </div>
   </div>
 
 </div>
 
 <script type="module">
-import { initializeApp }       from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getAuth, signOut,
-         onAuthStateChanged }  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getDatabase, ref,
-         get, update, onValue } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-import { firebaseConfig }      from './firebase-config.js';
+import { initializeApp }      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getDatabase,ref,get,set,update,onValue } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { firebaseConfig } from './firebase-config.js';
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getDatabase(app);
 
-let ME   = null;
-let USER = null;
+// ── Tier system ──────────────────────────────────────────────
+const TIERS=[
+  {name:'Iron',min:0,max:4,color:'#8a9bb0',bg:'rgba(138,155,176,.12)'},
+  {name:'Bronze',min:5,max:9,color:'#cd7f32',bg:'rgba(205,127,50,.12)'},
+  {name:'Silver',min:10,max:14,color:'#c0c0c0',bg:'rgba(192,192,192,.12)'},
+  {name:'Gold',min:15,max:19,color:'#ffd700',bg:'rgba(255,215,0,.12)'},
+  {name:'Platinum',min:20,max:24,color:'#00d4ff',bg:'rgba(0,212,255,.12)'},
+  {name:'Emerald',min:25,max:29,color:'#22dd77',bg:'rgba(34,221,119,.12)'},
+  {name:'Diamond',min:30,max:34,color:'#b9f2ff',bg:'rgba(185,242,255,.12)'},
+  {name:'Master',min:35,max:39,color:'#9b59b6',bg:'rgba(155,89,182,.12)'},
+  {name:'Grandmaster',min:40,max:44,color:'#ff6b35',bg:'rgba(255,107,53,.12)'},
+  {name:'Star Captain',min:45,max:Infinity,color:'#ffcc00',bg:'rgba(255,204,0,.12)'},
+];
+function getTier(s=0){return TIERS.find(t=>s>=t.min&&s<=t.max)||TIERS[0]}
+function tierPct(s){const t=getTier(s);const span=t.max===Infinity?5:(t.max-t.min+1);return Math.min(((s-t.min)/span)*100,100)}
+
+let ME=null, USER=null, _nameCheckTimer=null;
 
 // ── Auth guard ───────────────────────────────────────────────
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { window.location.href = 'index.html'; return; }
-  USER = user;
-  await loadProfile(user);
+onAuthStateChanged(auth, async user => {
+  if (!user){window.location.href='index.html';return;}
+  USER=user;
+  const snap=await get(ref(db,`players/${user.uid}`));
+  ME=snap.val();
+  if (!ME){window.location.href='index.html';return;}
+  renderProfile(user);
+  loadHistory(user.uid);
 });
 
-async function loadProfile(user) {
-  const snap = await get(ref(db, `players/${user.uid}`));
-  ME = snap.val();
-  if (!ME) { window.location.href = 'index.html'; return; }
-
+function renderProfile(user){
   // Avatar
-  const av = document.getElementById('big-avatar');
-  if (user.photoURL) av.innerHTML = `<img src="${user.photoURL}" alt="">`;
-  else av.textContent = ME.name[0].toUpperCase();
+  const av=document.getElementById('big-avatar');
+  const avatar=ME.avatarBase64||ME.avatarUrl||'';
+  if (avatar) av.innerHTML=`<img src="${avatar}" alt="">`;
+  else av.textContent=ME.name[0].toUpperCase();
 
-  // Name + email
-  document.getElementById('display-name').textContent  = ME.name;
-  document.getElementById('name-input').value          = ME.name;
-  document.getElementById('profile-email').textContent = user.email || '';
-  document.getElementById('elo-value').textContent     = ME.elo;
+  document.getElementById('display-name').textContent=ME.name;
+  document.getElementById('name-input').value=ME.name;
+  document.getElementById('profile-email').textContent=user.email||'';
+
+  // Tier
+  const stars=ME.stars||0;
+  const t=getTier(stars);
+  const td=document.getElementById('tier-display');
+  td.style.background=t.bg;
+  td.style.border=`1px solid ${t.color}30`;
+  document.getElementById('tier-name').textContent=t.name.toUpperCase();
+  document.getElementById('tier-name').style.color=t.color;
+  document.getElementById('tier-stars-label').textContent=`${stars} ★`;
+
+  // Progress bar
+  const pct=tierPct(stars);
+  document.getElementById('star-bar-fill').style.width=pct+'%';
+  document.getElementById('star-bar-fill').style.background=t.color;
+  const nextTierIdx=TIERS.indexOf(t)+1;
+  const nextTier=TIERS[nextTierIdx];
+  document.getElementById('bar-label-l').textContent=nextTier?`→ ${nextTier.name}`:'MAX TIER';
+  document.getElementById('bar-label-r').textContent=nextTier?`${nextTier.min-stars} more ★`:'';
+  document.getElementById('star-pill-total').innerHTML=`<span style="color:${t.color};font-size:14px">★</span><span style="color:var(--bright)">${stars} total stars</span>`;
+  document.getElementById('star-pill-total').style.cssText=`background:${t.bg};border:1px solid ${t.color}30;display:inline-flex;align-items:center;gap:5px;font-size:11px;letter-spacing:.5px;padding:4px 10px;border-radius:3px`;
 
   // Stats
-  const total = (ME.wins || 0) + (ME.losses || 0);
-  document.getElementById('stat-total').textContent  = total;
-  document.getElementById('stat-wins').textContent   = ME.wins   || 0;
-  document.getElementById('stat-losses').textContent = ME.losses || 0;
+  const total=(ME.wins||0)+(ME.losses||0);
+  document.getElementById('stat-total').textContent=total;
+  document.getElementById('stat-wins').textContent=ME.wins||0;
+  document.getElementById('stat-losses').textContent=ME.losses||0;
 
-  // Settings toggles
-  document.getElementById('toggle-advanced').checked = !!ME.advancedMode;
+  // Toggle
+  document.getElementById('toggle-advanced').checked=!!ME.advancedMode;
 
-  // Match history
-  loadHistory(user.uid);
+  // All tiers table
+  const grid=document.getElementById('tiers-grid');
+  grid.innerHTML='';
+  TIERS.forEach(tier=>{
+    const isCurrent=tier.name===t.name;
+    const achieved=stars>=tier.min;
+    const row=document.createElement('div');
+    row.className='tier-row'+(isCurrent?' current-tier':'');
+    if (isCurrent) row.style.cssText=`border-color:${tier.color}50;background:${tier.bg}`;
+    row.innerHTML=`
+      <div class="tier-dot" style="background:${tier.color};opacity:${achieved?1:.3}"></div>
+      <div class="tier-info">
+        <div class="tier-info-name" style="color:${achieved?tier.color:'#3a5060'}">${tier.name.toUpperCase()}</div>
+        <div class="tier-info-range">${tier.max===Infinity?tier.min+'+ ★':tier.min+'–'+tier.max+' ★'}</div>
+      </div>
+      ${isCurrent?'<span class="tier-check">◀</span>':''}
+    `;
+    grid.appendChild(row);
+  });
 }
 
-// ── Name editing ─────────────────────────────────────────────
-document.getElementById('btn-edit-name').onclick = () => {
+// ── Avatar upload ─────────────────────────────────────────────
+document.getElementById('big-avatar').onclick=()=>document.getElementById('avatar-file-input').click();
+document.getElementById('avatar-hint').onclick=()=>document.getElementById('avatar-file-input').click();
+document.getElementById('avatar-file-input').onchange=async e=>{
+  const file=e.target.files[0];
+  if (!file) return;
+  if (file.size>2*1024*1024){alert('Image too large — please use a file under 2MB.');return;}
+  const av=document.getElementById('big-avatar');
+  av.classList.add('avatar-uploading');
+  av.textContent='…';
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    // Resize to max 200x200 via canvas
+    const img=new Image();
+    img.onload=async()=>{
+      const canvas=document.createElement('canvas');
+      const max=200;
+      const scale=Math.min(max/img.width,max/img.height,1);
+      canvas.width=img.width*scale;
+      canvas.height=img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      const b64=canvas.toDataURL('image/jpeg',.8);
+      try{
+        await update(ref(db,`players/${USER.uid}`),{avatarBase64:b64});
+        ME.avatarBase64=b64;
+        av.innerHTML=`<img src="${b64}" alt="">`;
+      }catch(err){alert('Could not save avatar: '+err.message);}
+      av.classList.remove('avatar-uploading');
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+// ── Name editing ──────────────────────────────────────────────
+document.getElementById('btn-edit-name').onclick=()=>{
   document.getElementById('name-edit-row').classList.add('show');
   document.getElementById('name-input').focus();
 };
-document.getElementById('btn-cancel-name').onclick = () => {
+document.getElementById('btn-cancel-name').onclick=()=>{
   document.getElementById('name-edit-row').classList.remove('show');
-};
-document.getElementById('btn-save-name').onclick = async () => {
-  const newName = document.getElementById('name-input').value.trim();
-  if (!newName || newName.length < 2) { alert('Name must be at least 2 characters.'); return; }
-  await update(ref(db, `players/${USER.uid}`), { name: newName });
-  ME.name = newName;
-  document.getElementById('display-name').textContent = newName;
-  document.getElementById('name-edit-row').classList.remove('show');
+  document.getElementById('name-status').textContent='';
 };
 
-// ── Settings ─────────────────────────────────────────────────
-document.getElementById('toggle-advanced').onchange = async function() {
-  await update(ref(db, `players/${USER.uid}`), { advancedMode: this.checked });
+const nameInput=document.getElementById('name-input');
+const nameStatus=document.getElementById('name-status');
+nameInput.addEventListener('input',()=>{
+  const val=nameInput.value.trim();
+  nameStatus.className='name-status';
+  nameStatus.textContent='';
+  clearTimeout(_nameCheckTimer);
+  if (val===ME.name){nameStatus.textContent='';return;}
+  if (val.length<2){nameStatus.className='name-status err';nameStatus.textContent='Min 2 characters';return;}
+  if (!/^[a-zA-Z0-9_\-]+$/.test(val)){nameStatus.className='name-status err';nameStatus.textContent='Letters, numbers, _ and - only';return;}
+  nameStatus.textContent='Checking…';
+  _nameCheckTimer=setTimeout(async()=>{
+    const snap=await get(ref(db,`usernames/${val.toLowerCase()}`));
+    if (snap.exists()&&snap.val()!==USER.uid){
+      nameStatus.className='name-status err';nameStatus.textContent='✗ Already taken';
+    } else {
+      nameStatus.className='name-status ok';nameStatus.textContent='✓ Available';
+    }
+  },500);
+});
+
+document.getElementById('btn-save-name').onclick=async()=>{
+  const newName=nameInput.value.trim();
+  if (!newName||newName.length<2){alert('Name too short.');return;}
+  if (!/^[a-zA-Z0-9_\-]+$/.test(newName)){alert('Invalid characters.');return;}
+  const oldKey=ME.name.toLowerCase(), newKey=newName.toLowerCase();
+  if (oldKey!==newKey){
+    const snap=await get(ref(db,`usernames/${newKey}`));
+    if (snap.exists()&&snap.val()!==USER.uid){alert('Username already taken.');return;}
+    await set(ref(db,`usernames/${oldKey}`),null);
+    await set(ref(db,`usernames/${newKey}`),USER.uid);
+  }
+  await update(ref(db,`players/${USER.uid}`),{name:newName});
+  ME.name=newName;
+  document.getElementById('display-name').textContent=newName;
+  document.getElementById('name-edit-row').classList.remove('show');
+  nameStatus.textContent='';
+};
+
+// ── Settings ──────────────────────────────────────────────────
+document.getElementById('toggle-advanced').onchange=async function(){
+  await update(ref(db,`players/${USER.uid}`),{advancedMode:this.checked});
 };
 
 // ── Match history ─────────────────────────────────────────────
-async function loadHistory(uid) {
-  const snap = await get(ref(db, `matchHistory/${uid}`));
-  const container = document.getElementById('match-history');
-  if (!snap.exists()) return; // keep "no matches" text
-
-  const matches = Object.values(snap.val()).sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
-  container.innerHTML = '';
-  matches.forEach(m => {
-    const row = document.createElement('div');
-    row.className = 'match-row';
-    const eloStr = m.eloDelta >= 0 ? `+${m.eloDelta}` : `${m.eloDelta}`;
-    const date   = new Date(m.timestamp).toLocaleDateString();
-    row.innerHTML = `
+async function loadHistory(uid){
+  const snap=await get(ref(db,`matchHistory/${uid}`));
+  const container=document.getElementById('match-history');
+  if (!snap.exists()) return;
+  const matches=Object.values(snap.val()).sort((a,b)=>b.timestamp-a.timestamp).slice(0,20);
+  container.innerHTML='';
+  matches.forEach(m=>{
+    const row=document.createElement('div');
+    row.className='match-row';
+    const starsStr=m.starsAwarded>0?`+${m.starsAwarded}★`:'—';
+    row.innerHTML=`
       <span class="match-result ${m.result}">${m.result.toUpperCase()}</span>
-      <span class="match-opp">vs ${escHtml(m.opponentName)}</span>
-      <span class="match-elo" style="color:${m.eloDelta >= 0 ? 'var(--green)' : 'var(--p2)'}">${eloStr} ELO</span>
-      <span class="match-date">${date}</span>`;
+      <span class="match-opp">vs ${esc(m.opponentName)}</span>
+      <span class="match-stars" style="color:${m.starsAwarded>0?'var(--green)':'#3a5060'}">${starsStr}</span>
+      <span class="match-date">${new Date(m.timestamp).toLocaleDateString()}</span>`;
     container.appendChild(row);
   });
 }
 
-// ── Sign out ─────────────────────────────────────────────────
-async function doSignOut() {
-  await signOut(auth);
-  window.location.href = 'index.html';
-}
-document.getElementById('btn-signout').onclick  = (e) => { e.preventDefault(); doSignOut(); };
-document.getElementById('btn-signout2').onclick = doSignOut;
+// ── Sign out ──────────────────────────────────────────────────
+async function doSignOut(){await signOut(auth);window.location.href='index.html';}
+document.getElementById('btn-signout').onclick =e=>{e.preventDefault();doSignOut()};
+document.getElementById('btn-signout2').onclick=doSignOut;
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 </script>
 </body>
 </html>
