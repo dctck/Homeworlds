@@ -6,115 +6,978 @@
 <title>Homeworlds — Review</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
+
 :root {
-  --red:#ff3344;--blue:#2266ff;--yellow:#ffcc00;--green:#22dd77;
-  --bg:#060912;--panel:#0c1120;--border:#1c2840;
-  --text:#a8c0e0;--bright:#ddeeff;
+  --red: #ff3344; --blue: #2266ff; --yellow: #ffcc00; --green: #22dd77;
+  --bg: #060912; --panel: #0c1120; --border: #1c2840;
+  --text: #a8c0e0; --bright: #ddeeff;
+  --glow-valid: #ffff00; --glow-select: #ffffff; --glow-danger: #ff4444;
+  /* Font scale: min 12, steps of 4 */
+  --fs-xs: 12px; --fs-sm: 12px; --fs-md: 16px; --fs-lg: 20px; --fs-xl: 24px;
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden}
-body{font-family:'Share Tech Mono',monospace;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
-
-/* Starfield */
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background-image:radial-gradient(circle at 15% 20%,rgba(255,255,255,.5) 1px,transparent 1px),
-  radial-gradient(circle at 55% 10%,rgba(255,255,255,.4) 1px,transparent 1px),
-  radial-gradient(circle at 72% 80%,rgba(255,255,255,.5) 1px,transparent 1px),
-  radial-gradient(circle at 88% 35%,rgba(255,255,255,.3) 1px,transparent 1px),
-  radial-gradient(circle at 42% 42%,rgba(255,255,255,.2) 1px,transparent 1px),
-  radial-gradient(circle at 67% 55%,rgba(255,255,255,.4) 1px,transparent 1px),
-  radial-gradient(circle at 22% 78%,rgba(255,255,255,.3) 1px,transparent 1px),
-  radial-gradient(circle at 90% 10%,rgba(255,255,255,.5) 1px,transparent 1px);
-  background-size:800px 800px}
-
-/* ── Top bar ── */
-#top-bar{
-  display:flex;align-items:center;gap:12px;padding:10px 16px;
-  background:var(--panel);border-bottom:1px solid var(--border);
-  position:relative;z-index:2;flex-shrink:0;
-}
-#top-title{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:3px;color:#4a6080;text-transform:uppercase}
-#top-game-info{font-size:11px;color:#2a3850;flex:1}
-#btn-back-lobby{padding:7px 16px;background:transparent;border:1px solid var(--border);color:#4a6080;
-  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:4px;
-  margin-left:auto;transition:all .15s}
-#btn-back-lobby:hover{color:var(--bright);border-color:#3a5080}
-
-/* ── Nav bar ── */
-#nav-bar{
-  display:flex;align-items:center;justify-content:center;gap:8px;
-  padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border);
-  position:relative;z-index:2;flex-shrink:0;
-}
-.nav-btn{
-  width:40px;height:36px;display:flex;align-items:center;justify-content:center;
-  background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:4px;
-  color:var(--text);cursor:pointer;font-size:15px;transition:all .15s;
-}
-.nav-btn:hover:not(:disabled){background:rgba(255,255,255,.08);border-color:#3a5080;color:var(--bright)}
-.nav-btn:disabled{opacity:.2;cursor:not-allowed}
-#turn-indicator{
-  font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;
-  color:#4a6080;padding:0 16px;min-width:160px;text-align:center;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { min-width: 370px; }
+/* height managed per breakpoint */
+body {
+  font-family: 'Share Tech Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  /* Desktop: 3-col grid — bank sits above sidebar in col 1 */
+  display: grid;
+  grid-template-columns: 264px 1fr 264px;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "bank  board right"
+    "side  board right"
+    "btns  board right";
+  overflow: hidden;
 }
 
-/* ── Main layout ── */
-#main{display:flex;flex:1;overflow:hidden;position:relative;z-index:1}
-
-/* ── Board ── */
-#board{
-  flex:1;display:flex;flex-direction:column;
-  padding:16px;gap:12px;overflow-y:auto;
+/* === STARFIELD === */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 35% 65%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 55% 10%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 72% 80%, rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 88% 35%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 5%  90%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 42% 42%, rgba(255,255,255,0.2) 1px, transparent 1px),
+    radial-gradient(circle at 67% 55%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 22% 78%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 90% 10%, rgba(255,255,255,0.5) 1px, transparent 1px);
+  background-size: 800px 800px;
 }
-#zone-p2{min-height:140px;display:flex;justify-content:center;align-items:center;gap:16px}
-#zone-mid{flex:1;display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:14px;min-height:80px}
-#zone-p1{min-height:140px;display:flex;justify-content:center;align-items:center;gap:16px}
-.zone-label{font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:3px;color:#2a3850;text-transform:uppercase;margin-bottom:6px;text-align:center}
 
-/* ── Log panel ── */
-#log-panel{
-  width:220px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);
-  display:flex;flex-direction:column;
+/* === BANK === */
+#bank-section {
+  grid-area: bank;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+  z-index: 1;
+  position: relative;
 }
-#log-header{padding:12px 14px 8px;border-bottom:1px solid var(--border);
-  font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:3px;color:#506080;text-transform:uppercase}
-#log-entries{flex:1;overflow-y:auto;padding:8px 0}
-#log-entries::-webkit-scrollbar{width:4px}
-#log-entries::-webkit-scrollbar-thumb{background:#1c2840}
-.log-turn{padding:6px 14px;border-bottom:1px solid rgba(255,255,255,.03);cursor:pointer;transition:background .1s}
-.log-turn:hover{background:rgba(255,255,255,.03)}
-.log-turn.active{background:rgba(255,204,0,.06);border-left:2px solid rgba(255,204,0,.5)}
-.log-turn.active .log-turn-num{color:#ffcc00}
-.log-turn-header{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-.log-turn-num{font-family:'Orbitron',sans-serif;font-size:8px;color:#304050;letter-spacing:1px;min-width:20px}
-.log-player-badge{font-size:8px;font-family:'Orbitron',sans-serif;font-weight:700;padding:1px 5px;border-radius:2px;letter-spacing:1px}
-.log-player-badge.p1{background:rgba(68,136,255,.2);color:#5599ff;border:1px solid rgba(68,136,255,.3)}
-.log-player-badge.p2{background:rgba(255,68,85,.2);color:#ff6677;border:1px solid rgba(255,68,85,.3)}
-.log-action-line{font-family:'Share Tech Mono',monospace;font-size:10px;color:#4a6478;line-height:1.7;white-space:pre}
-.log-action-line .kw{color:#7090a8}
-.log-action-line .pr{color:#cc2233}
-.log-action-line .pb{color:#2255cc}
-.log-action-line .py{color:#ccaa00}
-.log-action-line .pg{color:#1aaa55}
 
-/* ── System card ── (same as game.html) ── */
-.system-card{
-  background:rgba(12,18,38,.9);border:1px solid var(--border);border-radius:8px;
-  padding:10px 12px;min-width:130px;max-width:200px;position:relative;
+/* === SIDEBAR === */
+#sidebar {
+  grid-area: side;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: relative; z-index: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
-.system-card.homeworld-1{border-color:rgba(34,102,255,.3);box-shadow:0 0 10px rgba(34,102,255,.08)}
-.system-card.homeworld-2{border-color:rgba(255,51,68,.3);box-shadow:0 0 10px rgba(255,51,68,.08)}
-.sys-name{font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:2px;color:#4a6080;margin-bottom:8px;text-transform:uppercase}
-.sys-stars{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;min-height:28px;align-items:center}
-.sys-ships{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;min-height:32px}
-.ship-wrap{display:inline-flex;align-items:center;justify-content:center;position:relative}
+#player-bar {
+  background: linear-gradient(135deg, #0a1428 0%, #0d1835 100%);
+  border-bottom: 2px solid var(--border);
+  padding: 12px 16px;
+}
+#player-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-md); font-weight: 700; letter-spacing: 2px;
+  color: var(--bright); margin-bottom: 4px;
+}
+#guide-text { font-size: var(--fs-xs); color: #7090b0; line-height: 1.5; min-height: 36px; }
 
-/* ── Loading overlay ── */
-#loading{position:fixed;inset:0;background:rgba(6,9,18,.95);z-index:100;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
-.spinner{width:40px;height:40px;border:2px solid #1c2840;border-top-color:#2266ff;border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-#loading-msg{font-family:'Orbitron',sans-serif;font-size:12px;color:#4a6080;letter-spacing:2px}
+/* === BANK === */
+#bank-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-xs); letter-spacing: 3px; color: #506080; margin-bottom: 10px; text-transform: uppercase;
+}
+#bank-grid { display: grid; gap: 3px; }
+.bank-header { font-size: var(--fs-xs); color: #405060; text-align: center; padding: 2px; letter-spacing: 1px; text-transform: uppercase; }
+.bank-color-label { font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; display: flex; align-items: center; padding-left: 2px; }
+.bank-cell {
+  aspect-ratio: 1;   /* always square */
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(255,255,255,0.02); border-radius: 4px; border: 1px solid rgba(255,255,255,0.04);
+  transition: border-color 0.2s, background 0.2s;
+  padding-bottom: 4px; position: relative; overflow: hidden;
+}
+.bank-cell.clickable { border-color: rgba(255,255,0,0.5); background: rgba(255,255,0,0.05); cursor: pointer; }
+.bank-cell.clickable:hover { background: rgba(255,255,0,0.12); }
+.bank-cell.not-clickable { cursor: default; }
+.bank-stack { position: relative; width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.bank-piece-wrap { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); }
+.bank-piece-wrap:nth-child(2) { bottom: 10px; }
+.bank-piece-wrap:nth-child(3) { bottom: 18px; }
+/* Scale ship images in bank to always fit inside square cells */
+.bank-cell img { max-height: 52%; width: auto; display: block; }
+
+/* === ACTION PANEL === */
+#action-section { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
+.action-btn {
+  width: 100%; padding: 10px 12px; cursor: pointer;
+  background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
+  color: var(--text); font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase;
+  border-radius: 4px; transition: all 0.15s; text-align: left;
+}
+.action-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); border-color: #3a5080; color: var(--bright); }
+.action-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+.action-btn.active { background: rgba(255,255,0,0.1); border-color: var(--glow-valid); color: #ffff80; }
+.action-btn.sac { border-color: #8855cc; color: #bb88ff; }
+.sep { height: 1px; background: var(--border); margin: 4px 0; }
+#sac-counter {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); color: #bb88ff;
+  text-align: center; padding: 6px; background: rgba(136,85,204,0.08);
+  border-radius: 4px; border: 1px solid rgba(136,85,204,0.3); display: none;
+}
+#catastrophe-panel { display: flex; flex-direction: column; gap: 6px; }
+.catastrophe-alert {
+  border: 1px solid #ff6600; background: rgba(255,102,0,0.08);
+  border-radius: 5px; padding: 8px 10px;
+  animation: pulse-cata 1.4s ease-in-out infinite;
+}
+@keyframes pulse-cata {
+  0%,100% { box-shadow: 0 0 6px rgba(255,102,0,0.3); }
+  50% { box-shadow: 0 0 16px rgba(255,102,0,0.7); }
+}
+.catastrophe-header {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-xs); letter-spacing: 2px; color: #ff9933; margin-bottom: 6px; text-transform: uppercase;
+}
+.catastrophe-info { font-size: var(--fs-xs); color: #cc7740; margin-bottom: 8px; line-height: 1.5; }
+.catastrophe-btn {
+  width: 100%; padding: 8px; cursor: pointer;
+  background: rgba(255,102,0,0.15); border: 1px solid #ff6600;
+  color: #ff9933; font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); letter-spacing: 1px; border-radius: 3px;
+  transition: all 0.15s; text-align: center;
+}
+.catastrophe-btn:hover { background: rgba(255,102,0,0.3); color: #ffbb66; box-shadow: 0 0 12px rgba(255,102,0,0.5); }
+
+/* === BOTTOM BUTTONS === */
+#bottom-btns {
+  grid-area: btns;
+  padding: 10px 12px; border-top: 1px solid var(--border);
+  display: grid; grid-template-columns: 44px 1fr; gap: 8px;
+  background: var(--panel);
+  position: relative; z-index: 1;
+  border-right: 1px solid var(--border);
+}
+#btn-forfeit { font-size: 20px; padding: 6px 0; color: #5a3040; border-color: #3a1a22; letter-spacing: 0; }
+#btn-forfeit:hover:not(:disabled) { color: #cc3344; border-color: #cc3344; background: rgba(200,50,60,0.1); }
+.ctrl-btn {
+  padding: 10px; border: 1px solid #2a3a52; background: rgba(255,255,255,0.04);
+  color: #7090a8; font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); cursor: pointer; border-radius: 4px;
+  letter-spacing: 1px; transition: all 0.15s; position: relative; overflow: hidden;
+}
+.ctrl-btn:hover:not(:disabled) { color: var(--bright); border-color: #3a5080; background: rgba(255,255,255,0.08); }
+.ctrl-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+/* btn-end hidden — end turn is via the homeworld turn token */
+#btn-end { display: none !important; }
+
+/* === RIGHT PANEL === */
+#right-panel {
+  grid-area: right;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: relative; z-index: 1;
+}
+
+/* Player cards */
+.player-card {
+  padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative;
+  transition: background 0.2s;
+}
+.player-card.active-card { background: rgba(255,255,255,0.03); }
+/* Active glow strip on left edge */
+.player-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  border-radius: 0 1px 1px 0; opacity: 0; transition: opacity 0.2s;
+}
+.player-card.active-card::before { opacity: 1; }
+#pcard-1::before, #pcard-1m::before { background: #4488ff; box-shadow: 0 0 8px #4488ff; }
+#pcard-2::before, #pcard-2m::before { background: #ff4455; box-shadow: 0 0 8px #ff4455; }
+/* Blink left bar on active turn */
+@keyframes bar-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.player-card.active-card.blink-bar::before {
+  animation: bar-blink 1.4s ease-in-out infinite;
+}
+.pcard-avatar {
+  width: 40px; height: 40px; border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-md); font-weight: 900;
+  border: 2px solid transparent; overflow: hidden;
+  background: linear-gradient(135deg, #0d1835, #1a2850);
+}
+.pcard-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pcard-avatar.p1 { border-color: rgba(68,136,255,0.5); color: #4488ff; }
+.pcard-avatar.p2 { border-color: rgba(255,68,85,0.5); color: #ff4455; }
+.pcard-info { flex: 1; min-width: 0; }
+.pcard-name {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 1px; color: var(--bright);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pcard-elo { font-size: var(--fs-xs); color: #506070; margin-top: 2px; }
+.pcard-timer-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.pcard-timer {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-lg); font-weight: 700;
+  letter-spacing: 1px; color: #253040; min-width: 60px; text-align: right; flex-shrink: 0;
+  transition: color 0.3s;
+}
+.pcard-timer.active.p1 { color: #88bbff; text-shadow: 0 0 10px rgba(68,136,255,0.5); }
+.pcard-timer.active.p2 { color: #ff8899; text-shadow: 0 0 10px rgba(255,68,85,0.5); }
+.pcard-timer.urgent { animation: timer-low 0.7s ease-in-out infinite; }
+@keyframes timer-low { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* Gear + forfeit icons on player cards */
+.pcard-gear {
+  background: none; border: none; cursor: pointer; color: #3a5070;
+  font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s;
+  flex-shrink: 0; line-height: 1;
+}
+.pcard-gear:hover { color: #7090b0; }
+.pcard-forfeit {
+  background: none; border: none; cursor: pointer; color: #5a3040;
+  font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s;
+  flex-shrink: 0; line-height: 1;
+}
+.pcard-forfeit:hover { color: #cc3344; }
+
+/* Game log */
+#log-panel { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
+#log-header {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); letter-spacing: 3px;
+  color: #6a8aaa; text-transform: uppercase; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+#log-turn-count { color: #4a6070; }
+#log-entries { flex:1; overflow-y:auto; padding: 4px 0; scroll-behavior:smooth; }
+#log-entries::-webkit-scrollbar { width: 4px; }
+#log-entries::-webkit-scrollbar-thumb { background: #1c2840; }
+
+/* === CHAT === */
+#chat-panel { flex-shrink: 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; max-height: 220px; }
+#chat-header {
+  padding: 8px 12px; display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none; flex-shrink: 0;
+}
+#chat-header-label {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); letter-spacing: 2px;
+  color: #6a8aaa; text-transform: uppercase;
+}
+#chat-toggle { font-size: var(--fs-xs); color: #5a7090; transition: transform 0.2s; }
+#chat-toggle.open { transform: rotate(180deg); }
+#chat-body { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
+#chat-body.collapsed { display: none; }
+#chat-messages {
+  flex: 1; overflow-y: auto; padding: 6px 10px;
+  min-height: 60px; max-height: 130px; scroll-behavior: smooth;
+}
+#chat-messages::-webkit-scrollbar { width: 3px; }
+#chat-messages::-webkit-scrollbar-thumb { background: #1c2840; }
+.chat-msg { font-size: var(--fs-xs); line-height: 1.5; padding: 2px 0; }
+.chat-msg .cm-who { font-weight: bold; margin-right: 4px; }
+.chat-msg .cm-who.p1 { color: #4477dd; }
+.chat-msg .cm-who.p2 { color: #cc4455; }
+.chat-msg .cm-text { color: #6080a0; word-break: break-word; }
+.chat-msg.system .cm-text { color: #2a3a4a; font-style: italic; }
+#chat-input-row { display: flex; gap: 4px; padding: 6px 8px; border-top: 1px solid var(--border); flex-shrink: 0; }
+#chat-input {
+  flex: 1; padding: 6px 8px;
+  background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
+  border-radius: 3px; color: var(--text); font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); outline: none;
+}
+#chat-input:focus { border-color: #2a3a5a; }
+#chat-send {
+  padding: 6px 10px; background: rgba(255,255,255,0.04); border: 1px solid #1c2840;
+  color: #506070; font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
+  cursor: pointer; border-radius: 3px; transition: all 0.15s; flex-shrink: 0;
+}
+#chat-send:hover { border-color: #2a3a5a; color: var(--text); }
+
+/* === GAME BOARD === */
+#board {
+  grid-area: board;
+  display: flex; flex-direction: column;
+  padding: 12px 16px; gap: 0; position: relative; z-index: 1; overflow-y: auto;
+}
+.zone-hw-area { padding: 4px 0 6px; }
+#zone-p2 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
+#zone-p1 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
+/* Mid zone: rows ordered by BFS distance from P2 → P1 */
+#zone-mid {
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 0; min-height: 60px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding: 4px 0;
+}
+.dist-row {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 12px; padding: 6px 0;
+}
+.dist-row + .dist-row { border-top: 1px solid rgba(255,255,255,0.03); }
+.zone-label { font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); letter-spacing: 3px; color: #4a6080; text-transform: uppercase; margin-bottom: 6px; }
+
+/* === SYSTEM CARD === */
+.system-card {
+  background: rgba(0,0,0,0.85);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+  min-width: 140px; max-width: 320px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.system-card.homeworld-1 { border-color: rgba(34,102,255,0.3); box-shadow: 0 0 10px rgba(34,102,255,0.08); }
+.system-card.homeworld-2 { border-color: rgba(255,51,68,0.3); box-shadow: 0 0 10px rgba(255,51,68,0.08); }
+.system-card.active-turn-p1 {
+  border: 2px solid #4488ff !important;
+  box-shadow: 0 0 0 2px rgba(68,136,255,0.4), 0 0 28px rgba(68,136,255,0.55) !important;
+  animation: pulse-turn-p1 1.5s ease-in-out infinite;
+}
+.system-card.active-turn-p2 {
+  border: 2px solid #ff4455 !important;
+  box-shadow: 0 0 0 2px rgba(255,68,85,0.4), 0 0 28px rgba(255,68,85,0.55) !important;
+  animation: pulse-turn-p2 1.5s ease-in-out infinite;
+}
+@keyframes pulse-turn-p1 {
+  0%,100% { box-shadow: 0 0 0 2px rgba(68,136,255,0.5), 0 0 20px rgba(68,136,255,0.5); }
+  50%      { box-shadow: 0 0 0 3px rgba(136,187,255,0.8), 0 0 40px rgba(68,136,255,0.9); }
+}
+@keyframes pulse-turn-p2 {
+  0%,100% { box-shadow: 0 0 0 2px rgba(255,68,85,0.5), 0 0 20px rgba(255,68,85,0.5); }
+  50%      { box-shadow: 0 0 0 3px rgba(255,136,153,0.8), 0 0 40px rgba(255,68,85,0.9); }
+}
+.system-card.valid-move-target {
+  border-color: var(--glow-valid) !important;
+  box-shadow: 0 0 12px rgba(255,255,0,0.35) !important;
+  cursor: pointer; animation: pulse-valid 1.2s ease-in-out infinite;
+}
+.system-card.valid-move-target:hover { box-shadow: 0 0 20px rgba(255,255,0,0.6) !important; }
+@keyframes pulse-valid {
+  0%,100% { box-shadow: 0 0 10px rgba(255,255,0,0.3); }
+  50% { box-shadow: 0 0 22px rgba(255,255,0,0.6); }
+}
+.sys-name {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); letter-spacing: 2px;
+  color: #4a6080; margin-bottom: 8px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.turn-marker {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--fs-xs); font-family: 'Orbitron', sans-serif; font-weight: 900;
+  padding: 2px 6px; border-radius: 2px; letter-spacing: 1px;
+  animation: pulse-marker 1.2s ease-in-out infinite;
+}
+.turn-marker.p1 { color: #000a22; background: #4488ff; box-shadow: 0 0 10px #4488ff; }
+.turn-marker.p2 { color: #220005; background: #ff4455; box-shadow: 0 0 10px #ff4455; }
+@keyframes pulse-marker {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px currentColor; }
+  50% { opacity: 0.7; box-shadow: 0 0 16px currentColor; }
+}
+.sys-stars { display: flex; gap: 6px; flex-wrap: nowrap; margin-bottom: 8px; min-height: 28px; align-items: center; overflow-x: visible; }
+.sys-ships { display: flex; gap: 6px; flex-wrap: nowrap; align-items: flex-end; min-height: 32px; overflow-x: visible; }
+/* System card grows to fit all ships — no premature wrapping */
+.system-card { min-width: 140px; max-width: none; width: max-content; }
+
+/* === PIECES === */
+.ship-wrap {
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: filter 0.15s, transform 0.15s;
+  position: relative;
+}
+/* Prevent native image context menu / drag interfering with arrow drawing */
+.ship-wrap img, .ship-wrap svg,
+#board img, #board svg {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ship-wrap.enemy { cursor: default; }
+.ship-wrap.selected { filter: drop-shadow(0 0 8px #ffffff); transform: translateY(-3px); }
+.ship-wrap.valid-attack { cursor: pointer; filter: drop-shadow(0 0 8px var(--glow-danger)); animation: pulse-attack 0.9s ease-in-out infinite; }
+@keyframes pulse-attack {
+  0%,100% { filter: drop-shadow(0 0 5px rgba(255,68,68,0.6)); }
+  50% { filter: drop-shadow(0 0 14px rgba(255,68,68,1)); }
+}
+.ship-wrap.own-ship:hover:not(.selected):not(.valid-attack) { filter: drop-shadow(0 0 6px rgba(255,255,255,0.5)); transform: translateY(-2px); }
+.ship-wrap.selectable { animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+
+/* === WIN OVERLAY === */
+#win-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
+  display: none; align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+}
+#win-overlay.show { display: flex; }
+#win-title { font-family: 'Orbitron', sans-serif; font-size: 36px; font-weight: 900; color: #ffcc00; letter-spacing: 4px; text-shadow: 0 0 40px rgba(255,204,0,0.8); }
+#win-sub { font-size: var(--fs-md); color: #8090a0; letter-spacing: 2px; }
+#btn-newgame { padding: 14px 40px; background: transparent; border: 2px solid #ffcc00; color: #ffcc00; font-family: 'Orbitron', sans-serif; font-size: var(--fs-md); letter-spacing: 3px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+#btn-newgame:hover { background: rgba(255,204,0,0.15); box-shadow: 0 0 30px rgba(255,204,0,0.4); }
+
+/* === MINI LOG (in log panel) === */
+.mini-log-line {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); line-height: 1.65;
+  padding: 2px 10px;
+  white-space: normal; word-break: break-word;
+  color: #4a6478;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+  display: grid; grid-template-columns: auto 1fr; gap: 0 4px;
+}
+.mini-log-prefix { white-space: nowrap; }
+.mini-log-body   { word-break: break-word; }
+.mini-log-line:last-child { border-bottom: none; }
+.mini-log-line .ml-turn { color: #253545; margin-right: 4px; }
+.mini-log-line .ml-p1   { color: #4477dd; font-weight: bold; margin-right: 3px; }
+.mini-log-line .ml-p2   { color: #cc4455; font-weight: bold; margin-right: 3px; }
+.mini-log-line .ml-kw   { color: #7090a8; }
+.mini-log-line .piece-r { color: #cc2233; }
+.mini-log-line .piece-b { color: #2255cc; }
+.mini-log-line .piece-y { color: #ccaa00; }
+.mini-log-line .piece-g { color: #1aaa55; }
+
+/* Picker buttons */
+.trade-pick-btn, .build-pick-btn, .setup-pick-btn {
+  border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+  color: var(--text); font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); cursor: pointer; border-radius: 4px;
+  padding: 8px 10px; transition: all 0.15s; letter-spacing: 1px;
+}
+.trade-pick-btn:hover, .build-pick-btn:hover, .setup-pick-btn:hover {
+  background: rgba(255,255,255,0.1); color: var(--bright);
+}
+
+/* Startup modal time control buttons */
+.tc-btn {
+  padding: 8px 12px; background: rgba(255,255,255,0.03);
+  border: 1px solid #1c2840; color: #506070;
+  font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
+  cursor: pointer; border-radius: 4px; transition: all 0.15s;
+}
+.tc-btn:hover { border-color: #3a5080; color: #8090a0; }
+.tc-btn.tc-active { border-color: #2266ff; color: #4488ff; background: rgba(34,102,255,0.1); }
+
+/* Colors for text */
+.c-red { color: var(--red) }
+.c-blue { color: var(--blue) }
+.c-yellow { color: var(--yellow) }
+.c-green { color: var(--green) }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1c2840; border-radius: 3px; }
+
+
+/* ================================================================
+   TURN TOKEN — circular clickable marker on the active homeworld
+   ================================================================ */
+.turn-token-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* extra space so ring doesn't clip against zone edge */
+  padding: 12px 8px;
+  flex-shrink: 0;
+  /* contain the ring entirely — no layout bleed */
+  overflow: visible;
+}
+.turn-token {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer;
+  position: relative;
+  background: rgba(0,0,0,0.6);
+  border: 2px solid currentColor;
+  /* will-change: transform prevents box-shadow from causing reflow */
+  will-change: transform;
+  transition: transform 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  gap: 1px;
+}
+.turn-token.p1 {
+  color: #4488ff;
+  box-shadow: 0 0 0 1px rgba(68,136,255,0.3);
+  animation: token-pulse-p1 1.6s ease-in-out infinite;
+}
+.turn-token.p2 {
+  color: #ff4455;
+  box-shadow: 0 0 0 1px rgba(255,68,85,0.3);
+  animation: token-pulse-p2 1.6s ease-in-out infinite;
+}
+.turn-token.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  animation: none;
+}
+.turn-token:not(.disabled):hover {
+  transform: scale(1.1);
+}
+.turn-token:not(.disabled):hover .token-label { opacity: 1; }
+.turn-token:not(.disabled):hover .token-initials { opacity: 0; }
+.turn-token:not(.disabled):active { transform: scale(0.96); }
+.token-initials {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 14px; font-weight: 900;
+  color: currentColor; line-height: 1;
+  transition: opacity 0.15s;
+  position: absolute;
+}
+.token-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 1px;
+  color: currentColor; line-height: 1;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  position: absolute;
+  white-space: nowrap;
+}
+/* Orbiting ring — uses transform so it's paint-only, zero layout impact */
+.token-ring {
+  position: absolute;
+  width: 76px; height: 76px;
+  top: 50%; left: 50%;
+  margin-top: -38px; margin-left: -38px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0.35;
+  animation: ring-spin 3s linear infinite;
+  border-top-color: transparent;
+  pointer-events: none;
+}
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+@keyframes token-pulse-p1 {
+  0%,100% { filter: drop-shadow(0 0 6px rgba(68,136,255,0.5)); }
+  50%     { filter: drop-shadow(0 0 18px rgba(68,136,255,0.9)); }
+}
+@keyframes token-pulse-p2 {
+  0%,100% { filter: drop-shadow(0 0 6px rgba(255,68,85,0.5)); }
+  50%     { filter: drop-shadow(0 0 18px rgba(255,68,85,0.9)); }
+}
+
+
+/* ================================================================
+   SHORTCUT INTERACTION — piece-power & direct-attack highlights
+   ================================================================ */
+
+/* Stars/ships in selected-ship's system that trigger an action */
+.piece-power {
+  cursor: pointer !important;
+  position: relative;
+}
+.piece-power::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 4px;
+  border: 1.5px solid currentColor;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.piece-power:hover::after { opacity: 0.6; }
+
+/* Color-specific power glow on hover */
+.piece-power[data-color="yellow"]:hover { filter: drop-shadow(0 0 8px rgba(255,204,0,0.85)); }
+.piece-power[data-color="blue"]:hover   { filter: drop-shadow(0 0 8px rgba(34,102,255,0.85)); }
+.piece-power[data-color="green"]:hover  { filter: drop-shadow(0 0 8px rgba(34,221,119,0.85)); }
+.piece-power[data-color="red"]:hover    { filter: drop-shadow(0 0 8px rgba(255,51,68,0.85)); }
+
+/* Tooltip label shown on hover */
+.piece-power .power-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.88);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 3px 7px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 20;
+}
+.piece-power:hover .power-tip { opacity: 1; }
+
+/* Enemy ship that can be directly attacked (skips ATTACKING mode) */
+.valid-attack-direct {
+  cursor: pointer !important;
+  animation: pulse-direct-atk 0.85s ease-in-out infinite;
+}
+
+/* Stash cell highlighted for BUILD action */
+.bank-cell.build-pick {
+  border-color: rgba(34,221,119,0.7) !important;
+  background: rgba(34,221,119,0.08) !important;
+  cursor: pointer;
+}
+.bank-cell.build-pick:hover {
+  background: rgba(34,221,119,0.2) !important;
+  box-shadow: 0 0 12px rgba(34,221,119,0.4);
+}
+/* Stash cell highlighted for TRADE action */
+.bank-cell.trade-pick {
+  border-color: rgba(34,102,255,0.7) !important;
+  background: rgba(34,102,255,0.08) !important;
+  cursor: pointer;
+}
+.bank-cell.trade-pick:hover {
+  background: rgba(34,102,255,0.2) !important;
+  box-shadow: 0 0 12px rgba(34,102,255,0.4);
+}
+@keyframes pulse-direct-atk {
+  0%,100% { filter: drop-shadow(0 0 6px rgba(255,68,68,0.55)); }
+  50%      { filter: drop-shadow(0 0 16px rgba(255,68,68,1)); }
+}
+
+/* ============================================================
+   BANK CELL — always square, capped at 72×72
+   ============================================================ */
+/* The 3 size columns share equal width; cap each at 72px */
+#bank-grid {
+  display: grid;
+  grid-template-columns: 60px repeat(3, min(72px, calc((100% - 60px - 12px) / 3)));
+  gap: 3px;
+}
+.bank-cell {
+  aspect-ratio: 1;
+  max-width: 72px;
+  max-height: 72px;
+}
+
+/* ============================================================
+   MOBILE NAV BAR — hidden on desktop
+   ============================================================ */
+#mobile-nav { display: none; }
+
+/* ============================================================
+   MOBILE LOG/CHAT TABS — hidden on desktop
+   ============================================================ */
+#mobile-logchat { display: none; }
+
+/* ============================================================
+   RESPONSIVE — Mobile: single scrollable column
+   ============================================================ */
+@media (max-width: 800px) {
+  /* ── Simplest possible scroll: let html scroll naturally ── */
+  html {
+    height: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* ── Hide desktop-only right panel ── */
+  #right-panel { display: none !important; }
+
+  /* ── Reset all desktop grid-areas ── */
+  #bank-section, #sidebar, #board, #bottom-btns { grid-area: unset; }
+
+  /* ══ ORDER: 0=nav 1=profiles 2=stash 3=board 4=sidebar 5=btns 6=logchat ══ */
+
+  /* 0 · Nav bar */
+  #mobile-nav {
+    order: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  #mobile-nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Orbitron', sans-serif; font-weight: 900;
+    font-size: var(--fs-md); letter-spacing: 3px; color: var(--bright);
+    text-decoration: none;
+  }
+  #mobile-nav-menu {
+    background: none; border: none; cursor: pointer;
+    color: #5a7090; font-size: 24px; line-height: 1;
+    padding: 4px 8px; border-radius: 4px;
+  }
+
+  /* 1 · Profiles — vertical stack (like desktop) */
+  #mobile-profiles {
+    order: 1;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  #mobile-profiles .player-card {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+  }
+  #mobile-profiles #pcard-1m { border-bottom: none; }
+
+  /* 2 · Stash — right under profiles */
+  #bank-section {
+    order: 2;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
+  }
+  #bank-grid {
+    grid-template-columns: 52px repeat(3, min(72px, calc((100vw - 52px - 48px) / 3)));
+  }
+
+  /* 3 · Board */
+  #board {
+    order: 3;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  #zone-p2, #zone-p1 {
+    flex-wrap: wrap;
+    min-height: 80px;
+    justify-content: center;
+  }
+
+  /* 4 · Sidebar (guide text + actions) */
+  #sidebar {
+    order: 4;
+    width: 100%;
+    flex: none;
+    height: auto;
+    overflow: visible;
+    border-right: none;
+    min-height: 0;
+  }
+  #action-section {
+    flex-grow: unset;
+    overflow: visible;
+    height: auto;
+  }
+
+  /* 5 · Control buttons (forfeit + undo) */
+  #bottom-btns {
+    order: 5;
+    grid-area: unset;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+    position: static;
+  }
+
+  /* 6 · Log & Chat tabs */
+  #mobile-logchat {
+    order: 6;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding-bottom: 32px;
+  }
+  #mobile-tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .mobile-tab-btn {
+    flex: 1; padding: 12px;
+    background: none; border: none;
+    font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs);
+    letter-spacing: 2px; text-transform: uppercase;
+    color: #4a6070; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s; margin-bottom: -1px;
+  }
+  .mobile-tab-btn.active { color: var(--bright); border-bottom-color: #4488ff; }
+  #mobile-tab-log, #mobile-tab-chat { display: none; flex-direction: column; }
+  #mobile-tab-log.visible, #mobile-tab-chat.visible { display: flex; }
+  #log-entries-m { min-height: 200px; padding: 4px 0; }
+  #chat-messages-m { min-height: 160px; padding: 8px 12px; }
+  #chat-input-row-m {
+    display: flex; gap: 6px; padding: 8px 12px;
+    border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  #chat-input-m {
+    flex: 1; padding: 8px 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
+    border-radius: 3px; color: var(--text);
+    font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs); outline: none;
+  }
+  #chat-send-m {
+    padding: 8px 12px; background: rgba(255,255,255,0.04);
+    border: 1px solid #1c2840; color: #506070;
+    font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
+    cursor: pointer; border-radius: 3px;
+  }
+
+  /* Turn token — larger on mobile for easier tap */
+  .turn-token { width: 68px; height: 68px; }
+
+  /* Misc compact */
+  .pcard-avatar { width: 34px; height: 34px; }
+  .pcard-gear  { font-size: 14px; }
+  .zone-label  { font-size: var(--fs-xs); letter-spacing: 2px; margin-bottom: 4px; }
+  .zone-hw-area { padding: 2px 0 6px; }
+  .system-card { padding: 8px 10px; }
+  #player-bar { padding: 10px 14px; }
+  #player-title { font-size: var(--fs-xs); }
+
+  /* Pcard left-bar for mobile profiles */
+  #pcard-1m::before { background: #4488ff; box-shadow: 0 0 8px #4488ff; }
+  #pcard-2m::before { background: #ff4455; box-shadow: 0 0 8px #ff4455; }
+}
+
+@media (min-width: 801px) {
+  html, body { height: 100%; overflow: hidden; }
+  #mobile-nav { display: none !important; }
+  #mobile-profiles { display: none !important; }
+  #mobile-logchat { display: none !important; }
+}
+
+
+/* ── Review-specific overrides ── */
+body {
+  display: grid;
+  grid-template-columns: 264px 1fr 264px;
+  grid-template-rows: 1fr;
+  grid-template-areas: "side board right";
+  overflow: hidden;
+  height: 100vh;
+}
+/* Bank goes inside the sidebar for review */
+#bank-section {
+  grid-area: unset;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+  flex-shrink: 0;
+}
+#sidebar {
+  grid-area: side;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+#right-panel {
+  grid-area: right;
+}
+#board {
+  grid-area: board;
+  overflow-y: auto;
+}
+/* Nav controls */
+#review-top {
+  background: linear-gradient(135deg, #0a1428, #0d1835);
+  border-bottom: 2px solid var(--border);
+  padding: 12px 16px;
+  flex-shrink: 0;
+}
+#review-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-md); font-weight: 700; letter-spacing: 2px;
+  color: var(--bright); margin-bottom: 4px;
+}
+#review-sub { font-size: var(--fs-xs); color: #7090b0; line-height: 1.5; }
+#nav-section {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#turn-indicator {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-xs); letter-spacing: 2px;
+  color: #4a6080; text-align: center; margin-bottom: 10px;
+}
+#nav-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
+.nav-btn {
+  padding: 10px 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); cursor: pointer; font-size: 16px; transition: all .15s;
+}
+.nav-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); border-color: #3a5080; color: var(--bright); }
+.nav-btn:disabled { opacity: .2; cursor: not-allowed; }
+#nav-hint { font-size: 10px; color: #2a3850; text-align: center; margin-top: 8px; letter-spacing: 1px; }
+/* Players section */
+#players-section { padding: 12px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+.rv-player {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border-radius: 6px; margin-bottom: 6px;
+  background: rgba(255,255,255,.02); border: 1px solid var(--border);
+}
+.rv-player:last-child { margin-bottom: 0; }
+.rv-player.winner { border-color: rgba(255,204,0,.35); background: rgba(255,204,0,.04); }
+.rv-avatar {
+  width: 36px; height: 36px; border-radius: 5px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-md); font-weight: 900;
+  border: 2px solid transparent; background: linear-gradient(135deg,#0d1835,#1a2850);
+}
+.rv-avatar.p1 { border-color: rgba(68,136,255,.5); color: #4488ff; }
+.rv-avatar.p2 { border-color: rgba(255,68,85,.5); color: #ff4455; }
+.rv-info-name { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px; color: var(--bright); margin-bottom: 2px; }
+.rv-info-result { font-size: 10px; color: #4a6080; }
+.rv-crown { font-size: 14px; margin-left: auto; flex-shrink: 0; }
+/* Back btn */
+#bottom-area { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+#btn-back {
+  width: 100%; padding: 10px; background: rgba(255,255,255,.03);
+  border: 1px solid var(--border); color: #4a6080;
+  font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
+  cursor: pointer; border-radius: 4px; letter-spacing: 2px; transition: all .15s;
+}
+#btn-back:hover { color: var(--bright); border-color: #3a5080; background: rgba(255,255,255,.06); }
+/* Log active highlight */
+.mini-log-line { cursor: pointer; transition: background .1s; }
+.mini-log-line:hover { background: rgba(255,255,255,.03); }
+.mini-log-line.active {
+  background: rgba(255,204,0,.07);
+  border-left: 2px solid rgba(255,204,0,.5);
+  padding-left: 8px;
+}
+.mini-log-line.active .ml-turn { color: #ffcc00; }
+/* Loading overlay */
+#loading {
+  position: fixed; inset: 0; background: rgba(6,9,18,.96); z-index: 200;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+.spinner {
+  width: 40px; height: 40px; border: 2px solid #1c2840;
+  border-top-color: #2266ff; border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading-msg { font-family: 'Orbitron', sans-serif; font-size: 12px; color: #4a6080; letter-spacing: 2px; text-align: center; padding: 0 24px; }
 </style>
 </head>
 <body>
@@ -124,37 +987,52 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   <div id="loading-msg">LOADING GAME…</div>
 </div>
 
-<!-- Top bar -->
-<div id="top-bar">
-  <div id="top-title">⬡ REVIEW MODE</div>
-  <div id="top-game-info"></div>
-  <button id="btn-back-lobby" onclick="location.href='lobby.html'">← LOBBY</button>
-</div>
-
-<!-- Nav controls -->
-<div id="nav-bar">
-  <button class="nav-btn" id="nav-first"  title="Start of game">⏮</button>
-  <button class="nav-btn" id="nav-prev"   title="Previous turn">◀</button>
-  <div id="turn-indicator">TURN — / —</div>
-  <button class="nav-btn" id="nav-next"   title="Next turn">▶</button>
-  <button class="nav-btn" id="nav-last"   title="End of game">⏭</button>
-</div>
-
-<!-- Main -->
-<div id="main">
-  <div id="board">
-    <div>
-      <div class="zone-label">— PLAYER 2 HOMEWORLD —</div>
-      <div id="zone-p2"></div>
-    </div>
-    <div id="zone-mid"></div>
-    <div>
-      <div class="zone-label">— PLAYER 1 HOMEWORLD —</div>
-      <div id="zone-p1"></div>
-    </div>
+<!-- LEFT: Sidebar with nav + bank -->
+<div id="sidebar">
+  <div id="review-top">
+    <div id="review-title">⬡ REVIEW MODE</div>
+    <div id="review-sub">Loading…</div>
   </div>
+  <div id="nav-section">
+    <div id="turn-indicator">— / —</div>
+    <div id="nav-buttons">
+      <button class="nav-btn" id="nav-first" title="Go to start">⏮</button>
+      <button class="nav-btn" id="nav-prev"  title="Previous turn">◀</button>
+      <button class="nav-btn" id="nav-next"  title="Next turn">▶</button>
+      <button class="nav-btn" id="nav-last"  title="Go to end">⏭</button>
+    </div>
+    <div id="nav-hint">← → arrow keys · Home / End</div>
+  </div>
+  <div id="players-section"></div>
+  <div id="bank-section">
+    <div id="bank-title">Stash</div>
+    <div id="bank-grid"></div>
+  </div>
+  <div id="bottom-area">
+    <button id="btn-back" onclick="location.href='lobby.html'">← BACK TO LOBBY</button>
+  </div>
+</div>
+
+<!-- CENTER: Board -->
+<div id="board">
+  <div class="zone-hw-area">
+    <div class="zone-label" style="text-align:center">— PLAYER 2 HOMEWORLD —</div>
+    <div id="zone-p2"></div>
+  </div>
+  <div id="zone-mid"></div>
+  <div class="zone-hw-area">
+    <div class="zone-label" style="text-align:center">— PLAYER 1 HOMEWORLD —</div>
+    <div id="zone-p1"></div>
+  </div>
+</div>
+
+<!-- RIGHT: Log panel (identical structure to game.html) -->
+<div id="right-panel">
   <div id="log-panel">
-    <div id="log-header">Game Log</div>
+    <div id="log-header">
+      <span>Game Log</span>
+      <span id="log-turn-count">—</span>
+    </div>
     <div id="log-entries"></div>
   </div>
 </div>
@@ -165,48 +1043,591 @@ import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/10.8.0
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
 
-// ── Constants ────────────────────────────────────────────────
-const COLORS    = ['red','blue','yellow','green'];
-const COLOR_HEX = {red:'#ff3344',blue:'#2266ff',yellow:'#ffcc00',green:'#22dd77'};
+// ── Constants (identical to game.html) ──────────────────────
+const COLORS = ['red','blue','yellow','green'];
+const COLOR_POWERS = { red:'HIJACK', blue:'TRADE', yellow:'MOVE', green:'BUILD' };
+const SIZES = [1,2,3];
 const SIZE_PIPS = ['','·','··','···'];
-const COLOR_LETTER = {red:'r',blue:'b',yellow:'y',green:'g'};
+const SIZE_NAME = ['','Small','Medium','Large'];
+const COLOR_HEX = { red:'#ff3344', blue:'#2266ff', yellow:'#ffcc00', green:'#22dd77' };
+
+// ── Piece rendering (identical to game.html) ────────────────
+const SIZE_PREFIX = ['', 'small', 'medium', 'large'];
+const COLOR_LETTER_MAP = { red:'r', blue:'b', yellow:'y', green:'g' };
+
+// Display sizes [width, height] per size
+const SHIP_DIMS = { 1:[24,40], 2:[32,56], 3:[40,72] };
+
+function shipImgHTML(color, size, player, opts = {}) {
+  const prefix = SIZE_PREFIX[size];
+  const letter = COLOR_LETTER_MAP[color];
+  const src = `assets/ships/${prefix}${letter}.webp`;
+  const [w, h] = SHIP_DIMS[size];
+  // Player 2 ships flip vertically
+  const flip = player === 2 ? 'transform:scaleY(-1);' : '';
+  const filter = opts.glow ? `filter:drop-shadow(0 0 6px ${COLOR_HEX[color]}) drop-shadow(0 0 3px #fff);` : '';
+  return `<img src="${src}" width="${w}" height="${h}" style="display:block;${flip}${filter}" draggable="false">`;
+}
+
+// Star dims [width, height] per size
+const STAR_DIMS = { 1:[28,28], 2:[36,36], 3:[46,46] };
+
+function starImgHTML(color, size, opts = {}) {
+  const prefix = SIZE_PREFIX[size];
+  const letter = COLOR_LETTER_MAP[color];
+  const src = `assets/stars/${prefix}${letter}.webp`;
+  const [w, h] = STAR_DIMS[size];
+  const filter = opts.glow ? `filter:drop-shadow(0 0 8px ${COLOR_HEX[color]});` : '';
+  return `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`;
+}
+
+// Keep triangleSVG for bank stash display (smaller, neutral orientation)
+function triangleSVG(color, size, player, opts = {}) {
+  const dims = [0, 26, 36, 48];
+  const d = dims[size];
+  const pad = 2;
+  let pts;
+  if (player === 2) {
+    pts = `${d/2},${d-pad} ${pad},${pad} ${d-pad},${pad}`;
+  } else {
+    pts = `${d/2},${pad} ${d-pad},${d-pad} ${pad},${d-pad}`;
+  }
+  const hex = COLOR_HEX[color];
+  const pipY = player === 2 ? d * 0.44 : d * 0.7;
+  const pipSize = Math.floor(d * 0.32);
+  const pip = `<text x="${d/2}" y="${pipY}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.7)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
+  const glow = opts.glow ? `filter="url(#glow-${color})"` : '';
+  return `<svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}" style="display:block">
+    <defs>
+      <filter id="glow-${color}" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="2" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <polygon points="${pts}" fill="${hex}" stroke="rgba(0,0,0,0.4)" stroke-width="1" ${glow}/>
+    ${pip}
+  </svg>`;
+}
+
+function diamondSVG(color, size, opts = {}) {
+  // Stars shown as diamonds
+  const dims = [0, 28, 36, 46];
+  const d = dims[size];
+  const h = d * 0.85;
+  const cx = d/2, cy = h/2;
+  const hex = COLOR_HEX[color];
+  const pts = `${cx},2 ${d-2},${cy} ${cx},${h-2} 2,${cy}`;
+  const pipSize = Math.floor(d * 0.3);
+  const pip = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.65)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
+  const glow = opts.glow ? `filter="url(#glow-s-${color})"` : '';
+  return `<svg width="${d}" height="${h}" viewBox="0 0 ${d} ${h}" style="display:block">
+    <defs>
+      <filter id="glow-s-${color}" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <polygon points="${pts}" fill="${hex}" stroke="rgba(255,255,255,0.2)" stroke-width="1" ${glow}/>
+    ${pip}
+  </svg>`;
+}
+
+
+// ── Helpers ─────────────────────────────────────────────────
+function systemSizes(sys) {
+  return new Set(sys.stars.map(s => s.size));
+}
+function isConnected(s1, s2) {
+  const a = systemSizes(s1), b = systemSizes(s2);
+  for (const sz of a) if (b.has(sz)) return false;
+  return true;
+}
+
+// ── Stubs so renderSystem/renderBank work read-only ─────────
+// In review mode, G.interaction is always IDLE — no interactive branches fire.
+// We still need these functions defined to avoid ReferenceErrors.
+function findShip(id) {
+  if (!G) return null;
+  for (const sys of G.systems) { const s = sys.ships.find(x => x.id === id); if (s) return s; }
+  return null;
+}
+function findSystem(id)      { return G?.systems.find(s => s.id === id) ?? null; }
+function findSystemByShip(id){ return G?.systems.find(sys => sys.ships.some(s => s.id === id)) ?? null; }
+function getLargestOwnShip(sys, player) {
+  const own = sys.ships.filter(s => s.owner === player);
+  return own.length ? own.reduce((m, s) => s.size > m.size ? s : m) : null;
+}
+function getSystemPowers()   { return new Set(); }
+function hasActionLeft()     { return false; }
+function isSelectableShip()  { return false; }
+function onMoveTargetClick() {}
+function onAttackTargetClick(){}
+function onPowerClick()      {}
+function directAttack()      {}
+function saveHistory()       {}
+function logAction()         {}
+function setGuide()          {}
+function _stampPid()         {}
+function _initArrows()       {}
+function _renderArrows()     {}
+function attachTurnTokenListeners() {}
+const Note = { hijack: () => '', sacrifice: () => '' };
+// Force read-only state flags — renderSystem checks these
+// We override them via the G snapshot but add safe defaults
+
+
+function makeEl(tag, cls, text) {
+  const el = document.createElement(tag);
+  el.className = cls;
+  el.textContent = text;
+  return el;
+}
+
+
+// ── renderBank (identical to game.html) ─────────────────────
+// Stripped of click handlers — everything is not-clickable in review
+function renderBank() {
+  const grid = document.getElementById('bank-grid');
+  grid.innerHTML = '';
+
+  // Headers
+  grid.appendChild(makeEl('div', 'bank-header', ''));
+  ['S','M','L'].forEach(h => grid.appendChild(makeEl('div', 'bank-header', h)));
+
+  const BANK_ORDER = ['red','yellow','green','blue'];
+  BANK_ORDER.forEach(c => {
+    const label = makeEl('div', `bank-color-label c-${c}`, COLOR_POWERS[c]);
+    grid.appendChild(label);
+
+    SIZES.forEach(sz => {
+      const count = G.bank[c][sz];
+      const cell = document.createElement('div');
+      cell.className = 'bank-cell';
+
+      // Clickable during certain states
+      let clickable = false;
+      if (G.phase === 'SETUP' && !G.setupDone) {
+        if ((G.setupStep === 0 || G.setupStep === 1) && count > 0) {
+          clickable = true;  // Any size star for homeworld
+        } else if (G.setupStep === 2 && sz === 3 && count > 0) {
+          clickable = true;  // Large ship only — pick directly from bank
+        }
+      } else if (G.interaction === 'DISCOVERING' || G.interaction === 'MOVING') {
+        const fromSys = findSystem(G.movingFromSysId) || findSystemByShip(G.selectedShipId);
+        if (fromSys) {
+          const taken = systemSizes(fromSys);
+          if (!taken.has(sz) && count > 0) clickable = true;
+        }
+      } else if (G.interaction === 'BUILDING') {
+        const bldShip = findShip(G.selectedShipId);
+        const bldSys  = bldShip ? findSystemByShip(G.selectedShipId) : null;
+        if (bldSys) {
+          const ownColors = [...new Set(bldSys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))];
+          if (ownColors.includes(c)) {
+            const smallestSz = [1,2,3].find(s => G.bank[c][s] > 0);
+            if (smallestSz === sz && count > 0) clickable = true;
+          }
+        }
+      } else if (G.interaction === 'TRADING') {
+        const trdShip = findShip(G.selectedShipId);
+        if (trdShip && c !== trdShip.color && sz === trdShip.size && count > 0) clickable = true;
+      }
+
+      if (clickable) {
+        if (G.interaction === 'BUILDING') {
+          cell.classList.add('build-pick');
+        } else if (G.interaction === 'TRADING') {
+          cell.classList.add('trade-pick');
+        } else {
+          cell.classList.add('clickable');
+        }
+        cell.onclick = () => onBankClick(c, sz);
+      } else {
+        cell.classList.add('not-clickable');
+      }
+
+      // Stack of ship webp images (stacked, neutral up orientation)
+      const stack = document.createElement('div');
+      stack.className = 'bank-stack';
+      for (let i = 0; i < Math.min(count, 3); i++) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bank-piece-wrap';
+        wrap.innerHTML = shipImgHTML(c, sz, 0);
+        stack.appendChild(wrap);
+      }
+      if (count === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'font-size:12px;color:#2a3850;text-align:center;width:100%;padding-bottom:4px';
+        empty.textContent = '—';
+        stack.appendChild(empty);
+      }
+      cell.appendChild(stack);
+      grid.appendChild(cell);
+    });
+  });
+}
+
+
+// ── Board rendering ──────────────────────────────────────────
+/** BFS from a starting system, returns Map<sysId → distance> for all reachable systems */
+function bfsDistances(startSys) {
+  const dist = new Map();
+  if (!startSys) return dist;
+  dist.set(startSys.id, 0);
+  const queue = [startSys];
+  while (queue.length) {
+    const cur = queue.shift();
+    const d = dist.get(cur.id);
+    G.systems.forEach(s => {
+      if (!dist.has(s.id) && isConnected(cur, s)) {
+        dist.set(s.id, d + 1);
+        queue.push(s);
+      }
+    });
+  }
+  return dist;
+}
+
+
+
+function renderSystem(sys) {
+  const card = document.createElement('div');
+  card.className = 'system-card';
+  if (sys.isHomeworld === 1) card.classList.add('homeworld-1');
+  if (sys.isHomeworld === 2) card.classList.add('homeworld-2');
+  // Active turn glow on current player's homeworld
+  if (G.phase === 'PLAY' && sys.isHomeworld === G.currentPlayer) {
+    card.classList.add(`active-turn-p${G.currentPlayer}`);
+  }
+
+  // Highlight as valid move target
+  if (G.interaction === 'MOVING') {
+    const ship = findShip(G.selectedShipId);
+    const fromSys = findSystemByShip(G.selectedShipId);
+    if (sys.id !== fromSys?.id && isConnected(fromSys, sys)) {
+      card.classList.add('valid-move-target');
+      card.onclick = () => onMoveTargetClick(sys.id);
+    }
+  }
+
+  // System name
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'sys-name';
+  nameDiv.textContent = sys.name;
+  card.appendChild(nameDiv);
+
+  // During setup of own homeworld: show remove hint
+  if (G.phase === 'SETUP' && G.setupDone && sys.isHomeworld === G.currentPlayer) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:12px;color:#664444;margin-bottom:6px;letter-spacing:0.5px';
+    hint.textContent = 'Click any piece to undo';
+    card.appendChild(hint);
+  }
+
+  // Single inline row: ▽ ships (left) · stars (centre) · △ ships (right)
+  const downShips = sys.ships.filter(s => s.owner === 2);
+  const upShips   = sys.ships.filter(s => s.owner === 1);
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:36px;margin-top:6px;';
+
+  // ── Precompute shortcut context for this system ──────────────
+  const selShip   = G.phase === 'PLAY' ? findShip(G.selectedShipId) : null;
+  const selSys    = selShip ? findSystemByShip(G.selectedShipId) : null;
+  const isSelSys  = selSys && selSys.id === sys.id; // selected ship lives here
+  const sacPool   = G.sacrificePool.count > 0;
+  const sysPowers = G.phase === 'PLAY' ? getSystemPowers(sys, G.currentPlayer) : new Set();
+
+  // Is this system a valid move destination right now?
+  const isMoveDest = G.interaction === 'MOVING' && selSys &&
+    sys.id !== selSys.id && isConnected(selSys, sys);
+
+  // Helper: build a ship wrap element
+  function makeShipWrap(ship) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ship-wrap';
+    const isOwn    = ship.owner === G.currentPlayer;
+    const isSelected = G.selectedShipId === ship.id;
+    const isEnemy  = !isOwn;
+
+    if (isOwn)      wrap.classList.add('own-ship');
+    if (isEnemy)    wrap.classList.add('enemy');
+    if (isSelected) wrap.classList.add('selected');
+
+    // ── MOVING state: clicking ANY ship in a valid destination → move there ──
+    if (G.interaction === 'MOVING' && isMoveDest) {
+      wrap.style.cursor = 'pointer';
+      wrap.onclick = (e) => { e.stopPropagation(); onMoveTargetClick(sys.id); };
+      wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, { glow: false });
+      const ownerDot = document.createElement('div');
+      ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+      wrap.appendChild(ownerDot);
+      _stampPid(wrap);
+    return wrap;
+    }
+
+    // ── ATTACKING mode: click enemy to capture ──
+    if (G.interaction === 'ATTACKING' && isEnemy) {
+      const largest = getLargestOwnShip(sys, G.currentPlayer);
+      if (largest && ship.size <= largest.size) {
+        wrap.classList.add('valid-attack');
+        wrap.onclick = (e) => { e.stopPropagation(); onAttackTargetClick(ship.id); };
+      }
+      wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {});
+      const ownerDot = document.createElement('div');
+      ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+      wrap.appendChild(ownerDot);
+      _stampPid(wrap);
+    return wrap;
+    }
+
+    // ── RED SACRIFICE: enemy ships are directly clickable without selecting own ship first ──
+    if (sacPool && G.sacrificePool.color === 'red' && isEnemy) {
+      // Find largest own ship in THIS system to use as the attacker
+      const largest = getLargestOwnShip(sys, G.currentPlayer);
+      if (largest && ship.size <= largest.size && hasActionLeft('red')) {
+        wrap.classList.add('valid-attack-direct');
+        wrap.onclick = (e) => {
+          e.stopPropagation();
+          // Use largest own ship in this system as attacker
+          saveHistory();
+          logAction(Note.hijack(ship, sys.name));
+          ship.owner = G.currentPlayer;
+          consumeAction();
+          G.interaction = 'IDLE';
+          G.selectedShipId = null;
+          if (!checkWin()) render();
+        };
+        wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, {}));
+        const od = document.createElement('div');
+        od.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+        wrap.appendChild(od);
+        _stampPid(wrap);
+    return wrap;
+      }
+    }
+
+    // ── SHIP_SELECTED: shortcuts via clicking pieces in selected ship's system ──
+    if (G.interaction === 'SHIP_SELECTED' && isSelSys && !isSelected) {
+      if (isEnemy) {
+        // Direct attack shortcut: click capturable enemy → attack immediately
+        const hasPow = sacPool ? G.sacrificePool.color === 'red' : sysPowers.has('red');
+        const largest = getLargestOwnShip(sys, G.currentPlayer);
+        if (hasPow && hasActionLeft('red') && largest && ship.size <= largest.size) {
+          wrap.classList.add('valid-attack-direct');
+          wrap.onclick = (e) => { e.stopPropagation(); directAttack(ship, sys); };
+          wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {});
+          const ownerDot = document.createElement('div');
+          ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+          wrap.appendChild(ownerDot);
+          _stampPid(wrap);
+    return wrap;
+        }
+      } else if (isOwn) {
+        // Own ship in selected system: click to use its color as power, or re-select
+        const hasPow = sacPool ? G.sacrificePool.color === ship.color : sysPowers.has(ship.color);
+        if (hasPow && hasActionLeft(ship.color)) {
+          // This ship's color provides a usable action — treat as power trigger
+          wrap.classList.add('piece-power');
+          wrap.dataset.color = ship.color;
+          const POWER_LABEL = { yellow:'MOVE', blue:'TRADE', green:'BUILD', red:'HIJACK' };
+          const tip = document.createElement('span');
+          tip.className = 'power-tip';
+          tip.textContent = POWER_LABEL[ship.color] || ship.color.toUpperCase();
+          wrap.appendChild(tip);
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(ship.color, sys); };
+        } else {
+          // No valid action for this color — re-select to this ship
+          wrap.onclick = (e) => { e.stopPropagation(); onShipClick(ship.id); };
+        }
+        wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {}) + wrap.innerHTML;
+        const ownerDot = document.createElement('div');
+        ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+        wrap.appendChild(ownerDot);
+        _stampPid(wrap);
+    return wrap;
+      }
+    }
+
+    // ── SETUP ──
+    if (G.phase === 'SETUP' && G.setupDone && sys.isHomeworld === G.currentPlayer && isOwn) {
+      wrap.style.cursor = 'pointer';
+      wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
+      wrap.onmouseleave = () => wrap.style.filter = '';
+      wrap.onclick = () => restartSetup();
+    } else if (isOwn) {
+      // IDLE / default: select this ship
+      if (G.phase === 'PLAY') {
+        if (isSelectableShip(ship, sys)) wrap.classList.add('selectable');
+      }
+      // If this IS the selected ship, clicking it triggers its own color as a power
+      if (isSelected && G.interaction === 'SHIP_SELECTED') {
+        const hasPow = sacPool ? G.sacrificePool.color === ship.color : sysPowers.has(ship.color);
+        if (hasPow && hasActionLeft(ship.color)) {
+          wrap.classList.add('piece-power');
+          wrap.dataset.color = ship.color;
+          const POWER_LABEL = { yellow:'MOVE', blue:'TRADE', green:'BUILD', red:'HIJACK' };
+          const tip = document.createElement('span');
+          tip.className = 'power-tip';
+          tip.textContent = POWER_LABEL[ship.color] || ship.color.toUpperCase();
+          wrap.appendChild(tip);
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(ship.color, sys); };
+        } else {
+          // No power available for this color — click does nothing (deselect via board bg)
+          wrap.onclick = (e) => { e.stopPropagation(); };
+        }
+      } else {
+        wrap.onclick = (e) => { e.stopPropagation(); onShipClick(ship.id); };
+      }
+    }
+
+    // Insert image FIRST so any previously appended children (power-tip) are not overwritten
+    wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, { glow: isSelected }));
+    const ownerDot = document.createElement('div');
+    ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+    wrap.appendChild(ownerDot);
+    _stampPid(wrap);
+    return wrap;
+  }
+
+  // ▽ down ships on LEFT
+  downShips.forEach(ship => row.appendChild(makeShipWrap(ship)));
+
+  // Stars in centre — with power-click shortcuts when ship is selected
+  sys.stars.forEach(star => {
+    const isSetupOwnHW = G.phase === 'SETUP' && G.setupDone && sys.isHomeworld === G.currentPlayer;
+    const wrap = document.createElement('div');
+    wrap.style.flexShrink = '0';
+
+    if (isSetupOwnHW) {
+      wrap.style.cursor = 'pointer';
+      wrap.title = `Remove ${star.color} size-${star.size} star`;
+      wrap.innerHTML = starImgHTML(star.color, star.size);
+      wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
+      wrap.onmouseleave = () => wrap.style.filter = '';
+      wrap.onclick = () => restartSetup();
+    } else {
+      wrap.innerHTML = starImgHTML(star.color, star.size);
+      _stampPid(wrap);
+
+      // Shortcut: clicking a star in selected ship's system triggers that color's action
+      if (G.interaction === 'SHIP_SELECTED' && isSelSys) {
+        const hasPow = sacPool ? G.sacrificePool.color === star.color : sysPowers.has(star.color);
+        if (hasPow && hasActionLeft(star.color)) {
+          wrap.classList.add('piece-power');
+          wrap.dataset.color = star.color;
+          const POWER_LABEL = { yellow:'MOVE', blue:'TRADE', green:'BUILD', red:'HIJACK' };
+          const tip = document.createElement('span');
+          tip.className = 'power-tip';
+          tip.textContent = POWER_LABEL[star.color] || star.color.toUpperCase();
+          wrap.appendChild(tip);
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(star.color, sys); };
+        }
+      }
+
+      // Shortcut: clicking a star in a valid move-destination system also moves there
+      if (G.interaction === 'MOVING' && isMoveDest) {
+        wrap.style.cursor = 'pointer';
+        wrap.onclick = (e) => { e.stopPropagation(); onMoveTargetClick(sys.id); };
+      }
+    }
+    row.appendChild(wrap);
+  });
+
+  // △ up ships on RIGHT
+  upShips.forEach(ship => row.appendChild(makeShipWrap(ship)));
+
+  card.appendChild(row);
+
+  return card;
+}
+
+
+// renderBoard adapted for review (no turn token, no setup preview)
+function renderBoard() {
+  const zP1  = document.getElementById('zone-p1');
+  const zP2  = document.getElementById('zone-p2');
+  const zMid = document.getElementById('zone-mid');
+  [zP1, zP2, zMid].forEach(z => z.innerHTML = '');
+
+  const hw2 = G.systems.find(s => s.isHomeworld === 2);
+  const hw1 = G.systems.find(s => s.isHomeworld === 1);
+  if (hw2) zP2.appendChild(renderSystem(hw2));
+  if (hw1) zP1.appendChild(renderSystem(hw1));
+
+  const midSystems = G.systems.filter(s => !s.isHomeworld);
+  if (!midSystems.length) return;
+
+  const d2map = bfsDistances(hw2);
+  const d1map = bfsDistances(hw1);
+  const INF = 999;
+  midSystems.sort((a, b) => {
+    const da2 = d2map.get(a.id)??INF, db2 = d2map.get(b.id)??INF;
+    const da1 = d1map.get(a.id)??INF, db1 = d1map.get(b.id)??INF;
+    if (da2 !== db2) return da2 - db2;
+    return db1 - da1;
+  });
+  const layers = new Map();
+  midSystems.forEach(s => {
+    const d = d2map.get(s.id)??INF;
+    if (!layers.has(d)) layers.set(d, []);
+    layers.get(d).push(s);
+  });
+  [...layers.keys()].sort((a,b) => a-b).forEach(d => {
+    const row = document.createElement('div');
+    row.className = 'dist-row';
+    layers.get(d).forEach(s => row.appendChild(renderSystem(s)));
+    zMid.appendChild(row);
+  });
+}
+
+// ── Log (identical to game.html, but with click-to-jump) ────
+const KEYWORDS_LOG = ['set','build','trade','discover','move','hijack','sacrifice','catastrophe','skip','HW','ship','homeworld','attack'];
+function highlightLog(str) {
+  return str.split(' ').map(t => {
+    if (KEYWORDS_LOG.includes(t))  return `<span class="ml-kw">${t}</span>`;
+    if (/^r\d/.test(t))            return `<span class="piece-r">${t}</span>`;
+    if (/^b\d/.test(t))            return `<span class="piece-b">${t}</span>`;
+    if (/^y\d/.test(t))            return `<span class="piece-y">${t}</span>`;
+    if (/^g\d/.test(t))            return `<span class="piece-g">${t}</span>`;
+    if (t==='r') return `<span class="piece-r">${t}</span>`;
+    if (t==='b') return `<span class="piece-b">${t}</span>`;
+    if (t==='y') return `<span class="piece-y">${t}</span>`;
+    if (t==='g') return `<span class="piece-g">${t}</span>`;
+    return t;
+  }).join(' ');
+}
 
 // ── State ────────────────────────────────────────────────────
-let snapshots = [];
+let snapshots  = [];
 let logEntries = [];
+let logRows    = []; // { snapIdx, html } per action line
 let currentIdx = 0;
-let players = ['', 'Player 1', 'Player 2'];
+let winner     = null;
+let players    = ['','Player 1','Player 2'];
 
 // ── Load ─────────────────────────────────────────────────────
 async function load() {
   const params = new URLSearchParams(location.search);
   const gameId = params.get('game');
-
   if (!gameId) { setLoading('No game ID provided.'); return; }
 
-  // Local (pass-and-play) — no auth needed
   if (gameId.startsWith('local-')) {
     const raw = sessionStorage.getItem('hw_review_' + gameId);
     if (!raw) { setLoading('Local game not found (session may have ended).'); return; }
-    init(JSON.parse(raw));
-    return;
+    init(JSON.parse(raw)); return;
   }
 
-  // Firebase game — must wait for auth first
   setLoading('Authenticating…');
   try {
     const fbApp = initializeApp(firebaseConfig);
     const db    = getDatabase(fbApp);
     const auth  = getAuth(fbApp);
-
-    await new Promise((resolve, reject) => {
-      const unsub = onAuthStateChanged(auth, user => {
-        unsub();
-        if (user) resolve(user);
-        else reject(new Error('Not signed in. Please sign in via the lobby first.'));
+    await new Promise((res, rej) => {
+      const unsub = onAuthStateChanged(auth, u => {
+        unsub(); u ? res(u) : rej(new Error('Not signed in — please sign in via the lobby.'));
       });
     });
-
     setLoading('Loading game…');
     const snap = await get(ref(db, `gamesPlayed/${gameId}`));
     if (!snap.exists()) { setLoading(`Game #${gameId} not found — it may still be saving. Try again in a moment.`); return; }
@@ -221,25 +1642,55 @@ function setLoading(msg) {
 }
 
 function init(record) {
-  players  = record.players || ['','Player 1','Player 2'];
-  snapshots = record.snapshots || [];
+  players    = record.players || ['','Player 1','Player 2'];
+  winner     = record.winner;
+  snapshots  = record.snapshots || [];
   logEntries = record.log || [];
 
-  if (snapshots.length === 0) {
-    setLoading('No move data in this game record.');
-    return;
-  }
+  if (!snapshots.length) { setLoading('No snapshot data in this game record.'); return; }
 
-  // Game info
-  const p1 = players[1]||'P1', p2 = players[2]||'P2';
-  const winner = record.winner;
-  const winName = players[winner] || `Player ${winner}`;
-  document.getElementById('top-game-info').textContent =
-    `${p1} vs ${p2}  ·  ${winName} wins  ·  ${snapshots.length} turns`;
+  // Build flat log rows mapping each action to a snapshot index
+  let si = 0;
+  logEntries.forEach(entry => {
+    entry.actions.forEach(a => {
+      const pc = entry.player === 1 ? 'ml-p1' : 'ml-p2';
+      logRows.push({
+        snapIdx: Math.min(si, snapshots.length - 1),
+        html: `<span class="mini-log-prefix"><span class="ml-turn">${entry.turn}.</span><span class="${pc}">P${entry.player}</span>&nbsp;</span>` +
+              `<span class="mini-log-body">${highlightLog(a)}</span>`
+      });
+    });
+    si++;
+  });
 
-  document.getElementById('loading').style.display = 'none';
-  renderLog();
-  goTo(snapshots.length - 1); // start at end of game
+  // Player cards
+  const ps = document.getElementById('players-section');
+  [1, 2].forEach(p => {
+    const isW = p === winner;
+    const initial = (players[p] || 'P')[0].toUpperCase();
+    const d = document.createElement('div');
+    d.className = 'rv-player' + (isW ? ' winner' : '');
+    d.innerHTML = `
+      <div class="rv-avatar p${p}">${initial}</div>
+      <div>
+        <div class="rv-info-name">${esc(players[p] || `Player ${p}`)} </div>
+        <div class="rv-info-result">${isW ? '🏆 Winner' : 'Defeated'}</div>
+      </div>
+      ${isW ? '<div class="rv-crown">⭐</div>' : ''}`;
+    ps.appendChild(d);
+  });
+
+  document.getElementById('review-sub').textContent =
+    `${players[1]||'P1'} vs ${players[2]||'P2'} · ${snapshots.length} turns`;
+
+  // Render log panel (clickable)
+  const logContainer = document.getElementById('log-entries');
+  logContainer.innerHTML = logRows.map((r, i) =>
+    `<div class="mini-log-line" data-i="${i}">${r.html}</div>`
+  ).join('');
+  logContainer.querySelectorAll('.mini-log-line').forEach(el => {
+    el.onclick = () => goTo(logRows[+el.dataset.i].snapIdx);
+  });
 
   // Nav buttons
   document.getElementById('nav-first').onclick = () => goTo(0);
@@ -247,19 +1698,29 @@ function init(record) {
   document.getElementById('nav-next').onclick  = () => goTo(Math.min(snapshots.length - 1, currentIdx + 1));
   document.getElementById('nav-last').onclick  = () => goTo(snapshots.length - 1);
   document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft')  goTo(Math.max(0, currentIdx - 1));
-    if (e.key === 'ArrowRight') goTo(Math.min(snapshots.length - 1, currentIdx + 1));
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goTo(Math.max(0, currentIdx - 1));
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(Math.min(snapshots.length - 1, currentIdx + 1));
     if (e.key === 'Home') goTo(0);
     if (e.key === 'End')  goTo(snapshots.length - 1);
   });
+
+  document.getElementById('loading').style.display = 'none';
+  goTo(snapshots.length - 1);
 }
 
 function goTo(idx) {
   currentIdx = idx;
-  const snap = snapshots[idx];
-  renderBoard(snap);
+  // Deep-clone snapshot so we can safely override flags
+  G = JSON.parse(JSON.stringify(snapshots[idx]));
+  // Force read-only: no interactive state, no selection
+  G.interaction    = 'IDLE';
+  G.selectedShipId = null;
+  G.movingFromSysId= null;
+  G.sacrificePool  = { color: null, count: 0 };
+  renderBank();
+  renderBoard();
   updateNav();
-  highlightLogTurn(snap);
+  updateLogHighlight();
 }
 
 function updateNav() {
@@ -268,142 +1729,23 @@ function updateNav() {
   document.getElementById('nav-prev').disabled  = currentIdx === 0;
   document.getElementById('nav-next').disabled  = currentIdx >= n - 1;
   document.getElementById('nav-last').disabled  = currentIdx >= n - 1;
-  // Show whose turn just finished at this snapshot
-  const snap = snapshots[currentIdx];
-  const lastPlayer = snap.currentPlayer === 1 ? 2 : 1; // who just moved
+  const movedP = G.currentPlayer === 1 ? 2 : 1;
   document.getElementById('turn-indicator').textContent =
-    `TURN ${currentIdx + 1} / ${n}  ·  P${lastPlayer} moved`;
+    `TURN ${currentIdx + 1} / ${n}  ·  P${movedP} moved`;
+  document.getElementById('log-turn-count').textContent = `T${currentIdx + 1}`;
 }
 
-// ── Board rendering ──────────────────────────────────────────
-function renderBoard(G) {
-  const zP1  = document.getElementById('zone-p1');
-  const zP2  = document.getElementById('zone-p2');
-  const zMid = document.getElementById('zone-mid');
-  zP1.innerHTML = zP2.innerHTML = zMid.innerHTML = '';
-
-  (G.systems || []).forEach(sys => {
-    const card = buildSystemCard(sys);
-    if (sys.isHomeworld === 1)      zP1.appendChild(card);
-    else if (sys.isHomeworld === 2) zP2.appendChild(card);
-    else                             zMid.appendChild(card);
-  });
-}
-
-function buildSystemCard(sys) {
-  const card = document.createElement('div');
-  card.className = 'system-card';
-  if (sys.isHomeworld === 1) card.classList.add('homeworld-1');
-  if (sys.isHomeworld === 2) card.classList.add('homeworld-2');
-
-  const nameDiv = document.createElement('div');
-  nameDiv.className = 'sys-name';
-  nameDiv.textContent = sys.name || '—';
-  card.appendChild(nameDiv);
-
-  const starsDiv = document.createElement('div');
-  starsDiv.className = 'sys-stars';
-  (sys.stars || []).forEach(st => { starsDiv.innerHTML += diamondSVG(st.color, st.size); });
-  card.appendChild(starsDiv);
-
-  const sep = document.createElement('div');
-  sep.style.cssText = 'height:1px;background:rgba(255,255,255,.05);margin:4px 0';
-  card.appendChild(sep);
-
-  const shipsDiv = document.createElement('div');
-  shipsDiv.className = 'sys-ships';
-  (sys.ships || []).forEach(ship => {
-    const wrap = document.createElement('div');
-    wrap.className = 'ship-wrap';
-    wrap.innerHTML = triangleSVG(ship.color, ship.size, ship.owner);
-    const dot = document.createElement('div');
-    dot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);
-      width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:.8`;
-    wrap.appendChild(dot);
-    shipsDiv.appendChild(wrap);
-  });
-  card.appendChild(shipsDiv);
-  return card;
-}
-
-// ── Log rendering ────────────────────────────────────────────
-function renderLog() {
+function updateLogHighlight() {
   const container = document.getElementById('log-entries');
-  container.innerHTML = '';
-  logEntries.forEach((entry, i) => {
-    const div = document.createElement('div');
-    div.className = 'log-turn';
-    div.dataset.idx = i;
-    div.onclick = () => {
-      // Jump to the snapshot taken after this log entry
-      goTo(Math.min(i, snapshots.length - 1));
-    };
-    const pClass = entry.player === 1 ? 'p1' : 'p2';
-    div.innerHTML = `
-      <div class="log-turn-header">
-        <span class="log-turn-num">${entry.turn}.</span>
-        <span class="log-player-badge ${pClass}">P${entry.player}</span>
-      </div>
-      <div class="log-actions">
-        ${(entry.actions||[]).map(a => `<div class="log-action-line">${highlightNotation(a)}</div>`).join('')}
-      </div>`;
-    container.appendChild(div);
+  container.querySelectorAll('.mini-log-line').forEach(el => {
+    const active = logRows[+el.dataset.i]?.snapIdx === currentIdx;
+    el.classList.toggle('active', active);
+    if (active) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
 }
 
-function highlightNotation(str) {
-  const KW = ['homeworld','set HW','build','trade','discover','move','attack','sacrifice','catastrophe','pass','skip','hijack'];
-  return str.split(' ').map(t => {
-    if (KW.some(k => t === k || str.startsWith(k)))
-      return `<span class="kw">${t}</span>`;
-    if (/^r\d/.test(t)) return `<span class="pr">${t}</span>`;
-    if (/^b\d/.test(t)) return `<span class="pb">${t}</span>`;
-    if (/^y\d/.test(t)) return `<span class="py">${t}</span>`;
-    if (/^g\d/.test(t)) return `<span class="pg">${t}</span>`;
-    return t;
-  }).join(' ');
-}
-
-function highlightLogTurn(snap) {
-  // Find which log entry corresponds to this snapshot
-  // Snapshot idx i corresponds to logEntries[i] (both appended together in commitTurnLog)
-  const container = document.getElementById('log-entries');
-  container.querySelectorAll('.log-turn').forEach(el => el.classList.remove('active'));
-  const target = container.querySelector(`.log-turn[data-idx="${currentIdx}"]`);
-  if (target) {
-    target.classList.add('active');
-    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
-}
-
-// ── SVG helpers (same as game.html) ─────────────────────────
-function triangleSVG(color, size, player) {
-  const dims = [0,26,36,48];
-  const d = dims[size] || 26;
-  const pad = 2;
-  let pts;
-  if (player === 2) pts = `${d/2},${d-pad} ${pad},${pad} ${d-pad},${pad}`;
-  else              pts = `${d/2},${pad} ${d-pad},${d-pad} ${pad},${d-pad}`;
-  const hex    = COLOR_HEX[color] || '#888';
-  const pipY   = player === 2 ? d*.44 : d*.7;
-  const pipSz  = Math.floor(d*.32);
-  const pip    = `<text x="${d/2}" y="${pipY}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.7)" font-size="${pipSz}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
-  return `<svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}" style="display:block">
-    <polygon points="${pts}" fill="${hex}" stroke="rgba(0,0,0,0.4)" stroke-width="1"/>
-    ${pip}</svg>`;
-}
-
-function diamondSVG(color, size) {
-  const dims = [0,28,36,46];
-  const d = dims[size] || 28;
-  const h = d*.85, cx = d/2, cy = h/2;
-  const hex  = COLOR_HEX[color] || '#888';
-  const pts  = `${cx},2 ${d-2},${cy} ${cx},${h-2} 2,${cy}`;
-  const pipSz = Math.floor(d*.3);
-  const pip   = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.65)" font-size="${pipSz}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
-  return `<svg width="${d}" height="${h}" viewBox="0 0 ${d} ${h}" style="display:block">
-    <polygon points="${pts}" fill="${hex}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
-    ${pip}</svg>`;
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 load();
