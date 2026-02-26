@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homeworlds — Online</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060912; --panel: #0c1120; --border: #1c2840;
+  --text: #a8c0e0; --bright: #ddeeff;
+  --red: #ff3344; --blue: #2266ff; --yellow: #ffcc00; --green: #22dd77;
+  --p1: #4488ff; --p2: #ff4455;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { min-height: 100%; background: var(--bg); color: var(--text);
+  font-family: 'Share Tech Mono', monospace; overflow-x: hidden; }
+
+/* ── Starfield ── */
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(circle at 10% 15%, rgba(255,255,255,0.6) 1px, transparent 1px),
+    radial-gradient(circle at 30% 70%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 55% 8%,  rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 75% 85%, rgba(255,255,255,0.6) 1px, transparent 1px),
+    radial-gradient(circle at 90% 30%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 42% 45%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 18% 88%, rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 65% 55%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 85% 65%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 5%  50%, rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 50% 90%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 22% 35%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 70% 20%, rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 38% 62%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 92% 48%, rgba(255,255,255,0.6) 1px, transparent 1px),
+    radial-gradient(circle at 15% 55%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 60% 38%, rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 80% 10%, rgba(255,255,255,0.4) 1px, transparent 1px);
+  background-size: 900px 900px;
+}
+
+/* ── Nav ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 40px;
+  background: rgba(6,9,18,0.85); backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(28,40,64,0.5);
+}
+.nav-logo {
+  font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 16px;
+  letter-spacing: 4px; color: var(--bright);
+}
+.nav-logo span { color: var(--p1); }
+.nav-btns { display: flex; gap: 12px; }
+
+/* ── Buttons ── */
+.btn {
+  padding: 10px 24px; border-radius: 4px; cursor: pointer;
+  font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 2px;
+  transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-primary {
+  background: rgba(68,136,255,0.15); border: 1px solid var(--p1);
+  color: var(--p1);
+}
+.btn-primary:hover { background: rgba(68,136,255,0.3); box-shadow: 0 0 20px rgba(68,136,255,0.4); }
+.btn-ghost {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-ghost:hover { border-color: #3a5080; color: var(--bright); background: rgba(255,255,255,0.04); }
+.btn-google {
+  background: rgba(255,255,255,0.05); border: 1px solid #3a5080;
+  color: var(--bright); padding: 14px 32px; font-size: 12px;
+  width: 100%; justify-content: center;
+}
+.btn-google:hover { background: rgba(255,255,255,0.1); border-color: var(--bright); }
+.btn-discord {
+  background: rgba(88,101,242,0.12); border: 1px solid #5865f2;
+  color: #8892f8; padding: 14px 32px; font-size: 12px;
+  width: 100%; justify-content: center; opacity: 0.5; cursor: not-allowed;
+}
+.btn-large {
+  padding: 16px 48px; font-size: 13px; letter-spacing: 3px;
+}
+
+/* ── Hero ── */
+.hero {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 120px 40px 80px; position: relative; z-index: 1; text-align: center;
+}
+.hero-eyebrow {
+  font-size: 11px; letter-spacing: 6px; color: #4a6080;
+  margin-bottom: 24px; text-transform: uppercase;
+}
+.hero-title {
+  font-family: 'Orbitron', sans-serif; font-weight: 900;
+  font-size: clamp(42px, 8vw, 96px); letter-spacing: 6px;
+  color: var(--bright); line-height: 1;
+  margin-bottom: 12px;
+}
+.hero-title .accent { color: var(--p1); }
+.hero-subtitle {
+  font-size: 13px; color: #506080; letter-spacing: 2px;
+  margin-bottom: 60px; line-height: 1.8;
+}
+
+/* Floating piece decorations */
+.hero-pieces {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+}
+.piece-float {
+  position: absolute; opacity: 0.12;
+  animation: floatPiece linear infinite;
+}
+@keyframes floatPiece {
+  0%   { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.12; }
+  90%  { opacity: 0.12; }
+  100% { transform: translateY(-120px) rotate(20deg); opacity: 0; }
+}
+
+/* ── Login card ── */
+.login-card {
+  background: rgba(12,17,32,0.9); border: 1px solid var(--border);
+  border-radius: 12px; padding: 40px;
+  width: 100%; max-width: 380px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 0 60px rgba(68,136,255,0.06);
+}
+.login-title {
+  font-family: 'Orbitron', sans-serif; font-size: 13px;
+  letter-spacing: 3px; color: var(--bright); margin-bottom: 8px;
+  text-align: center;
+}
+.login-sub { font-size: 11px; color: #4a6080; text-align: center; margin-bottom: 28px; }
+.login-divider {
+  display: flex; align-items: center; gap: 12px; margin: 16px 0;
+  font-size: 10px; color: #2a3850; letter-spacing: 2px;
+}
+.login-divider::before, .login-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.login-note {
+  font-size: 10px; color: #2a3850; text-align: center; margin-top: 16px; line-height: 1.6;
+}
+
+/* ── Stats strip ── */
+.stats-strip {
+  display: flex; justify-content: center; gap: 60px;
+  padding: 40px; position: relative; z-index: 1;
+  border-top: 1px solid rgba(28,40,64,0.5);
+  border-bottom: 1px solid rgba(28,40,64,0.5);
+  background: rgba(12,17,32,0.4);
+}
+.stat-item { text-align: center; }
+.stat-num {
+  font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900;
+  color: var(--bright); display: block;
+}
+.stat-label { font-size: 10px; letter-spacing: 3px; color: #4a6080; margin-top: 4px; }
+
+/* ── How to play ── */
+.how-section {
+  max-width: 900px; margin: 0 auto; padding: 80px 40px;
+  position: relative; z-index: 1;
+}
+.section-eyebrow {
+  font-size: 10px; letter-spacing: 5px; color: #4a6080;
+  margin-bottom: 16px; text-transform: uppercase;
+}
+.section-title {
+  font-family: 'Orbitron', sans-serif; font-size: 24px; font-weight: 700;
+  color: var(--bright); margin-bottom: 48px; letter-spacing: 2px;
+}
+.powers-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px; margin-bottom: 48px;
+}
+.power-card {
+  background: rgba(12,17,32,0.8); border: 1px solid var(--border);
+  border-radius: 8px; padding: 20px; text-align: center;
+  transition: border-color 0.2s;
+}
+.power-card:hover { border-color: var(--power-color, #3a5080); }
+.power-icon {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--power-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--power-color, #3a5080);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 12px; font-size: 18px;
+}
+.power-name {
+  font-family: 'Orbitron', sans-serif; font-size: 10px;
+  letter-spacing: 2px; color: var(--power-color, var(--text));
+  margin-bottom: 6px;
+}
+.power-desc { font-size: 11px; color: #4a6080; line-height: 1.6; }
+
+/* ── Footer ── */
+footer {
+  text-align: center; padding: 32px; position: relative; z-index: 1;
+  border-top: 1px solid rgba(28,40,64,0.4);
+  font-size: 11px; color: #253040; letter-spacing: 1px;
+}
+
+/* ── Auth state: logged-in nav ── */
+.nav-user { display: flex; align-items: center; gap: 10px; }
+.nav-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(68,136,255,0.2); border: 1px solid var(--p1);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  color: var(--p1); overflow: hidden;
+}
+.nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.nav-name { font-size: 11px; color: var(--bright); letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">HOME<span>W</span>ORLDS</div>
+  <div class="nav-btns" id="nav-btns">
+    <a href="lobby.html" class="btn btn-ghost" id="btn-lobby" style="display:none">ENTER LOBBY</a>
+    <div class="nav-user" id="nav-user" style="display:none">
+      <div class="nav-avatar" id="nav-avatar"></div>
+      <span class="nav-name" id="nav-name"></span>
+      <button class="btn btn-ghost" id="btn-signout" style="padding:6px 14px;font-size:10px">SIGN OUT</button>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <!-- Floating decorative pieces -->
+  <div class="hero-pieces" id="hero-pieces"></div>
+
+  <div class="hero-eyebrow">A GAME OF COSMIC STRATEGY</div>
+  <h1 class="hero-title">HOME<span class="accent">W</span>ORLDS</h1>
+  <p class="hero-subtitle">
+    Two empires. Four colors. One universe.<br>
+    Conquer the cosmos — or be consumed by it.
+  </p>
+
+  <!-- Login card -->
+  <div class="login-card" id="login-card">
+    <div class="login-title">ENTER THE GALAXY</div>
+    <div class="login-sub">Sign in to play online, track your ELO, and challenge rivals</div>
+
+    <button class="btn btn-google" id="btn-google">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
+      CONTINUE WITH GOOGLE
+    </button>
+
+    <div class="login-divider">COMING SOON</div>
+
+    <button class="btn btn-discord" disabled title="Discord login coming in a future update">
+      <svg width="18" height="14" viewBox="0 0 18 14" fill="#5865f2"><path d="M15.245 1.178A14.62 14.62 0 0 0 11.618 0c-.16.292-.347.687-.476 1a13.52 13.52 0 0 0-4.284 0C6.729.687 6.537.292 6.375 0A14.586 14.586 0 0 0 2.745 1.181C.395 4.703-.242 8.14.076 11.527A14.753 14.753 0 0 0 4.574 14c.36-.494.682-1.02.958-1.573a9.573 9.573 0 0 1-1.508-.738c.126-.094.25-.192.369-.292a10.507 10.507 0 0 0 9.214 0c.12.1.243.198.37.292-.48.29-.984.539-1.51.74.276.552.597 1.078.957 1.571A14.704 14.704 0 0 0 17.924 11.527C18.297 7.587 17.277 4.183 15.245 1.178zM6.009 9.444c-.926 0-1.686-.869-1.686-1.937 0-1.067.742-1.938 1.686-1.938.943 0 1.703.872 1.686 1.938.001 1.068-.743 1.937-1.686 1.937zm6.231 0c-.926 0-1.686-.869-1.686-1.937 0-1.067.743-1.938 1.686-1.938.944 0 1.703.872 1.687 1.938 0 1.068-.743 1.937-1.687 1.937z"/></svg>
+      DISCORD — COMING SOON
+    </button>
+
+    <div class="login-note">
+      Guest play available directly in the lobby after sign-in.<br>
+      No email required with Google sign-in.
+    </div>
+  </div>
+
+  <!-- Logged-in hero CTA (hidden until auth) -->
+  <div id="hero-loggedin" style="display:none; text-align:center">
+    <div style="font-size:14px;color:#4a6080;margin-bottom:24px;letter-spacing:1px">
+      Welcome back, <span id="hero-name" style="color:var(--bright)"></span>
+    </div>
+    <a href="lobby.html" class="btn btn-primary btn-large">ENTER LOBBY →</a>
+  </div>
+</section>
+
+<!-- STATS STRIP -->
+<div class="stats-strip">
+  <div class="stat-item">
+    <span class="stat-num" id="stat-players">—</span>
+    <div class="stat-label">REGISTERED PILOTS</div>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num" id="stat-games">—</span>
+    <div class="stat-label">GAMES PLAYED</div>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num" id="stat-online">—</span>
+    <div class="stat-label">ONLINE NOW</div>
+  </div>
+</div>
+
+<!-- HOW TO PLAY -->
+<section class="how-section">
+  <div class="section-eyebrow">THE BASICS</div>
+  <div class="section-title">FOUR COLORS. INFINITE STRATEGY.</div>
+
+  <div class="powers-grid">
+    <div class="power-card" style="--power-color:#ff3344;--power-bg:rgba(255,51,68,0.08)">
+      <div class="power-icon">⚔</div>
+      <div class="power-name">RED — HIJACK</div>
+      <div class="power-desc">Capture enemy ships equal or smaller than your largest in the system.</div>
+    </div>
+    <div class="power-card" style="--power-color:#ffcc00;--power-bg:rgba(255,204,0,0.08)">
+      <div class="power-icon">✦</div>
+      <div class="power-name">YELLOW — MOVE</div>
+      <div class="power-desc">Move ships between connected systems or discover new star systems.</div>
+    </div>
+    <div class="power-card" style="--power-color:#22dd77;--power-bg:rgba(34,221,119,0.08)">
+      <div class="power-icon">⬟</div>
+      <div class="power-name">GREEN — BUILD</div>
+      <div class="power-desc">Construct new ships matching a color already present in your fleet.</div>
+    </div>
+    <div class="power-card" style="--power-color:#2266ff;--power-bg:rgba(34,102,255,0.08)">
+      <div class="power-icon">⟳</div>
+      <div class="power-name">BLUE — TRADE</div>
+      <div class="power-desc">Convert any ship to a different color, changing its available power.</div>
+    </div>
+  </div>
+
+  <div style="background:rgba(12,17,32,0.8);border:1px solid var(--border);border-radius:8px;padding:24px;font-size:12px;color:#4a6080;line-height:2;text-align:center">
+    Defend your homeworld · Control the stash · Sacrifice ships for extra actions · Trigger catastrophes to annihilate overpopulated systems
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  HOMEWORLDS ONLINE — BUILT ON LOONEY LABS' HOMEWORLDS — 2026
+</footer>
+
+<script type="module">
+import { initializeApp }    from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth,
+         GoogleAuthProvider,
+         signInWithPopup,
+         signOut,
+         onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getDatabase, ref,
+         get, set, onValue } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { firebaseConfig }   from './firebase-config.js';
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getDatabase(app);
+
+// ── Auth state ──────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+  const loginCard     = document.getElementById('login-card');
+  const heroLoggedin  = document.getElementById('hero-loggedin');
+  const navUser       = document.getElementById('nav-user');
+  const navBtnLobby   = document.getElementById('btn-lobby');
+  const navAvatar     = document.getElementById('nav-avatar');
+  const navName       = document.getElementById('nav-name');
+
+  if (user) {
+    // Ensure player doc exists
+    await ensurePlayer(user);
+    const snap = await get(ref(db, `players/${user.uid}`));
+    const p    = snap.val();
+
+    loginCard.style.display    = 'none';
+    heroLoggedin.style.display = 'block';
+    navUser.style.display      = 'flex';
+    navBtnLobby.style.display  = 'inline-flex';
+
+    document.getElementById('hero-name').textContent = p.name;
+    navName.textContent = p.name;
+
+    if (user.photoURL) {
+      navAvatar.innerHTML = `<img src="${user.photoURL}" alt="">`;
+    } else {
+      navAvatar.textContent = p.name[0].toUpperCase();
+    }
+  } else {
+    loginCard.style.display    = 'block';
+    heroLoggedin.style.display = 'none';
+    navUser.style.display      = 'none';
+    navBtnLobby.style.display  = 'none';
+  }
+});
+
+// ── Google sign-in ──────────────────────────────────────────
+document.getElementById('btn-google').onclick = async () => {
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await signInWithPopup(auth, provider);
+    window.location.href = 'lobby.html';
+  } catch (e) {
+    console.error(e);
+    alert('Sign-in failed: ' + e.message);
+  }
+};
+
+// ── Sign out ────────────────────────────────────────────────
+document.getElementById('btn-signout').onclick = async () => {
+  await signOut(auth);
+};
+
+// ── Ensure player doc ───────────────────────────────────────
+async function ensurePlayer(user) {
+  const r    = ref(db, `players/${user.uid}`);
+  const snap = await get(r);
+  if (!snap.exists()) {
+    await set(r, {
+      uid:          user.uid,
+      name:         user.displayName || user.email?.split('@')[0] || 'Pilot',
+      elo:          1200,
+      wins:         0,
+      losses:       0,
+      advancedMode: false,
+      avatarUrl:    user.photoURL || '',
+      createdAt:    Date.now(),
+    });
+  }
+}
+
+// ── Live stats ──────────────────────────────────────────────
+onValue(ref(db, 'stats'), snap => {
+  const s = snap.val() || {};
+  document.getElementById('stat-players').textContent = s.players ?? '0';
+  document.getElementById('stat-games').textContent   = s.games   ?? '0';
+  document.getElementById('stat-online').textContent  = s.online  ?? '0';
+});
+
+// ── Floating pieces animation ───────────────────────────────
+const COLORS = ['#ff3344','#ffcc00','#22dd77','#2266ff'];
+const container = document.getElementById('hero-pieces');
+for (let i = 0; i < 16; i++) {
+  const el  = document.createElement('div');
+  const col = COLORS[i % 4];
+  const sz  = Math.random() * 30 + 14;
+  el.className = 'piece-float';
+  el.style.cssText = `
+    left:${Math.random()*100}%;
+    top:${Math.random()*100}%;
+    width:${sz}px; height:${sz}px;
+    border: 2px solid ${col};
+    border-radius: ${Math.random() > 0.5 ? '50%' : '4px'};
+    animation-duration: ${Math.random()*20+15}s;
+    animation-delay: ${Math.random()*-20}s;
+  `;
+  container.appendChild(el);
+}
+</script>
+</body>
+</html>
