@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homeworlds — Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red:#ff3344;--blue:#2266ff;--yellow:#ffcc00;--green:#22dd77;
+  --bg:#060912;--panel:#0c1120;--border:#1c2840;
+  --text:#a8c0e0;--bright:#ddeeff;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Share Tech Mono',monospace;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+
+/* Starfield */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(circle at 15% 20%,rgba(255,255,255,.5) 1px,transparent 1px),
+  radial-gradient(circle at 55% 10%,rgba(255,255,255,.4) 1px,transparent 1px),
+  radial-gradient(circle at 72% 80%,rgba(255,255,255,.5) 1px,transparent 1px),
+  radial-gradient(circle at 88% 35%,rgba(255,255,255,.3) 1px,transparent 1px),
+  radial-gradient(circle at 42% 42%,rgba(255,255,255,.2) 1px,transparent 1px),
+  radial-gradient(circle at 67% 55%,rgba(255,255,255,.4) 1px,transparent 1px),
+  radial-gradient(circle at 22% 78%,rgba(255,255,255,.3) 1px,transparent 1px),
+  radial-gradient(circle at 90% 10%,rgba(255,255,255,.5) 1px,transparent 1px);
+  background-size:800px 800px}
+
+/* ── Top bar ── */
+#top-bar{
+  display:flex;align-items:center;gap:12px;padding:10px 16px;
+  background:var(--panel);border-bottom:1px solid var(--border);
+  position:relative;z-index:2;flex-shrink:0;
+}
+#top-title{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:3px;color:#4a6080;text-transform:uppercase}
+#top-game-info{font-size:11px;color:#2a3850;flex:1}
+#btn-back-lobby{padding:7px 16px;background:transparent;border:1px solid var(--border);color:#4a6080;
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:4px;
+  margin-left:auto;transition:all .15s}
+#btn-back-lobby:hover{color:var(--bright);border-color:#3a5080}
+
+/* ── Nav bar ── */
+#nav-bar{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border);
+  position:relative;z-index:2;flex-shrink:0;
+}
+.nav-btn{
+  width:40px;height:36px;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:4px;
+  color:var(--text);cursor:pointer;font-size:15px;transition:all .15s;
+}
+.nav-btn:hover:not(:disabled){background:rgba(255,255,255,.08);border-color:#3a5080;color:var(--bright)}
+.nav-btn:disabled{opacity:.2;cursor:not-allowed}
+#turn-indicator{
+  font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;
+  color:#4a6080;padding:0 16px;min-width:160px;text-align:center;
+}
+
+/* ── Main layout ── */
+#main{display:flex;flex:1;overflow:hidden;position:relative;z-index:1}
+
+/* ── Board ── */
+#board{
+  flex:1;display:flex;flex-direction:column;
+  padding:16px;gap:12px;overflow-y:auto;
+}
+#zone-p2{min-height:140px;display:flex;justify-content:center;align-items:center;gap:16px}
+#zone-mid{flex:1;display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:14px;min-height:80px}
+#zone-p1{min-height:140px;display:flex;justify-content:center;align-items:center;gap:16px}
+.zone-label{font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:3px;color:#2a3850;text-transform:uppercase;margin-bottom:6px;text-align:center}
+
+/* ── Log panel ── */
+#log-panel{
+  width:220px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;
+}
+#log-header{padding:12px 14px 8px;border-bottom:1px solid var(--border);
+  font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:3px;color:#506080;text-transform:uppercase}
+#log-entries{flex:1;overflow-y:auto;padding:8px 0}
+#log-entries::-webkit-scrollbar{width:4px}
+#log-entries::-webkit-scrollbar-thumb{background:#1c2840}
+.log-turn{padding:6px 14px;border-bottom:1px solid rgba(255,255,255,.03);cursor:pointer;transition:background .1s}
+.log-turn:hover{background:rgba(255,255,255,.03)}
+.log-turn.active{background:rgba(255,204,0,.06);border-left:2px solid rgba(255,204,0,.5)}
+.log-turn.active .log-turn-num{color:#ffcc00}
+.log-turn-header{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.log-turn-num{font-family:'Orbitron',sans-serif;font-size:8px;color:#304050;letter-spacing:1px;min-width:20px}
+.log-player-badge{font-size:8px;font-family:'Orbitron',sans-serif;font-weight:700;padding:1px 5px;border-radius:2px;letter-spacing:1px}
+.log-player-badge.p1{background:rgba(68,136,255,.2);color:#5599ff;border:1px solid rgba(68,136,255,.3)}
+.log-player-badge.p2{background:rgba(255,68,85,.2);color:#ff6677;border:1px solid rgba(255,68,85,.3)}
+.log-action-line{font-family:'Share Tech Mono',monospace;font-size:10px;color:#4a6478;line-height:1.7;white-space:pre}
+.log-action-line .kw{color:#7090a8}
+.log-action-line .pr{color:#cc2233}
+.log-action-line .pb{color:#2255cc}
+.log-action-line .py{color:#ccaa00}
+.log-action-line .pg{color:#1aaa55}
+
+/* ── System card ── (same as game.html) ── */
+.system-card{
+  background:rgba(12,18,38,.9);border:1px solid var(--border);border-radius:8px;
+  padding:10px 12px;min-width:130px;max-width:200px;position:relative;
+}
+.system-card.homeworld-1{border-color:rgba(34,102,255,.3);box-shadow:0 0 10px rgba(34,102,255,.08)}
+.system-card.homeworld-2{border-color:rgba(255,51,68,.3);box-shadow:0 0 10px rgba(255,51,68,.08)}
+.sys-name{font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:2px;color:#4a6080;margin-bottom:8px;text-transform:uppercase}
+.sys-stars{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;min-height:28px;align-items:center}
+.sys-ships{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;min-height:32px}
+.ship-wrap{display:inline-flex;align-items:center;justify-content:center;position:relative}
+
+/* ── Loading overlay ── */
+#loading{position:fixed;inset:0;background:rgba(6,9,18,.95);z-index:100;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.spinner{width:40px;height:40px;border:2px solid #1c2840;border-top-color:#2266ff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading-msg{font-family:'Orbitron',sans-serif;font-size:12px;color:#4a6080;letter-spacing:2px}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-msg">LOADING GAME…</div>
+</div>
+
+<!-- Top bar -->
+<div id="top-bar">
+  <div id="top-title">⬡ REVIEW MODE</div>
+  <div id="top-game-info"></div>
+  <button id="btn-back-lobby" onclick="location.href='lobby.html'">← LOBBY</button>
+</div>
+
+<!-- Nav controls -->
+<div id="nav-bar">
+  <button class="nav-btn" id="nav-first"  title="Start of game">⏮</button>
+  <button class="nav-btn" id="nav-prev"   title="Previous turn">◀</button>
+  <div id="turn-indicator">TURN — / —</div>
+  <button class="nav-btn" id="nav-next"   title="Next turn">▶</button>
+  <button class="nav-btn" id="nav-last"   title="End of game">⏭</button>
+</div>
+
+<!-- Main -->
+<div id="main">
+  <div id="board">
+    <div>
+      <div class="zone-label">— PLAYER 2 HOMEWORLD —</div>
+      <div id="zone-p2"></div>
+    </div>
+    <div id="zone-mid"></div>
+    <div>
+      <div class="zone-label">— PLAYER 1 HOMEWORLD —</div>
+      <div id="zone-p1"></div>
+    </div>
+  </div>
+  <div id="log-panel">
+    <div id="log-header">Game Log</div>
+    <div id="log-entries"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp }   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { firebaseConfig } from './firebase-config.js';
+
+// ── Constants ────────────────────────────────────────────────
+const COLORS    = ['red','blue','yellow','green'];
+const COLOR_HEX = {red:'#ff3344',blue:'#2266ff',yellow:'#ffcc00',green:'#22dd77'};
+const SIZE_PIPS = ['','·','··','···'];
+const COLOR_LETTER = {red:'r',blue:'b',yellow:'y',green:'g'};
+
+// ── State ────────────────────────────────────────────────────
+let snapshots = [];   // array of G snapshots, one per committed turn
+let logEntries = [];  // G.log array from final snapshot
+let currentIdx = 0;   // which snapshot we're viewing
+let players = ['', 'Player 1', 'Player 2'];
+
+// ── Load ─────────────────────────────────────────────────────
+async function load() {
+  const params = new URLSearchParams(location.search);
+  const gameId = params.get('game');
+
+  if (!gameId) { setLoading('No game ID provided.'); return; }
+
+  // Local (pass-and-play) game stored in sessionStorage
+  if (gameId.startsWith('local-')) {
+    const raw = sessionStorage.getItem('hw_review_' + gameId);
+    if (!raw) { setLoading('Game not found in local storage.'); return; }
+    init(JSON.parse(raw));
+    return;
+  }
+
+  // Firebase game
+  try {
+    const fbApp = initializeApp(firebaseConfig);
+    const db    = getDatabase(fbApp);
+    const snap  = await get(ref(db, `gamesPlayed/${gameId}`));
+    if (!snap.exists()) { setLoading('Game not found.'); return; }
+    init(snap.val());
+  } catch(e) {
+    setLoading('Failed to load: ' + e.message);
+  }
+}
+
+function setLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg;
+}
+
+function init(record) {
+  players  = record.players || ['','Player 1','Player 2'];
+  snapshots = record.snapshots || [];
+  logEntries = record.log || [];
+
+  if (snapshots.length === 0) {
+    setLoading('No move data in this game record.');
+    return;
+  }
+
+  // Game info
+  const p1 = players[1]||'P1', p2 = players[2]||'P2';
+  const winner = record.winner;
+  const winName = players[winner] || `Player ${winner}`;
+  document.getElementById('top-game-info').textContent =
+    `${p1} vs ${p2}  ·  ${winName} wins  ·  ${snapshots.length} turns`;
+
+  document.getElementById('loading').style.display = 'none';
+  renderLog();
+  goTo(snapshots.length - 1); // start at end of game
+
+  // Nav buttons
+  document.getElementById('nav-first').onclick = () => goTo(0);
+  document.getElementById('nav-prev').onclick  = () => goTo(Math.max(0, currentIdx - 1));
+  document.getElementById('nav-next').onclick  = () => goTo(Math.min(snapshots.length - 1, currentIdx + 1));
+  document.getElementById('nav-last').onclick  = () => goTo(snapshots.length - 1);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft')  goTo(Math.max(0, currentIdx - 1));
+    if (e.key === 'ArrowRight') goTo(Math.min(snapshots.length - 1, currentIdx + 1));
+    if (e.key === 'Home') goTo(0);
+    if (e.key === 'End')  goTo(snapshots.length - 1);
+  });
+}
+
+function goTo(idx) {
+  currentIdx = idx;
+  const snap = snapshots[idx];
+  renderBoard(snap);
+  updateNav();
+  highlightLogTurn(snap);
+}
+
+function updateNav() {
+  const n = snapshots.length;
+  document.getElementById('nav-first').disabled = currentIdx === 0;
+  document.getElementById('nav-prev').disabled  = currentIdx === 0;
+  document.getElementById('nav-next').disabled  = currentIdx >= n - 1;
+  document.getElementById('nav-last').disabled  = currentIdx >= n - 1;
+  // Show whose turn just finished at this snapshot
+  const snap = snapshots[currentIdx];
+  const lastPlayer = snap.currentPlayer === 1 ? 2 : 1; // who just moved
+  document.getElementById('turn-indicator').textContent =
+    `TURN ${currentIdx + 1} / ${n}  ·  P${lastPlayer} moved`;
+}
+
+// ── Board rendering ──────────────────────────────────────────
+function renderBoard(G) {
+  const zP1  = document.getElementById('zone-p1');
+  const zP2  = document.getElementById('zone-p2');
+  const zMid = document.getElementById('zone-mid');
+  zP1.innerHTML = zP2.innerHTML = zMid.innerHTML = '';
+
+  (G.systems || []).forEach(sys => {
+    const card = buildSystemCard(sys);
+    if (sys.isHomeworld === 1)      zP1.appendChild(card);
+    else if (sys.isHomeworld === 2) zP2.appendChild(card);
+    else                             zMid.appendChild(card);
+  });
+}
+
+function buildSystemCard(sys) {
+  const card = document.createElement('div');
+  card.className = 'system-card';
+  if (sys.isHomeworld === 1) card.classList.add('homeworld-1');
+  if (sys.isHomeworld === 2) card.classList.add('homeworld-2');
+
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'sys-name';
+  nameDiv.textContent = sys.name || '—';
+  card.appendChild(nameDiv);
+
+  const starsDiv = document.createElement('div');
+  starsDiv.className = 'sys-stars';
+  (sys.stars || []).forEach(st => { starsDiv.innerHTML += diamondSVG(st.color, st.size); });
+  card.appendChild(starsDiv);
+
+  const sep = document.createElement('div');
+  sep.style.cssText = 'height:1px;background:rgba(255,255,255,.05);margin:4px 0';
+  card.appendChild(sep);
+
+  const shipsDiv = document.createElement('div');
+  shipsDiv.className = 'sys-ships';
+  (sys.ships || []).forEach(ship => {
+    const wrap = document.createElement('div');
+    wrap.className = 'ship-wrap';
+    wrap.innerHTML = triangleSVG(ship.color, ship.size, ship.owner);
+    const dot = document.createElement('div');
+    dot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);
+      width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:.8`;
+    wrap.appendChild(dot);
+    shipsDiv.appendChild(wrap);
+  });
+  card.appendChild(shipsDiv);
+  return card;
+}
+
+// ── Log rendering ────────────────────────────────────────────
+function renderLog() {
+  const container = document.getElementById('log-entries');
+  container.innerHTML = '';
+  logEntries.forEach((entry, i) => {
+    const div = document.createElement('div');
+    div.className = 'log-turn';
+    div.dataset.idx = i;
+    div.onclick = () => {
+      // Jump to the snapshot taken after this log entry
+      goTo(Math.min(i, snapshots.length - 1));
+    };
+    const pClass = entry.player === 1 ? 'p1' : 'p2';
+    div.innerHTML = `
+      <div class="log-turn-header">
+        <span class="log-turn-num">${entry.turn}.</span>
+        <span class="log-player-badge ${pClass}">P${entry.player}</span>
+      </div>
+      <div class="log-actions">
+        ${(entry.actions||[]).map(a => `<div class="log-action-line">${highlightNotation(a)}</div>`).join('')}
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+function highlightNotation(str) {
+  const KW = ['homeworld','set HW','build','trade','discover','move','attack','sacrifice','catastrophe','pass','skip','hijack'];
+  return str.split(' ').map(t => {
+    if (KW.some(k => t === k || str.startsWith(k)))
+      return `<span class="kw">${t}</span>`;
+    if (/^r\d/.test(t)) return `<span class="pr">${t}</span>`;
+    if (/^b\d/.test(t)) return `<span class="pb">${t}</span>`;
+    if (/^y\d/.test(t)) return `<span class="py">${t}</span>`;
+    if (/^g\d/.test(t)) return `<span class="pg">${t}</span>`;
+    return t;
+  }).join(' ');
+}
+
+function highlightLogTurn(snap) {
+  // Find which log entry corresponds to this snapshot
+  // Snapshot idx i corresponds to logEntries[i] (both appended together in commitTurnLog)
+  const container = document.getElementById('log-entries');
+  container.querySelectorAll('.log-turn').forEach(el => el.classList.remove('active'));
+  const target = container.querySelector(`.log-turn[data-idx="${currentIdx}"]`);
+  if (target) {
+    target.classList.add('active');
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+// ── SVG helpers (same as game.html) ─────────────────────────
+function triangleSVG(color, size, player) {
+  const dims = [0,26,36,48];
+  const d = dims[size] || 26;
+  const pad = 2;
+  let pts;
+  if (player === 2) pts = `${d/2},${d-pad} ${pad},${pad} ${d-pad},${pad}`;
+  else              pts = `${d/2},${pad} ${d-pad},${d-pad} ${pad},${d-pad}`;
+  const hex    = COLOR_HEX[color] || '#888';
+  const pipY   = player === 2 ? d*.44 : d*.7;
+  const pipSz  = Math.floor(d*.32);
+  const pip    = `<text x="${d/2}" y="${pipY}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.7)" font-size="${pipSz}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
+  return `<svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}" style="display:block">
+    <polygon points="${pts}" fill="${hex}" stroke="rgba(0,0,0,0.4)" stroke-width="1"/>
+    ${pip}</svg>`;
+}
+
+function diamondSVG(color, size) {
+  const dims = [0,28,36,46];
+  const d = dims[size] || 28;
+  const h = d*.85, cx = d/2, cy = h/2;
+  const hex  = COLOR_HEX[color] || '#888';
+  const pts  = `${cx},2 ${d-2},${cy} ${cx},${h-2} 2,${cy}`;
+  const pipSz = Math.floor(d*.3);
+  const pip   = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.65)" font-size="${pipSz}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
+  return `<svg width="${d}" height="${h}" viewBox="0 0 ${d} ${h}" style="display:block">
+    <polygon points="${pts}" fill="${hex}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+    ${pip}</svg>`;
+}
+
+load();
+</script>
+</body>
+</html>

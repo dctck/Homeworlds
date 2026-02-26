@@ -1073,15 +1073,7 @@ body::before {
 
 <!-- WIN OVERLAY -->
 <div id="win-overlay">
-  <div id="win-title">VICTORY</div>
-  <div id="win-sub">PLAYER <span id="win-player">1</span> HAS CONQUERED THE COSMOS</div>
-  <div style="display:flex;gap:12px;margin-top:4px;">
-    <button id="btn-copy-log" style="padding:10px 28px;background:transparent;border:1px solid #4a6080;color:#6080a0;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;transition:all 0.2s;">
-      ⎘ COPY LOG
-    </button>
-    <button id="btn-newgame" onclick="location.reload()">NEW GAME</button>
-    <button id="btn-win-lobby" style="display:none;padding:14px 40px;background:transparent;border:2px solid #4488ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:var(--fs-md);letter-spacing:3px;cursor:pointer;border-radius:4px;transition:all 0.2s;" onclick="location.href='lobby.html'">LOBBY</button>
-  </div>
+  <!-- filled dynamically by showWin() -->
 </div>
 
 <!-- STARTUP MODAL -->
@@ -1257,6 +1249,13 @@ function commitTurnLog() {
     G.currentTurn++;
   }
   G._pendingActions = [];
+
+  // Snapshot for review mode: save stripped G after every committed turn
+  window._gameSnapshots = window._gameSnapshots || [];
+  const snap = JSON.parse(JSON.stringify(G));
+  snap.history = null; snap.interaction = 'IDLE';
+  snap.selectedShipId = null; snap._pendingActions = [];
+  window._gameSnapshots.push(snap);
 }
 
 
@@ -1515,99 +1514,169 @@ function checkWin() {
   }
   return false;
 }
-function showWin(player) {
+// Build compact log text for clipboard
+function buildLogText(winnerPlayer) {
+  const winnerName = PLAYER_CONFIG.names[winnerPlayer] || `Player ${winnerPlayer}`;
+  function compactAction(a) {
+    return a
+      .replace(/^set HW\s+/, 'h ').replace(/\s+ship\s+/, ' ')
+      .replace(/^build\s+/,'b ').replace(/^trade\s+/,'t ')
+      .replace(/^move\s+/,'m ').replace(/^discover\s+/,'d ')
+      .replace(/^hijack\s+/,'a ').replace(/^sacrifice\s+/,'s ')
+      .replace(/^catastrophe\s+/,'c ').replace(/^skip$/,'sk');
+  }
+  function compactTurn(e) { return (e.actions||[]).map(compactAction).join(' / '); }
+  const log = G.log || [];
+  const setupE = log.filter(e => e.actions.some(a => a.startsWith('set HW')||a.startsWith('h ')));
+  const gameE  = log.filter(e => !e.actions.some(a => a.startsWith('set HW')||a.startsWith('h ')));
+  const lines = [];
+  const hw1 = setupE.find(e=>e.player===1), hw2 = setupE.find(e=>e.player===2);
+  if (hw1||hw2) lines.push(`1. ${hw1?compactTurn(hw1):'—'} … ${hw2?compactTurn(hw2):'—'}`);
+  let i=0, tn=2;
+  while(i<gameE.length){
+    const e1=gameE[i], e2=gameE[i+1];
+    if(e1&&e1.player===1){lines.push(`${tn}. ${compactTurn(e1)} … ${e2?compactTurn(e2):'—'}`);i+=2;}
+    else if(e1&&e1.player===2){lines.push(`${tn}. — … ${compactTurn(e1)}`);i+=1;}
+    else i++;
+    tn++;
+  }
+  lines.push(`${winnerName} wins`);
+  return lines.join('\n');
+}
+
+function showWin(winnerPlayer) {
   stopTimerTick();
   _chatMessages = [];
-  document.getElementById('win-player').textContent = player;
-  document.getElementById('win-overlay').classList.add('show');
+  G.phase = 'OVER';
+  G.winner = winnerPlayer;
 
-  // Wire up copy log button
-  const copyBtn = document.getElementById('btn-copy-log');
-  if (copyBtn) {
-    copyBtn.onclick = () => {
-      const winnerName = PLAYER_CONFIG.names[player] || `Player ${player}`;
-      const loserName  = PLAYER_CONFIG.names[3 - player] || `Player ${3 - player}`;
+  const overlay = document.getElementById('win-overlay');
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
 
-      // Compact keyword map: long form → single letter abbreviation
-      function compactAction(a) {
-        return a
-          // homeworld: "set HW r2 b1 ship g3 Alpha" → "h r2 b1 g3 Alpha"
-          .replace(/^set HW\s+/, 'h ')
-          .replace(/\s+ship\s+/, ' ')
-          // other keywords → single letter
-          .replace(/^build\s+/,       'b ')
-          .replace(/^trade\s+/,       't ')
-          .replace(/^move\s+/,        'm ')
-          .replace(/^discover\s+/,    'd ')
-          .replace(/^hijack\s+/,      'a ')
-          .replace(/^sacrifice\s+/,   's ')
-          .replace(/^catastrophe\s+/, 'c ')
-          .replace(/^skip$/,          'sk');
-      }
+  // Determine if I am winner or loser (pass-and-play: always show winner screen)
+  const mySlot   = window._ONLINE?.mySlot || null;
+  const isWinner = !mySlot || mySlot === winnerPlayer;
+  const loserPlayer = 3 - winnerPlayer;
 
-      // Compact a full turn's actions array → "action1 / action2 / ..."
-      function compactTurn(entry) {
-        return (entry.actions || []).map(compactAction).join(' / ');
-      }
+  const winnerName = PLAYER_CONFIG.names[winnerPlayer] || `Player ${winnerPlayer}`;
+  const loserName  = PLAYER_CONFIG.names[loserPlayer]  || `Player ${loserPlayer}`;
+  const myName     = mySlot ? PLAYER_CONFIG.names[mySlot] : winnerName;
 
-      // Pair P1 and P2 turns onto the same line.
-      // Setup turns (homeworld) are first two log entries; game turns alternate after.
-      const log = G.log || [];
-      const lines = [];
+  // Tier calculation
+  const oldStars  = parseInt(PLAYER_CONFIG.elos[winnerPlayer]) || 0;
+  const starGain  = 3;
+  const starLoss  = 1;
+  const newWinStars  = oldStars + starGain;
+  const oldLoseStars = parseInt(PLAYER_CONFIG.elos[loserPlayer]) || 0;
+  const newLoseStars = Math.max(0, oldLoseStars - starLoss);
+  const oldWinTier  = getTier(oldStars);
+  const newWinTier  = getTier(newWinStars);
+  const tierUp      = newWinTier.name !== oldWinTier.name;
 
-      // Gather setup entries separately (they're logged individually during setup phase)
-      const setupEntries = log.filter(e => e.actions.some(a => a.startsWith('set HW') || a.startsWith('h ')));
-      const gameEntries  = log.filter(e => !e.actions.some(a => a.startsWith('set HW') || a.startsWith('h ')));
+  const displayPlayer = mySlot || winnerPlayer;
+  const iAm = isWinner ? 'winner' : 'loser';
+  const myOldStars = isWinner ? oldStars : oldLoseStars;
+  const myNewStars = isWinner ? newWinStars : newLoseStars;
+  const myOldTier  = getTier(myOldStars);
+  const myNewTier  = getTier(myNewStars);
+  const myTierUp   = isWinner && tierUp;
 
-      // Setup line: both HW setups on one line
-      const hw1 = setupEntries.find(e => e.player === 1);
-      const hw2 = setupEntries.find(e => e.player === 2);
-      if (hw1 || hw2) {
-        const p1str = hw1 ? compactTurn(hw1) : '—';
-        const p2str = hw2 ? compactTurn(hw2) : '—';
-        lines.push(`1. ${p1str} … ${p2str}`);
-      }
+  // Build overlay content
+  const accentColor = isWinner ? '#ffcc00' : '#4a6080';
+  const titleText   = isWinner ? 'GALACTIC TRIUMPH' : 'COSMIC DEFEAT';
+  const subtitleText = isWinner
+    ? `${myName} has conquered the cosmos`
+    : `${winnerName} has conquered the cosmos`;
 
-      // Game turns: pair P1 then P2
-      let i = 0;
-      let turnNum = 2;
-      while (i < gameEntries.length) {
-        const e1 = gameEntries[i];
-        const e2 = gameEntries[i + 1];
-        if (e1 && e1.player === 1) {
-          const p1str = compactTurn(e1);
-          const p2str = e2 ? compactTurn(e2) : '—';
-          lines.push(`${turnNum}. ${p1str} … ${p2str}`);
-          i += 2;
-        } else if (e1 && e1.player === 2) {
-          lines.push(`${turnNum}. — … ${compactTurn(e1)}`);
-          i += 1;
-        } else {
-          i++;
-        }
-        turnNum++;
-      }
-
-      // Final result line
-      lines.push(`${winnerName} wins`);
-
-      const text = lines.join('\n');
-      navigator.clipboard.writeText(text).then(() => {
-        copyBtn.textContent = '✓ COPIED';
-        setTimeout(() => { copyBtn.textContent = '⎘ COPY LOG'; }, 2000);
-      }).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.cssText = 'position:fixed;opacity:0';
-        document.body.appendChild(ta);
-        ta.select(); document.execCommand('copy');
-        ta.remove();
-        copyBtn.textContent = '✓ COPIED';
-        setTimeout(() => { copyBtn.textContent = '⎘ COPY LOG'; }, 2000);
-      });
-    };
+  let tierHtml = '';
+  if (mySlot) {
+    // Star delta row
+    const delta = isWinner ? `+${starGain}` : `-${starLoss}`;
+    const deltaColor = isWinner ? '#22dd77' : '#ff4455';
+    tierHtml = `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid #1c2840;border-radius:8px;padding:16px 24px;min-width:260px;text-align:center;">
+        <div style="font-size:11px;color:#304050;letter-spacing:2px;margin-bottom:10px;font-family:Orbitron,sans-serif;">YOUR RATING</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;">
+          <span style="font-family:Orbitron,sans-serif;font-size:22px;font-weight:700;color:${myOldTier.color}">${myOldStars}</span>
+          <span style="color:#253040;font-size:16px;">→</span>
+          <span style="font-family:Orbitron,sans-serif;font-size:26px;font-weight:900;color:${myNewTier.color}">${myNewStars}</span>
+          <span style="font-size:14px;font-weight:700;color:${deltaColor}">${delta}</span>
+        </div>
+        <div style="font-size:11px;color:${myNewTier.color};letter-spacing:1px;">${myNewTier.name}</div>
+        ${myTierUp ? `<div style="margin-top:10px;padding:8px 16px;background:rgba(255,204,0,0.12);border:1px solid rgba(255,204,0,0.4);border-radius:6px;font-family:Orbitron,sans-serif;font-size:11px;color:#ffcc00;letter-spacing:2px;animation:pulse-cata 1.2s ease-in-out infinite;">⬆ TIER UP: ${newWinTier.name.toUpperCase()}!</div>` : ''}
+      </div>`;
   }
+
+  overlay.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:20px;padding:32px;max-width:440px;text-align:center;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:clamp(22px,4vw,36px);font-weight:900;color:${accentColor};letter-spacing:4px;text-shadow:0 0 40px ${accentColor}88;">${titleText}</div>
+      <div style="font-size:13px;color:#6080a0;letter-spacing:2px;">${subtitleText}</div>
+      ${tierHtml}
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:4px;">
+        <button id="wo-copy" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">COPY LOG</button>
+        <button id="wo-lobby" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">LOBBY</button>
+        <button id="wo-review" style="padding:10px 22px;background:rgba(34,102,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">REVIEW GAME</button>
+      </div>
+      <div id="wo-status" style="font-size:10px;color:#304050;letter-spacing:1px;min-height:16px;"></div>
+    </div>`;
+
+  // Copy log
+  document.getElementById('wo-copy').onclick = () => {
+    const text = buildLogText(winnerPlayer);
+    const btn = document.getElementById('wo-copy');
+    navigator.clipboard.writeText(text).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    }).finally ? navigator.clipboard.writeText(text).finally(()=>{}) : null;
+    btn.textContent = 'COPIED ✓';
+    setTimeout(() => btn.textContent = 'COPY LOG', 2000);
+  };
+
+  // Lobby
+  document.getElementById('wo-lobby').onclick = () => location.href = 'lobby.html';
+
+  // Review Game — archive then redirect
+  document.getElementById('wo-review').onclick = async () => {
+    const btn = document.getElementById('wo-review');
+    const status = document.getElementById('wo-status');
+    btn.disabled = true; btn.textContent = 'SAVING…';
+    const gameId = await archiveGame(winnerPlayer);
+    if (gameId) {
+      location.href = `review.html?game=${gameId}`;
+    } else {
+      status.textContent = 'Could not save — check connection.';
+      btn.disabled = false; btn.textContent = 'REVIEW GAME';
+    }
+  };
+
+  // Notify online module to handle star updates + room cleanup
+  window.dispatchEvent(new CustomEvent('gameOver', { detail: { winnerPlayer } }));
 }
+// Archive current game to sessionStorage (pass-and-play) or Firebase (online).
+// Returns a game ID string, or null on failure.
+async function archiveGame(winnerPlayer) {
+  const record = {
+    winner:   winnerPlayer,
+    players:  [null, PLAYER_CONFIG.names[1]||'Player 1', PLAYER_CONFIG.names[2]||'Player 2'],
+    log:      G.log || [],
+    snapshots: window._gameSnapshots || [],
+    playedAt: Date.now(),
+  };
+  // Pass-and-play: use sessionStorage
+  if (!window._ONLINE?.active) {
+    const id = 'local-' + Date.now();
+    try { sessionStorage.setItem('hw_review_' + id, JSON.stringify(record)); } catch(e) {}
+    return id;
+  }
+  // Online: delegate to the module's archiveOnline()
+  if (typeof window._archiveOnline === 'function') {
+    return await window._archiveOnline(record);
+  }
+  return null;
+}
+
 function connectedSystems(sys) {
   return G.systems.filter(s => s.id !== sys.id && isConnected(sys, s));
 }
@@ -3725,7 +3794,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window.render();
 
       if (g.phase === 'OVER') {
-        // Game already finished — render shows win overlay
+        window.showWin(g.winner);
       } else if (g.currentPlayer === MY_SLOT) {
         const isSetup = g.phase === 'SETUP';
         showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Continue your turn');
@@ -3762,11 +3831,20 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       const incoming = JSON.parse(d.gJson);
       syncUid(incoming);
       incoming.history = null; incoming.interaction = 'IDLE';
-      incoming.selectedShipId = null; incoming._pendingActions = [];
+      incoming.selectedShipId = null;
+      if (incoming._snapshots) { window._gameSnapshots = incoming._snapshots; delete incoming._snapshots; }
+      incoming._pendingActions = [];
       window.G = incoming;
-      window.render();
 
-      if (incoming.phase === 'OVER') return;
+      if (incoming.phase === 'OVER') {
+        window.render();
+        if (!document.getElementById('win-overlay')?.classList.contains('show')) {
+          window.showWin(incoming.winner);
+        }
+        return;
+      }
+
+      window.render();
       const isSetup = incoming.phase === 'SETUP';
       showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Opponent finished their turn');
     });
@@ -3777,11 +3855,62 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     onDisconnect(presRef).set({ uid: user.uid, online: false });
   }
 
+  // ── Archive game to Firebase, update stars, delete room ──────
+  window._archiveOnline = async function(record) {
+    try {
+      // Get next game ID
+      const counterSnap = await get(ref(db, 'gamesPlayedCount'));
+      const nextId = ((counterSnap.val() || 0) + 1);
+
+      // Save game record
+      await set(ref(db, `gamesPlayed/${nextId}`), record);
+      await set(ref(db, 'gamesPlayedCount'), nextId);
+
+      // Update star counts for both players
+      const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
+      const room = roomSnap.val();
+      if (room) {
+        const w = record.winner, l = 3 - w;
+        const wUid = w === 1 ? room.player1?.uid : room.player2?.uid;
+        const lUid = l === 1 ? room.player1?.uid : room.player2?.uid;
+        const wStars = w === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
+        const lStars = l === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
+        if (wUid) await set(ref(db, `users/${wUid}/stars`), wStars + 3);
+        if (lUid) await set(ref(db, `users/${lUid}/stars`), Math.max(0, lStars - 1));
+      }
+
+      // Mark room as archived (don't delete yet — other player may still need to see win screen)
+      await update(ref(db, `rooms/${ROOM_ID}`), { status: 'archived', archivedGameId: nextId });
+
+      return String(nextId);
+    } catch(e) {
+      console.error('Archive failed', e);
+      return null;
+    }
+  };
+
+  // When both players have seen the game over screen, room can be deleted.
+  // We track this with rooms/{id}/seenBy/{slot} = true
+  window.addEventListener('gameOver', async ({ detail }) => {
+    if (!window._ONLINE?.active) return;
+    await set(ref(db, `rooms/${ROOM_ID}/seenBy/${MY_SLOT}`), true);
+    // Check if both players have seen it
+    onValue(ref(db, `rooms/${ROOM_ID}/seenBy`), async snap => {
+      const seen = snap.val() || {};
+      if (seen[1] && seen[2]) {
+        // Both seen — delete room
+        try { await set(ref(db, `rooms/${ROOM_ID}`), null); } catch(e) {}
+      }
+    }, { onlyOnce: false });
+  });
+
   // ── Save canonical G to Firebase ─────────────────────────────
   async function saveState() {
     const g = JSON.parse(JSON.stringify(window.G));
     g.history = null; g.interaction = 'IDLE';
     g.selectedShipId = null; g._pendingActions = [];
+    // Include snapshots so recipient can enter review mode too
+    if (window._gameSnapshots?.length) g._snapshots = window._gameSnapshots;
     await set(ref(db, `rooms/${ROOM_ID}/game`), {
       gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts: Date.now(),
     });
