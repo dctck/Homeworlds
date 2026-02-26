@@ -1084,6 +1084,8 @@ body::before {
 </div>
 
 <!-- STARTUP MODAL -->
+<!-- Hide immediately if this is an online game (?room=) — module will replace contents -->
+<script>if(new URLSearchParams(location.search).get('room')){document.addEventListener('DOMContentLoaded',function(){var m=document.getElementById('startup-modal');if(m)m.style.display='none';});}</script>
 <div id="startup-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:200;display:flex;align-items:center;justify-content:center;">
   <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:32px;width:420px;max-width:95vw;">
     <div style="font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900;color:#ddeeff;letter-spacing:4px;text-align:center;margin-bottom:6px;">HOMEWORLDS</div>
@@ -1154,10 +1156,10 @@ const nextId = () => ++uid;
 // ============================================================
 //  STATE
 // ============================================================
-let G = null;
+var G = null;
 
 // Player config — set from startup modal
-let PLAYER_CONFIG = {
+var PLAYER_CONFIG = {
   names: ['', 'Player 1', 'Player 2'],
   elos:  ['', '1200', '1200'],
   timeMs: 0,   // 0 = unlimited; otherwise ms per player
@@ -3648,6 +3650,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (_started) return;
     const modal = document.getElementById('startup-modal');
     if (!modal) return;
+    modal.style.display = 'flex';  // restore if hidden by inline script
 
     const p1Name = room.player1?.name || '—';
     const p2Name = room.player2?.name || '—';
