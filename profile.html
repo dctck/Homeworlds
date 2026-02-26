@@ -102,8 +102,10 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 .match-result{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;min-width:36px}
 .match-result.win{color:var(--green)}.match-result.loss{color:var(--p2)}
 .match-opp{color:var(--text);flex:1}
-.match-stars{font-size:10px}
-.match-date{color:#2a3850;font-size:10px}
+.match-stars{font-size:10px;min-width:28px;text-align:right}
+.match-date{color:#2a3850;font-size:10px;min-width:64px;text-align:right}
+.match-review{font-size:10px;color:#2255aa;letter-spacing:1px;text-decoration:none;padding:2px 7px;border:1px solid #1c3060;border-radius:3px;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.match-review:hover{color:#4488ff;border-color:#2266ff;background:rgba(34,102,255,.08)}
 .no-history{color:#253040;font-size:11px;letter-spacing:1px;text-align:center;padding:20px}
 
 /* ── Avatar upload state ── */
@@ -410,22 +412,31 @@ document.getElementById('toggle-advanced').onchange=async function(){
 
 // ── Match history ─────────────────────────────────────────────
 async function loadHistory(uid){
-  const snap=await get(ref(db,`matchHistory/${uid}`));
-  const container=document.getElementById('match-history');
-  if (!snap.exists()) return;
-  const matches=Object.values(snap.val()).sort((a,b)=>b.timestamp-a.timestamp).slice(0,20);
-  container.innerHTML='';
-  matches.forEach(m=>{
-    const row=document.createElement('div');
-    row.className='match-row';
-    const starsStr=m.starsAwarded>0?`+${m.starsAwarded}★`:'—';
-    row.innerHTML=`
-      <span class="match-result ${m.result}">${m.result.toUpperCase()}</span>
-      <span class="match-opp">vs ${esc(m.opponentName)}</span>
-      <span class="match-stars" style="color:${m.starsAwarded>0?'var(--green)':'#3a5060'}">${starsStr}</span>
-      <span class="match-date">${new Date(m.timestamp).toLocaleDateString()}</span>`;
-    container.appendChild(row);
-  });
+  const container = document.getElementById('match-history');
+  try {
+    // Read from players/{uid}/recentGames — written by game.html on game end
+    const snap = await get(ref(db, `players/${uid}/recentGames`));
+    if (!snap.exists()) return;
+    const matches = snap.val(); // already an array, newest first
+    if (!matches || !matches.length) return;
+    container.innerHTML = '';
+    matches.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'match-row';
+      const delta = m.starDelta > 0 ? `+${m.starDelta}★` : `${m.starDelta}★`;
+      const deltaColor = m.starDelta > 0 ? 'var(--green)' : '#884444';
+      const date = new Date(m.playedAt).toLocaleDateString();
+      row.innerHTML = `
+        <span class="match-result ${m.result}">${m.result.toUpperCase()}</span>
+        <span class="match-opp">vs ${esc(m.opponent||'Unknown')}</span>
+        <span class="match-stars" style="color:${deltaColor}">${delta}</span>
+        <span class="match-date">${date}</span>
+        ${m.gameId ? `<a class="match-review" href="review.html?game=${encodeURIComponent(m.gameId)}">▶ REVIEW</a>` : ''}`;
+      container.appendChild(row);
+    });
+  } catch(e) {
+    console.warn('loadHistory failed:', e.message);
+  }
 }
 
 // ── Sign out ──────────────────────────────────────────────────

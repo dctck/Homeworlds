@@ -3908,18 +3908,39 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         return;
       }
 
-      // Update THIS client's own stars only (rules only allow writing your own record)
-      // Both clients run this independently — winner gets +3, loser gets -1
+      // Update THIS client's own stars + record game in match history
+      // (rules only allow writing your own record)
       try {
         const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
         const room = roomSnap.val();
         if (room) {
-          const myUid = room[MY_SLOT === 1 ? 'player1' : 'player2']?.uid;
-          const myStars = parseInt(room[MY_SLOT === 1 ? 'player1' : 'player2']?.stars || 0);
-          const iWon = detail.winner === MY_SLOT;
+          const mySlotKey = MY_SLOT === 1 ? 'player1' : 'player2';
+          const oppSlotKey = MY_SLOT === 1 ? 'player2' : 'player1';
+          const myUid   = room[mySlotKey]?.uid;
+          const myStars = parseInt(room[mySlotKey]?.stars || 0);
+          const iWon    = detail.winner === MY_SLOT;
           const newStars = iWon ? myStars + 3 : Math.max(0, myStars - 1);
+          const oppName  = room[oppSlotKey]?.name || `Player ${3 - MY_SLOT}`;
+          const gameId   = room.archivedGameId;
           console.log('[HW] Updating my stars:', myStars, '->', newStars, '(iWon:', iWon, ')');
-          if (myUid) await update(ref(db, `players/${myUid}`), { stars: newStars });
+          if (myUid) {
+            // Update stars
+            await update(ref(db, `players/${myUid}`), { stars: newStars });
+            // Prepend game to match history (keep last 20)
+            if (gameId) {
+              const histSnap = await get(ref(db, `players/${myUid}/recentGames`));
+              const hist = histSnap.val() || [];
+              const entry = {
+                gameId,
+                result:    iWon ? 'win' : 'loss',
+                opponent:  oppName,
+                starDelta: iWon ? 3 : -1,
+                playedAt:  Date.now(),
+              };
+              const updated = [entry, ...hist].slice(0, 20);
+              await set(ref(db, `players/${myUid}/recentGames`), updated);
+            }
+          }
         }
       } catch(e) {
         console.warn('[HW] Star update failed (non-fatal):', e.message);

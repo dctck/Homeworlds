@@ -1146,6 +1146,7 @@ function isConnected(s1, s2) {
 // ── Stubs so renderSystem/renderBank work read-only ─────────
 // In review mode, G.interaction is always IDLE — no interactive branches fire.
 // We still need these functions defined to avoid ReferenceErrors.
+let G = null; // set to current snapshot before every render
 function findShip(id) {
   if (!G) return null;
   for (const sys of G.systems) { const s = sys.ships.find(x => x.id === id); if (s) return s; }
