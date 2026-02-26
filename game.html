@@ -3884,8 +3884,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         const lUid = l === 1 ? room.player1?.uid : room.player2?.uid;
         const wStars = w === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
         const lStars = l === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
-        if (wUid) await set(ref(db, `users/${wUid}/stars`), wStars + 3);
-        if (lUid) await set(ref(db, `users/${lUid}/stars`), Math.max(0, lStars - 1));
+        if (wUid) await update(ref(db, `players/${wUid}`), { stars: wStars + 3 });
+        if (lUid) await update(ref(db, `players/${lUid}`), { stars: Math.max(0, lStars - 1) });
       }
 
       // Mark room as archived (don't delete yet — other player may still need to see win screen)
