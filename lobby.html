@@ -320,8 +320,69 @@ onAuthStateChanged(auth, async user => {
   else av.textContent = ME.name[0].toUpperCase();
 
   document.getElementById('room-name').value = `${ME.name}'s Room`;
+
+  // Reconcile any missed game results from rooms that ended while this player was away.
+  // For each room this player was in that is now 'archived' but their recentGames doesn't
+  // have that gameId yet, we add the result. This catches the case where they were in the
+  // lobby when their opponent ended the game.
+  try { await reconcileMissedResults(user.uid); } catch(e) { console.warn('reconcile error:', e); }
+
   subscribeRooms();
 });
+
+async function reconcileMissedResults(uid) {
+  // Get player's recent games (so we know which gameIds already recorded)
+  const playerSnap = await get(ref(db, `players/${uid}`));
+  const playerRec  = playerSnap.val() || {};
+  const recentGames = playerRec.recentGames || [];
+  const knownIds   = new Set(recentGames.map(g => String(g.gameId)));
+
+  // Find rooms this player was part of that are archived
+  const roomsSnap = await get(ref(db, 'rooms'));
+  if (!roomsSnap.exists()) return;
+  const rooms = roomsSnap.val();
+  let needsUpdate = false;
+  const newEntries = [];
+
+  Object.values(rooms).forEach(room => {
+    if (room.status !== 'archived') return;
+    if (!room.archivedGameId) return;
+    if (knownIds.has(String(room.archivedGameId))) return;
+
+    // Was this player in this room?
+    const isP1 = room.player1?.uid === uid;
+    const isP2 = room.player2?.uid === uid;
+    if (!isP1 && !isP2) return;
+
+    const mySlot  = isP1 ? 1 : 2;
+    const oppSlot = isP1 ? 2 : 1;
+    const iWon    = room.winner === mySlot;
+    const oppName = room[isP1 ? 'player2' : 'player1']?.name || `Player ${oppSlot}`;
+    newEntries.push({
+      gameId:    String(room.archivedGameId),
+      result:    iWon ? 'win' : 'loss',
+      opponent:  oppName,
+      starDelta: iWon ? 3 : -1,
+      playedAt:  room.updatedAt || Date.now(),
+    });
+    needsUpdate = true;
+  });
+
+  if (!needsUpdate) return;
+
+  // Merge new entries with existing, sort newest first, keep 20
+  const merged = [...newEntries, ...recentGames]
+    .sort((a, b) => b.playedAt - a.playedAt)
+    .slice(0, 20);
+
+  // Re-tally wins/losses from the full history
+  const wins   = merged.filter(g => g.result === 'win').length;
+  const losses = merged.filter(g => g.result === 'loss').length;
+
+  await update(ref(db, `players/${uid}`), { wins, losses });
+  await set(ref(db, `players/${uid}/recentGames`), merged);
+  console.log('[Lobby] Reconciled', newEntries.length, 'missed result(s) for', uid);
+}
 
 document.getElementById('btn-signout').onclick = async e => { e.preventDefault(); await signOut(auth); window.location.href='index.html'; };
 

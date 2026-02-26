@@ -1014,7 +1014,32 @@ body {
 </div>
 
 <!-- CENTER: Board -->
-<div id="board">
+<div id="board" style="position:relative;">
+  <svg id="arrow-svg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:50;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arrowhead-blue"
+              markerWidth="3"
+              markerHeight="3"
+              viewBox="0 0 6 6"
+              refX="5"
+              refY="3"
+              orient="auto">
+        <path d="M0,0 L0,6 L6,3 z"
+              fill="rgba(100,210,255,0.75)" />
+      </marker>
+
+      <marker id="arrowhead-orange"
+              markerWidth="3"
+              markerHeight="3"
+              viewBox="0 0 6 6"
+              refX="5"
+              refY="3"
+              orient="auto">
+        <path d="M0,0 L0,6 L6,3 z"
+              fill="rgba(255,160,40,0.75)" />
+      </marker>
+    </defs>
+  </svg>
   <div class="zone-hw-area">
     <div class="zone-label" style="text-align:center">— PLAYER 2 HOMEWORLD —</div>
     <div id="zone-p2"></div>
@@ -1147,6 +1172,7 @@ function isConnected(s1, s2) {
 // In review mode, G.interaction is always IDLE — no interactive branches fire.
 // We still need these functions defined to avoid ReferenceErrors.
 let G = null; // set to current snapshot before every render
+let _arrowPid = 0;   // arrow system piece counter, reset on each goTo
 function findShip(id) {
   if (!G) return null;
   for (const sys of G.systems) { const s = sys.ships.find(x => x.id === id); if (s) return s; }
@@ -1168,9 +1194,7 @@ function directAttack()      {}
 function saveHistory()       {}
 function logAction()         {}
 function setGuide()          {}
-function _stampPid()         {}
-function _initArrows()       {}
-function _renderArrows()     {}
+// _stampPid, _initArrows, _renderArrows are defined below the goTo/render functions
 function attachTurnTokenListeners() {}
 const Note = { hijack: () => '', sacrifice: () => '' };
 // Force read-only state flags — renderSystem checks these
@@ -1580,6 +1604,9 @@ function renderBoard() {
     layers.get(d).forEach(s => row.appendChild(renderSystem(s)));
     zMid.appendChild(row);
   });
+
+  _initArrows();
+  requestAnimationFrame(_renderArrows);
 }
 
 // ── Log (identical to game.html, but with click-to-jump) ────
@@ -1713,6 +1740,9 @@ function goTo(idx) {
   currentIdx = idx;
   // Deep-clone snapshot so we can safely override flags
   G = JSON.parse(JSON.stringify(snapshots[idx]));
+  // Reset arrows when navigating turns
+  if (typeof _arrows !== 'undefined') _arrows.length = 0;
+  _arrowPid = 0;
   // Force read-only: no interactive state, no selection
   G.interaction    = 'IDLE';
   G.selectedShipId = null;
@@ -1750,6 +1780,142 @@ function esc(s) {
 }
 
 load();
+
+// ── Arrow drawing (identical to game.html) ──────────────────
+const _arrows   = [];   // { fromPid, toPid, color }
+let   _arrowDrag = null; // { fromPid, fromEl, alt }
+/** Called by renderSystem to stamp a unique ID on each piece element */
+function _stampPid(el) {
+  const pid = 'p' + (++_arrowPid);
+  el.dataset.pid = pid;
+  return pid;
+}
+
+/** Get center coords of a [data-pid] element relative to #board */
+function _pidCenter(pid) {
+  const el = document.querySelector(`[data-pid="${pid}"]`);
+  if (!el) return null;
+  const board = document.getElementById('board');
+  const br = board.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  return {
+    x: er.left + er.width  / 2 - br.left + board.scrollLeft,
+    y: er.top  + er.height / 2 - br.top  + board.scrollTop,
+  };
+}
+
+/** Find the nearest [data-pid] element to a client coordinate */
+function _nearestPid(clientX, clientY) {
+  const board = document.getElementById('board');
+  const br    = board.getBoundingClientRect();
+  let best = null, bestD = Infinity;
+  board.querySelectorAll('[data-pid]').forEach(el => {
+    const r  = el.getBoundingClientRect();
+    const cx = r.left + r.width  / 2;
+    const cy = r.top  + r.height / 2;
+    const d  = Math.hypot(cx - clientX, cy - clientY);
+    if (d < bestD) { bestD = d; best = { pid: el.dataset.pid, cx: cx - br.left + board.scrollLeft, cy: cy - br.top + board.scrollTop }; }
+  });
+  return bestD < 72 ? best : null;
+}
+
+function _renderArrows() {
+  const svg = document.getElementById('arrow-svg');
+  if (!svg) return;
+  svg.querySelectorAll('.a-arrow, .a-preview').forEach(el => el.remove());
+
+  _arrows.forEach(a => {
+    const from = _pidCenter(a.fromPid);
+    const to   = _pidCenter(a.toPid);
+    if (!from || !to) return;
+    const col  = a.color === 'orange' ? 'rgba(255,160,40,0.65)' : 'rgba(80,200,255,0.65)';
+    const mid  = a.color === 'orange' ? 'url(#arrowhead-orange)' : 'url(#arrowhead-blue)';
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('class','a-arrow');
+    line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+    line.setAttribute('x2', to.x);   line.setAttribute('y2', to.y);
+    line.setAttribute('stroke', col);
+    line.setAttribute('stroke-width','7');
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('marker-end', mid);
+    svg.appendChild(line);
+  });
+}
+
+let _arrowsListening = false;
+function _initArrows() {
+  if (_arrowsListening) return;
+  _arrowsListening = true;
+
+  const board = document.getElementById('board');
+
+  // Block context menu anywhere inside board (capture beats native image menu)
+  document.addEventListener('contextmenu', e => {
+    if (board && board.contains(e.target)) e.preventDefault();
+  }, { capture: true });
+
+  // Right-mousedown → start drag from nearest piece
+  document.addEventListener('mousedown', e => {
+    if (e.button !== 2) return;
+    const board = document.getElementById('board');
+    if (!board || !board.contains(e.target)) return;
+    const hit = _nearestPid(e.clientX, e.clientY);
+    if (!hit) return;
+    e.preventDefault();
+    _arrowDrag = { fromPid: hit.pid, fromX: hit.cx, fromY: hit.cy, alt: e.altKey };
+  }, { capture: true, passive: false });
+
+  // Mousemove → dashed preview line
+  document.addEventListener('mousemove', e => {
+    const svg = document.getElementById('arrow-svg');
+    if (!svg) return;
+    svg.querySelectorAll('.a-preview').forEach(el => el.remove());
+    if (!_arrowDrag) return;
+    const board = document.getElementById('board');
+    const br  = board.getBoundingClientRect();
+    const x2  = e.clientX - br.left + board.scrollLeft;
+    const y2  = e.clientY - br.top  + board.scrollTop;
+    const col = _arrowDrag.alt ? 'rgba(255,160,40,0.45)' : 'rgba(80,200,255,0.45)';
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('class','a-preview');
+    line.setAttribute('x1', _arrowDrag.fromX); line.setAttribute('y1', _arrowDrag.fromY);
+    line.setAttribute('x2', x2);               line.setAttribute('y2', y2);
+    line.setAttribute('stroke', col);
+    line.setAttribute('stroke-width','6');
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('stroke-dasharray','10 6');
+    svg.appendChild(line);
+  });
+
+  // Mouseup → commit or cancel
+  document.addEventListener('mouseup', e => {
+    if (e.button !== 2) return;
+    const svg = document.getElementById('arrow-svg');
+    if (svg) svg.querySelectorAll('.a-preview').forEach(el => el.remove());
+    if (!_arrowDrag) return;
+    const drag = _arrowDrag;
+    _arrowDrag = null;
+
+    const hit = _nearestPid(e.clientX, e.clientY);
+    if (!hit || hit.pid === drag.fromPid) return; // no movement or same piece
+
+    const color = drag.alt ? 'orange' : 'blue';
+    const idx = _arrows.findIndex(a => a.fromPid === drag.fromPid && a.toPid === hit.pid && a.color === color);
+    if (idx >= 0) _arrows.splice(idx, 1); // toggle off
+    else _arrows.push({ fromPid: drag.fromPid, toPid: hit.pid, color });
+    _renderArrows();
+  });
+
+  // Left-click on board → clear all arrows
+  document.addEventListener('click', e => {
+    const board = document.getElementById('board');
+    if (!board || !board.contains(e.target)) return;
+    if (_arrows.length === 0) return;
+    _arrows.length = 0;
+    _renderArrows();
+  });
+}
+
 </script>
 </body>
 </html>

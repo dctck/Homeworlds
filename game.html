@@ -155,13 +155,16 @@ body::before {
 #bottom-btns {
   grid-area: btns;
   padding: 10px 12px; border-top: 1px solid var(--border);
-  display: grid; grid-template-columns: 44px 1fr; gap: 8px;
+  display: flex; flex-direction: column; gap: 6px;
   background: var(--panel);
   position: relative; z-index: 1;
   border-right: 1px solid var(--border);
 }
-#btn-forfeit { font-size: 20px; padding: 6px 0; color: #5a3040; border-color: #3a1a22; letter-spacing: 0; }
+.bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#btn-forfeit { color: #5a3040; border-color: #3a1a22; }
 #btn-forfeit:hover:not(:disabled) { color: #cc3344; border-color: #cc3344; background: rgba(200,50,60,0.1); }
+#btn-reset { color: #3a5060; border-color: #1c2840; font-size: 11px; }
+#btn-reset:hover:not(:disabled) { color: #88bbcc; border-color: #3a5080; }
 .ctrl-btn {
   padding: 10px; border: 1px solid #2a3a52; background: rgba(255,255,255,0.04);
   color: #7090a8; font-family: 'Share Tech Mono', monospace;
@@ -272,6 +275,21 @@ body::before {
 }
 #chat-toggle { font-size: var(--fs-xs); color: #5a7090; transition: transform 0.2s; }
 #chat-toggle.open { transform: rotate(180deg); }
+/* Chat header flash on new unread message */
+@keyframes chat-flash {
+  0%,100% { background: transparent; }
+  30%      { background: rgba(68,136,255,0.18); border-color: rgba(68,136,255,0.5); }
+}
+#chat-header.has-unread { animation: chat-flash 1.2s ease-in-out 3; }
+#chat-header.has-unread #chat-header-label { color: #88bbff; }
+#chat-header.has-unread #chat-toggle { color: #4488ff; }
+.chat-unread-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: #4488ff; box-shadow: 0 0 6px #4488ff;
+  margin-left: 6px; vertical-align: middle;
+  animation: dot-pulse 1s ease-in-out infinite;
+}
+@keyframes dot-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 #chat-body { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
 #chat-body.collapsed { display: none; }
 #chat-messages {
@@ -941,10 +959,12 @@ body::before {
 
 <!-- BOTTOM BUTTONS (direct body child for mobile ordering) -->
 <div id="bottom-btns">
-  <button class="ctrl-btn" id="btn-forfeit" title="Forfeit">⚑</button>
-  <button class="ctrl-btn" id="btn-undo">↺ Undo</button>
   <button class="ctrl-btn" id="btn-end"><span class="btn-label">Skip Turn ›</span><div class="hold-fill"></div></button>
-  <button class="ctrl-btn" id="btn-lobby" style="display:none" onclick="location.href='lobby.html'" title="Back to Lobby">⬡ Lobby</button>
+  <div class="bottom-row">
+    <button class="ctrl-btn" id="btn-forfeit" title="Forfeit game">⚑ Forfeit</button>
+    <button class="ctrl-btn" id="btn-lobby" style="display:none" onclick="location.href='lobby.html'" title="Back to Lobby">⬡ Lobby</button>
+  </div>
+  <button class="ctrl-btn" id="btn-reset" title="Reset this turn (undo all actions taken this turn)">↺ Reset Turn</button>
 </div>
 
 <!-- BANK (direct body child for responsive ordering) -->
@@ -2535,13 +2555,13 @@ function renderSidebar() {
   const actionBtns = document.getElementById('action-buttons');
   const subPicker = document.getElementById('sub-picker');
   const sacCounter = document.getElementById('sac-counter');
-  const undoBtn = document.getElementById('btn-undo');
+  const resetBtn = document.getElementById('btn-reset');
 
   subPicker.innerHTML = '';
   actionBtns.innerHTML = '';
   sacCounter.style.display = 'none';
 
-  undoBtn.disabled = !(G.history || (G._pendingActions && G._pendingActions.length > 0));
+  if (resetBtn) resetBtn.disabled = !(G.history || (G._pendingActions && G._pendingActions.length > 0));
 
   // ---- SETUP PHASE ----
   if (G.phase === 'SETUP') {
@@ -3115,17 +3135,19 @@ document.getElementById('btn-forfeit').onclick = () => {
   if (!G || G.phase !== 'PLAY') return;
   showForfeitDialog(G.currentPlayer);
 };
-document.getElementById('btn-undo').onclick = () => {
+document.getElementById('btn-reset').onclick = () => {
   if (G.phase === 'SETUP') {
     restartSetup();
     return;
   }
+  // Reset to beginning of current turn (undo all actions taken this turn)
   if (G.history) {
     G = JSON.parse(G.history);
   } else if (G._pendingActions && G._pendingActions.length > 0) {
     G._pendingActions = [];
+    G.turnUsed = false;
+    G.sacrificePool = { color: null, count: 0 };
   }
-  // Always fully reset interaction state
   G.selectedShipId = null;
   G.movingFromSysId = null;
   G.interaction = 'IDLE';
@@ -3229,6 +3251,22 @@ function addChatMsg(player, text) {
   if (!text.trim()) return;
   _chatMessages.push({ player, text: text.trim() });
   renderChat();
+  // Flash header if chat is collapsed (i.e. message is from the other player and pane is hidden)
+  const body   = document.getElementById('chat-body');
+  const header = document.getElementById('chat-header');
+  const label  = document.getElementById('chat-header-label');
+  if (body && header && body.classList.contains('collapsed')) {
+    // Add unread dot if not already there
+    if (!label.querySelector('.chat-unread-dot')) {
+      const dot = document.createElement('span');
+      dot.className = 'chat-unread-dot';
+      label.appendChild(dot);
+    }
+    // Restart flash animation by removing/re-adding class
+    header.classList.remove('has-unread');
+    void header.offsetWidth; // reflow to restart animation
+    header.classList.add('has-unread');
+  }
 }
 
 function renderChat() {
@@ -3257,6 +3295,12 @@ function escapeHtml(s) {
   header.addEventListener('click', () => {
     const collapsed = body.classList.toggle('collapsed');
     toggle.classList.toggle('open', !collapsed);
+    // Clear unread indicator when opening
+    if (!collapsed) {
+      header.classList.remove('has-unread');
+      const dot = label.querySelector('.chat-unread-dot');
+      if (dot) dot.remove();
+    }
   });
 
   function sendMsg() {
@@ -3396,10 +3440,14 @@ function showForfeitDialog(player) {
     </div>`;
   document.body.appendChild(overlay);
   overlay.querySelector('#forfeit-cancel').onclick = () => overlay.remove();
-  overlay.querySelector('#forfeit-confirm').onclick = () => {
+  overlay.querySelector('#forfeit-confirm').onclick = async () => {
     overlay.remove();
     const winner = player === 1 ? 2 : 1;
     showWin(winner);
+    // In online mode: save OVER state to Firebase so opponent's client triggers win too
+    if (window._ONLINE?.active && typeof saveState === 'function') {
+      try { await saveState(); } catch(e) {}
+    }
   };
 }
 
@@ -3519,7 +3567,7 @@ function showReportDialog(player) {
       timeMs,
       tcMode:   mode,
       tcTurnMs, // for turn mode
-      advancedMode: document.getElementById('setup-advanced').checked,
+      advancedMode: document.getElementById('setup-advanced').checked || !!(window._savedAdvancedMode),
     };
 
     G = makeInitialState();
@@ -3528,6 +3576,12 @@ function showReportDialog(player) {
     renderPlayerCards();
     render();
   });
+
+  // Pre-check advanced mode checkbox if player has it saved
+  if (window._savedAdvancedMode) {
+    const advCb = document.getElementById('setup-advanced');
+    if (advCb) advCb.checked = true;
+  }
 
   // Start button hover
   const sb = document.getElementById('btn-start-game');
@@ -3674,6 +3728,12 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const expected = MY_SLOT === 1 ? room.player1?.uid : room.player2?.uid;
     if (expected !== user.uid) { alert('Not your room slot.'); location.href = 'lobby.html'; return; }
 
+    // Load player's saved advancedMode preference
+    try {
+      const playerSnap = await get(ref(db, `players/${user.uid}/advancedMode`));
+      if (playerSnap.exists()) window._savedAdvancedMode = !!playerSnap.val();
+    } catch(e) {}
+
     showLobbyWait(room);
 
     // Watch room for start signal
@@ -3746,7 +3806,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       timeMs:   room.settings?.timeMs   || 0,
       tcMode:   room.settings?.tcMode   || 'unlimited',
       tcTurnMs: room.settings?.tcTurnMs || 0,
-      advancedMode: false,
+      advancedMode: !!(window._savedAdvancedMode),
     };
     window._ONLINE = { active: true, mySlot: MY_SLOT };
 
@@ -3924,12 +3984,18 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           const gameId   = room.archivedGameId;
           console.log('[HW] Updating my stars:', myStars, '->', newStars, '(iWon:', iWon, ')');
           if (myUid) {
-            // Update stars
-            await update(ref(db, `players/${myUid}`), { stars: newStars });
+            // Fetch current player record to update wins/losses + stars atomically
+            const mySnap = await get(ref(db, `players/${myUid}`));
+            const myRec  = mySnap.val() || {};
+            const updatedFields = {
+              stars:  newStars,
+              wins:   (myRec.wins  || 0) + (iWon ? 1 : 0),
+              losses: (myRec.losses || 0) + (iWon ? 0 : 1),
+            };
+            await update(ref(db, `players/${myUid}`), updatedFields);
             // Prepend game to match history (keep last 20)
             if (gameId) {
-              const histSnap = await get(ref(db, `players/${myUid}/recentGames`));
-              const hist = histSnap.val() || [];
+              const hist = myRec.recentGames || [];
               const entry = {
                 gameId,
                 result:    iWon ? 'win' : 'loss',
@@ -3980,7 +4046,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   };
 
   // ── Save canonical G to Firebase ─────────────────────────────
-  async function saveState() {
+  window.saveState = async function saveState() {
     const g = JSON.parse(JSON.stringify(window.G));
     g.history = null; g.interaction = 'IDLE';
     g.selectedShipId = null; g._pendingActions = [];
