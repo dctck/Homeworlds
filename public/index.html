@@ -1,0 +1,3551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Homeworlds</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red: #ff3344; --blue: #2266ff; --yellow: #ffcc00; --green: #22dd77;
+  --bg: #060912; --panel: #0c1120; --border: #1c2840;
+  --text: #a8c0e0; --bright: #ddeeff;
+  --glow-valid: #ffff00; --glow-select: #ffffff; --glow-danger: #ff4444;
+  /* Font scale: min 12, steps of 4 */
+  --fs-xs: 12px; --fs-sm: 12px; --fs-md: 16px; --fs-lg: 20px; --fs-xl: 24px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { min-width: 370px; }
+/* height managed per breakpoint */
+body {
+  font-family: 'Share Tech Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  /* Desktop: 3-col grid — bank sits above sidebar in col 1 */
+  display: grid;
+  grid-template-columns: 264px 1fr 264px;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "bank  board right"
+    "side  board right"
+    "btns  board right";
+  overflow: hidden;
+}
+
+/* === STARFIELD === */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 35% 65%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 55% 10%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 72% 80%, rgba(255,255,255,0.5) 1px, transparent 1px),
+    radial-gradient(circle at 88% 35%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 5%  90%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 42% 42%, rgba(255,255,255,0.2) 1px, transparent 1px),
+    radial-gradient(circle at 67% 55%, rgba(255,255,255,0.4) 1px, transparent 1px),
+    radial-gradient(circle at 22% 78%, rgba(255,255,255,0.3) 1px, transparent 1px),
+    radial-gradient(circle at 90% 10%, rgba(255,255,255,0.5) 1px, transparent 1px);
+  background-size: 800px 800px;
+}
+
+/* === BANK === */
+#bank-section {
+  grid-area: bank;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+  z-index: 1;
+  position: relative;
+}
+
+/* === SIDEBAR === */
+#sidebar {
+  grid-area: side;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: relative; z-index: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+#player-bar {
+  background: linear-gradient(135deg, #0a1428 0%, #0d1835 100%);
+  border-bottom: 2px solid var(--border);
+  padding: 12px 16px;
+}
+#player-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-md); font-weight: 700; letter-spacing: 2px;
+  color: var(--bright); margin-bottom: 4px;
+}
+#guide-text { font-size: var(--fs-xs); color: #7090b0; line-height: 1.5; min-height: 36px; }
+
+/* === BANK === */
+#bank-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-xs); letter-spacing: 3px; color: #506080; margin-bottom: 10px; text-transform: uppercase;
+}
+#bank-grid { display: grid; gap: 3px; }
+.bank-header { font-size: var(--fs-xs); color: #405060; text-align: center; padding: 2px; letter-spacing: 1px; text-transform: uppercase; }
+.bank-color-label { font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; display: flex; align-items: center; padding-left: 2px; }
+.bank-cell {
+  aspect-ratio: 1;   /* always square */
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(255,255,255,0.02); border-radius: 4px; border: 1px solid rgba(255,255,255,0.04);
+  transition: border-color 0.2s, background 0.2s;
+  padding-bottom: 4px; position: relative; overflow: hidden;
+}
+.bank-cell.clickable { border-color: rgba(255,255,0,0.5); background: rgba(255,255,0,0.05); cursor: pointer; }
+.bank-cell.clickable:hover { background: rgba(255,255,0,0.12); }
+.bank-cell.not-clickable { cursor: default; }
+.bank-stack { position: relative; width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.bank-piece-wrap { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); }
+.bank-piece-wrap:nth-child(2) { bottom: 10px; }
+.bank-piece-wrap:nth-child(3) { bottom: 18px; }
+/* Scale ship images in bank to always fit inside square cells */
+.bank-cell img { max-height: 52%; width: auto; display: block; }
+
+/* === ACTION PANEL === */
+#action-section { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
+.action-btn {
+  width: 100%; padding: 10px 12px; cursor: pointer;
+  background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
+  color: var(--text); font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase;
+  border-radius: 4px; transition: all 0.15s; text-align: left;
+}
+.action-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); border-color: #3a5080; color: var(--bright); }
+.action-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+.action-btn.active { background: rgba(255,255,0,0.1); border-color: var(--glow-valid); color: #ffff80; }
+.action-btn.sac { border-color: #8855cc; color: #bb88ff; }
+.sep { height: 1px; background: var(--border); margin: 4px 0; }
+#sac-counter {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); color: #bb88ff;
+  text-align: center; padding: 6px; background: rgba(136,85,204,0.08);
+  border-radius: 4px; border: 1px solid rgba(136,85,204,0.3); display: none;
+}
+#catastrophe-panel { display: flex; flex-direction: column; gap: 6px; }
+.catastrophe-alert {
+  border: 1px solid #ff6600; background: rgba(255,102,0,0.08);
+  border-radius: 5px; padding: 8px 10px;
+  animation: pulse-cata 1.4s ease-in-out infinite;
+}
+@keyframes pulse-cata {
+  0%,100% { box-shadow: 0 0 6px rgba(255,102,0,0.3); }
+  50% { box-shadow: 0 0 16px rgba(255,102,0,0.7); }
+}
+.catastrophe-header {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-xs); letter-spacing: 2px; color: #ff9933; margin-bottom: 6px; text-transform: uppercase;
+}
+.catastrophe-info { font-size: var(--fs-xs); color: #cc7740; margin-bottom: 8px; line-height: 1.5; }
+.catastrophe-btn {
+  width: 100%; padding: 8px; cursor: pointer;
+  background: rgba(255,102,0,0.15); border: 1px solid #ff6600;
+  color: #ff9933; font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); letter-spacing: 1px; border-radius: 3px;
+  transition: all 0.15s; text-align: center;
+}
+.catastrophe-btn:hover { background: rgba(255,102,0,0.3); color: #ffbb66; box-shadow: 0 0 12px rgba(255,102,0,0.5); }
+
+/* === BOTTOM BUTTONS === */
+#bottom-btns {
+  grid-area: btns;
+  padding: 10px 12px; border-top: 1px solid var(--border);
+  display: grid; grid-template-columns: 44px 1fr; gap: 8px;
+  background: var(--panel);
+  position: relative; z-index: 1;
+  border-right: 1px solid var(--border);
+}
+#btn-forfeit { font-size: 20px; padding: 6px 0; color: #5a3040; border-color: #3a1a22; letter-spacing: 0; }
+#btn-forfeit:hover:not(:disabled) { color: #cc3344; border-color: #cc3344; background: rgba(200,50,60,0.1); }
+.ctrl-btn {
+  padding: 10px; border: 1px solid #2a3a52; background: rgba(255,255,255,0.04);
+  color: #7090a8; font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); cursor: pointer; border-radius: 4px;
+  letter-spacing: 1px; transition: all 0.15s; position: relative; overflow: hidden;
+}
+.ctrl-btn:hover:not(:disabled) { color: var(--bright); border-color: #3a5080; background: rgba(255,255,255,0.08); }
+.ctrl-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+/* btn-end hidden — end turn is via the homeworld turn token */
+#btn-end { display: none !important; }
+
+/* === RIGHT PANEL === */
+#right-panel {
+  grid-area: right;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: relative; z-index: 1;
+}
+
+/* Player cards */
+.player-card {
+  padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative;
+  transition: background 0.2s;
+}
+.player-card.active-card { background: rgba(255,255,255,0.03); }
+/* Active glow strip on left edge */
+.player-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  border-radius: 0 1px 1px 0; opacity: 0; transition: opacity 0.2s;
+}
+.player-card.active-card::before { opacity: 1; }
+#pcard-1::before, #pcard-1m::before { background: #4488ff; box-shadow: 0 0 8px #4488ff; }
+#pcard-2::before, #pcard-2m::before { background: #ff4455; box-shadow: 0 0 8px #ff4455; }
+/* Blink left bar on active turn */
+@keyframes bar-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.player-card.active-card.blink-bar::before {
+  animation: bar-blink 1.4s ease-in-out infinite;
+}
+.pcard-avatar {
+  width: 40px; height: 40px; border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-md); font-weight: 900;
+  border: 2px solid transparent; overflow: hidden;
+  background: linear-gradient(135deg, #0d1835, #1a2850);
+}
+.pcard-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pcard-avatar.p1 { border-color: rgba(68,136,255,0.5); color: #4488ff; }
+.pcard-avatar.p2 { border-color: rgba(255,68,85,0.5); color: #ff4455; }
+.pcard-info { flex: 1; min-width: 0; }
+.pcard-name {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 1px; color: var(--bright);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pcard-elo { font-size: var(--fs-xs); color: #506070; margin-top: 2px; }
+.pcard-timer-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.pcard-timer {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-lg); font-weight: 700;
+  letter-spacing: 1px; color: #253040; min-width: 60px; text-align: right; flex-shrink: 0;
+  transition: color 0.3s;
+}
+.pcard-timer.active.p1 { color: #88bbff; text-shadow: 0 0 10px rgba(68,136,255,0.5); }
+.pcard-timer.active.p2 { color: #ff8899; text-shadow: 0 0 10px rgba(255,68,85,0.5); }
+.pcard-timer.urgent { animation: timer-low 0.7s ease-in-out infinite; }
+@keyframes timer-low { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* Gear + forfeit icons on player cards */
+.pcard-gear {
+  background: none; border: none; cursor: pointer; color: #3a5070;
+  font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s;
+  flex-shrink: 0; line-height: 1;
+}
+.pcard-gear:hover { color: #7090b0; }
+.pcard-forfeit {
+  background: none; border: none; cursor: pointer; color: #5a3040;
+  font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s;
+  flex-shrink: 0; line-height: 1;
+}
+.pcard-forfeit:hover { color: #cc3344; }
+
+/* Game log */
+#log-panel { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
+#log-header {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); letter-spacing: 3px;
+  color: #6a8aaa; text-transform: uppercase; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+#log-turn-count { color: #4a6070; }
+#log-entries { flex:1; overflow-y:auto; padding: 4px 0; scroll-behavior:smooth; }
+#log-entries::-webkit-scrollbar { width: 4px; }
+#log-entries::-webkit-scrollbar-thumb { background: #1c2840; }
+
+/* === CHAT === */
+#chat-panel { flex-shrink: 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; max-height: 220px; }
+#chat-header {
+  padding: 8px 12px; display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none; flex-shrink: 0;
+}
+#chat-header-label {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); letter-spacing: 2px;
+  color: #6a8aaa; text-transform: uppercase;
+}
+#chat-toggle { font-size: var(--fs-xs); color: #5a7090; transition: transform 0.2s; }
+#chat-toggle.open { transform: rotate(180deg); }
+#chat-body { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
+#chat-body.collapsed { display: none; }
+#chat-messages {
+  flex: 1; overflow-y: auto; padding: 6px 10px;
+  min-height: 60px; max-height: 130px; scroll-behavior: smooth;
+}
+#chat-messages::-webkit-scrollbar { width: 3px; }
+#chat-messages::-webkit-scrollbar-thumb { background: #1c2840; }
+.chat-msg { font-size: var(--fs-xs); line-height: 1.5; padding: 2px 0; }
+.chat-msg .cm-who { font-weight: bold; margin-right: 4px; }
+.chat-msg .cm-who.p1 { color: #4477dd; }
+.chat-msg .cm-who.p2 { color: #cc4455; }
+.chat-msg .cm-text { color: #6080a0; word-break: break-word; }
+.chat-msg.system .cm-text { color: #2a3a4a; font-style: italic; }
+#chat-input-row { display: flex; gap: 4px; padding: 6px 8px; border-top: 1px solid var(--border); flex-shrink: 0; }
+#chat-input {
+  flex: 1; padding: 6px 8px;
+  background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
+  border-radius: 3px; color: var(--text); font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); outline: none;
+}
+#chat-input:focus { border-color: #2a3a5a; }
+#chat-send {
+  padding: 6px 10px; background: rgba(255,255,255,0.04); border: 1px solid #1c2840;
+  color: #506070; font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
+  cursor: pointer; border-radius: 3px; transition: all 0.15s; flex-shrink: 0;
+}
+#chat-send:hover { border-color: #2a3a5a; color: var(--text); }
+
+/* === GAME BOARD === */
+#board {
+  grid-area: board;
+  display: flex; flex-direction: column;
+  padding: 12px 16px; gap: 0; position: relative; z-index: 1; overflow-y: auto;
+}
+.zone-hw-area { padding: 4px 0 6px; }
+#zone-p2 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
+#zone-p1 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
+/* Mid zone: rows ordered by BFS distance from P2 → P1 */
+#zone-mid {
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 0; min-height: 60px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding: 4px 0;
+}
+.dist-row {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 12px; padding: 6px 0;
+}
+.dist-row + .dist-row { border-top: 1px solid rgba(255,255,255,0.03); }
+.zone-label { font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); letter-spacing: 3px; color: #4a6080; text-transform: uppercase; margin-bottom: 6px; }
+
+/* === SYSTEM CARD === */
+.system-card {
+  background: rgba(0,0,0,0.85);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+  min-width: 140px; max-width: 320px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.system-card.homeworld-1 { border-color: rgba(34,102,255,0.3); box-shadow: 0 0 10px rgba(34,102,255,0.08); }
+.system-card.homeworld-2 { border-color: rgba(255,51,68,0.3); box-shadow: 0 0 10px rgba(255,51,68,0.08); }
+.system-card.active-turn-p1 {
+  border: 2px solid #4488ff !important;
+  box-shadow: 0 0 0 2px rgba(68,136,255,0.4), 0 0 28px rgba(68,136,255,0.55) !important;
+  animation: pulse-turn-p1 1.5s ease-in-out infinite;
+}
+.system-card.active-turn-p2 {
+  border: 2px solid #ff4455 !important;
+  box-shadow: 0 0 0 2px rgba(255,68,85,0.4), 0 0 28px rgba(255,68,85,0.55) !important;
+  animation: pulse-turn-p2 1.5s ease-in-out infinite;
+}
+@keyframes pulse-turn-p1 {
+  0%,100% { box-shadow: 0 0 0 2px rgba(68,136,255,0.5), 0 0 20px rgba(68,136,255,0.5); }
+  50%      { box-shadow: 0 0 0 3px rgba(136,187,255,0.8), 0 0 40px rgba(68,136,255,0.9); }
+}
+@keyframes pulse-turn-p2 {
+  0%,100% { box-shadow: 0 0 0 2px rgba(255,68,85,0.5), 0 0 20px rgba(255,68,85,0.5); }
+  50%      { box-shadow: 0 0 0 3px rgba(255,136,153,0.8), 0 0 40px rgba(255,68,85,0.9); }
+}
+.system-card.valid-move-target {
+  border-color: var(--glow-valid) !important;
+  box-shadow: 0 0 12px rgba(255,255,0,0.35) !important;
+  cursor: pointer; animation: pulse-valid 1.2s ease-in-out infinite;
+}
+.system-card.valid-move-target:hover { box-shadow: 0 0 20px rgba(255,255,0,0.6) !important; }
+@keyframes pulse-valid {
+  0%,100% { box-shadow: 0 0 10px rgba(255,255,0,0.3); }
+  50% { box-shadow: 0 0 22px rgba(255,255,0,0.6); }
+}
+.sys-name {
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); letter-spacing: 2px;
+  color: #4a6080; margin-bottom: 8px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.turn-marker {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--fs-xs); font-family: 'Orbitron', sans-serif; font-weight: 900;
+  padding: 2px 6px; border-radius: 2px; letter-spacing: 1px;
+  animation: pulse-marker 1.2s ease-in-out infinite;
+}
+.turn-marker.p1 { color: #000a22; background: #4488ff; box-shadow: 0 0 10px #4488ff; }
+.turn-marker.p2 { color: #220005; background: #ff4455; box-shadow: 0 0 10px #ff4455; }
+@keyframes pulse-marker {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px currentColor; }
+  50% { opacity: 0.7; box-shadow: 0 0 16px currentColor; }
+}
+.sys-stars { display: flex; gap: 6px; flex-wrap: nowrap; margin-bottom: 8px; min-height: 28px; align-items: center; overflow-x: visible; }
+.sys-ships { display: flex; gap: 6px; flex-wrap: nowrap; align-items: flex-end; min-height: 32px; overflow-x: visible; }
+/* System card grows to fit all ships — no premature wrapping */
+.system-card { min-width: 140px; max-width: none; width: max-content; }
+
+/* === PIECES === */
+.ship-wrap {
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: filter 0.15s, transform 0.15s;
+  position: relative;
+}
+/* Prevent native image context menu / drag interfering with arrow drawing */
+.ship-wrap img, .ship-wrap svg,
+#board img, #board svg {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ship-wrap.enemy { cursor: default; }
+.ship-wrap.selected { filter: drop-shadow(0 0 8px #ffffff); transform: translateY(-3px); }
+.ship-wrap.valid-attack { cursor: pointer; filter: drop-shadow(0 0 8px var(--glow-danger)); animation: pulse-attack 0.9s ease-in-out infinite; }
+@keyframes pulse-attack {
+  0%,100% { filter: drop-shadow(0 0 5px rgba(255,68,68,0.6)); }
+  50% { filter: drop-shadow(0 0 14px rgba(255,68,68,1)); }
+}
+.ship-wrap.own-ship:hover:not(.selected):not(.valid-attack) { filter: drop-shadow(0 0 6px rgba(255,255,255,0.5)); transform: translateY(-2px); }
+.ship-wrap.selectable { animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+
+/* === WIN OVERLAY === */
+#win-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
+  display: none; align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+}
+#win-overlay.show { display: flex; }
+#win-title { font-family: 'Orbitron', sans-serif; font-size: 36px; font-weight: 900; color: #ffcc00; letter-spacing: 4px; text-shadow: 0 0 40px rgba(255,204,0,0.8); }
+#win-sub { font-size: var(--fs-md); color: #8090a0; letter-spacing: 2px; }
+#btn-newgame { padding: 14px 40px; background: transparent; border: 2px solid #ffcc00; color: #ffcc00; font-family: 'Orbitron', sans-serif; font-size: var(--fs-md); letter-spacing: 3px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+#btn-newgame:hover { background: rgba(255,204,0,0.15); box-shadow: 0 0 30px rgba(255,204,0,0.4); }
+
+/* === MINI LOG (in log panel) === */
+.mini-log-line {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); line-height: 1.65;
+  padding: 2px 10px;
+  white-space: normal; word-break: break-word;
+  color: #4a6478;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+  display: grid; grid-template-columns: auto 1fr; gap: 0 4px;
+}
+.mini-log-prefix { white-space: nowrap; }
+.mini-log-body   { word-break: break-word; }
+.mini-log-line:last-child { border-bottom: none; }
+.mini-log-line .ml-turn { color: #253545; margin-right: 4px; }
+.mini-log-line .ml-p1   { color: #4477dd; font-weight: bold; margin-right: 3px; }
+.mini-log-line .ml-p2   { color: #cc4455; font-weight: bold; margin-right: 3px; }
+.mini-log-line .ml-kw   { color: #7090a8; }
+.mini-log-line .piece-r { color: #cc2233; }
+.mini-log-line .piece-b { color: #2255cc; }
+.mini-log-line .piece-y { color: #ccaa00; }
+.mini-log-line .piece-g { color: #1aaa55; }
+
+/* Picker buttons */
+.trade-pick-btn, .build-pick-btn, .setup-pick-btn {
+  border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+  color: var(--text); font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); cursor: pointer; border-radius: 4px;
+  padding: 8px 10px; transition: all 0.15s; letter-spacing: 1px;
+}
+.trade-pick-btn:hover, .build-pick-btn:hover, .setup-pick-btn:hover {
+  background: rgba(255,255,255,0.1); color: var(--bright);
+}
+
+/* Startup modal time control buttons */
+.tc-btn {
+  padding: 8px 12px; background: rgba(255,255,255,0.03);
+  border: 1px solid #1c2840; color: #506070;
+  font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
+  cursor: pointer; border-radius: 4px; transition: all 0.15s;
+}
+.tc-btn:hover { border-color: #3a5080; color: #8090a0; }
+.tc-btn.tc-active { border-color: #2266ff; color: #4488ff; background: rgba(34,102,255,0.1); }
+
+/* Colors for text */
+.c-red { color: var(--red) }
+.c-blue { color: var(--blue) }
+.c-yellow { color: var(--yellow) }
+.c-green { color: var(--green) }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1c2840; border-radius: 3px; }
+
+
+/* ================================================================
+   TURN TOKEN — circular clickable marker on the active homeworld
+   ================================================================ */
+.turn-token-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* extra space so ring doesn't clip against zone edge */
+  padding: 12px 8px;
+  flex-shrink: 0;
+  /* contain the ring entirely — no layout bleed */
+  overflow: visible;
+}
+.turn-token {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer;
+  position: relative;
+  background: rgba(0,0,0,0.6);
+  border: 2px solid currentColor;
+  /* will-change: transform prevents box-shadow from causing reflow */
+  will-change: transform;
+  transition: transform 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  gap: 1px;
+}
+.turn-token.p1 {
+  color: #4488ff;
+  box-shadow: 0 0 0 1px rgba(68,136,255,0.3);
+  animation: token-pulse-p1 1.6s ease-in-out infinite;
+}
+.turn-token.p2 {
+  color: #ff4455;
+  box-shadow: 0 0 0 1px rgba(255,68,85,0.3);
+  animation: token-pulse-p2 1.6s ease-in-out infinite;
+}
+.turn-token.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  animation: none;
+}
+.turn-token:not(.disabled):hover {
+  transform: scale(1.1);
+}
+.turn-token:not(.disabled):hover .token-label { opacity: 1; }
+.turn-token:not(.disabled):hover .token-initials { opacity: 0; }
+.turn-token:not(.disabled):active { transform: scale(0.96); }
+.token-initials {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 14px; font-weight: 900;
+  color: currentColor; line-height: 1;
+  transition: opacity 0.15s;
+  position: absolute;
+}
+.token-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 1px;
+  color: currentColor; line-height: 1;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  position: absolute;
+  white-space: nowrap;
+}
+/* Orbiting ring — uses transform so it's paint-only, zero layout impact */
+.token-ring {
+  position: absolute;
+  width: 76px; height: 76px;
+  top: 50%; left: 50%;
+  margin-top: -38px; margin-left: -38px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0.35;
+  animation: ring-spin 3s linear infinite;
+  border-top-color: transparent;
+  pointer-events: none;
+}
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+@keyframes token-pulse-p1 {
+  0%,100% { filter: drop-shadow(0 0 6px rgba(68,136,255,0.5)); }
+  50%     { filter: drop-shadow(0 0 18px rgba(68,136,255,0.9)); }
+}
+@keyframes token-pulse-p2 {
+  0%,100% { filter: drop-shadow(0 0 6px rgba(255,68,85,0.5)); }
+  50%     { filter: drop-shadow(0 0 18px rgba(255,68,85,0.9)); }
+}
+
+
+/* ================================================================
+   SHORTCUT INTERACTION — piece-power & direct-attack highlights
+   ================================================================ */
+
+/* Stars/ships in selected-ship's system that trigger an action */
+.piece-power {
+  cursor: pointer !important;
+  position: relative;
+}
+.piece-power::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 4px;
+  border: 1.5px solid currentColor;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.piece-power:hover::after { opacity: 0.6; }
+
+/* Color-specific power glow on hover */
+.piece-power[data-color="yellow"]:hover { filter: drop-shadow(0 0 8px rgba(255,204,0,0.85)); }
+.piece-power[data-color="blue"]:hover   { filter: drop-shadow(0 0 8px rgba(34,102,255,0.85)); }
+.piece-power[data-color="green"]:hover  { filter: drop-shadow(0 0 8px rgba(34,221,119,0.85)); }
+.piece-power[data-color="red"]:hover    { filter: drop-shadow(0 0 8px rgba(255,51,68,0.85)); }
+
+/* Tooltip label shown on hover */
+.piece-power .power-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.88);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 3px 7px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 20;
+}
+.piece-power:hover .power-tip { opacity: 1; }
+
+/* Enemy ship that can be directly attacked (skips ATTACKING mode) */
+.valid-attack-direct {
+  cursor: pointer !important;
+  animation: pulse-direct-atk 0.85s ease-in-out infinite;
+}
+
+/* Stash cell highlighted for BUILD action */
+.bank-cell.build-pick {
+  border-color: rgba(34,221,119,0.7) !important;
+  background: rgba(34,221,119,0.08) !important;
+  cursor: pointer;
+}
+.bank-cell.build-pick:hover {
+  background: rgba(34,221,119,0.2) !important;
+  box-shadow: 0 0 12px rgba(34,221,119,0.4);
+}
+/* Stash cell highlighted for TRADE action */
+.bank-cell.trade-pick {
+  border-color: rgba(34,102,255,0.7) !important;
+  background: rgba(34,102,255,0.08) !important;
+  cursor: pointer;
+}
+.bank-cell.trade-pick:hover {
+  background: rgba(34,102,255,0.2) !important;
+  box-shadow: 0 0 12px rgba(34,102,255,0.4);
+}
+@keyframes pulse-direct-atk {
+  0%,100% { filter: drop-shadow(0 0 6px rgba(255,68,68,0.55)); }
+  50%      { filter: drop-shadow(0 0 16px rgba(255,68,68,1)); }
+}
+
+/* ============================================================
+   BANK CELL — always square, capped at 72×72
+   ============================================================ */
+/* The 3 size columns share equal width; cap each at 72px */
+#bank-grid {
+  display: grid;
+  grid-template-columns: 60px repeat(3, min(72px, calc((100% - 60px - 12px) / 3)));
+  gap: 3px;
+}
+.bank-cell {
+  aspect-ratio: 1;
+  max-width: 72px;
+  max-height: 72px;
+}
+
+/* ============================================================
+   MOBILE NAV BAR — hidden on desktop
+   ============================================================ */
+#mobile-nav { display: none; }
+
+/* ============================================================
+   MOBILE LOG/CHAT TABS — hidden on desktop
+   ============================================================ */
+#mobile-logchat { display: none; }
+
+/* ============================================================
+   RESPONSIVE — Mobile: single scrollable column
+   ============================================================ */
+@media (max-width: 800px) {
+  /* ── Simplest possible scroll: let html scroll naturally ── */
+  html {
+    height: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* ── Hide desktop-only right panel ── */
+  #right-panel { display: none !important; }
+
+  /* ── Reset all desktop grid-areas ── */
+  #bank-section, #sidebar, #board, #bottom-btns { grid-area: unset; }
+
+  /* ══ ORDER: 0=nav 1=profiles 2=stash 3=board 4=sidebar 5=btns 6=logchat ══ */
+
+  /* 0 · Nav bar */
+  #mobile-nav {
+    order: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  #mobile-nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Orbitron', sans-serif; font-weight: 900;
+    font-size: var(--fs-md); letter-spacing: 3px; color: var(--bright);
+    text-decoration: none;
+  }
+  #mobile-nav-menu {
+    background: none; border: none; cursor: pointer;
+    color: #5a7090; font-size: 24px; line-height: 1;
+    padding: 4px 8px; border-radius: 4px;
+  }
+
+  /* 1 · Profiles — vertical stack (like desktop) */
+  #mobile-profiles {
+    order: 1;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  #mobile-profiles .player-card {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+  }
+  #mobile-profiles #pcard-1m { border-bottom: none; }
+
+  /* 2 · Stash — right under profiles */
+  #bank-section {
+    order: 2;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
+  }
+  #bank-grid {
+    grid-template-columns: 52px repeat(3, min(72px, calc((100vw - 52px - 48px) / 3)));
+  }
+
+  /* 3 · Board */
+  #board {
+    order: 3;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  #zone-p2, #zone-p1 {
+    flex-wrap: wrap;
+    min-height: 80px;
+    justify-content: center;
+  }
+
+  /* 4 · Sidebar (guide text + actions) */
+  #sidebar {
+    order: 4;
+    width: 100%;
+    flex: none;
+    height: auto;
+    overflow: visible;
+    border-right: none;
+    min-height: 0;
+  }
+  #action-section {
+    flex-grow: unset;
+    overflow: visible;
+    height: auto;
+  }
+
+  /* 5 · Control buttons (forfeit + undo) */
+  #bottom-btns {
+    order: 5;
+    grid-area: unset;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+    position: static;
+  }
+
+  /* 6 · Log & Chat tabs */
+  #mobile-logchat {
+    order: 6;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding-bottom: 32px;
+  }
+  #mobile-tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .mobile-tab-btn {
+    flex: 1; padding: 12px;
+    background: none; border: none;
+    font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs);
+    letter-spacing: 2px; text-transform: uppercase;
+    color: #4a6070; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s; margin-bottom: -1px;
+  }
+  .mobile-tab-btn.active { color: var(--bright); border-bottom-color: #4488ff; }
+  #mobile-tab-log, #mobile-tab-chat { display: none; flex-direction: column; }
+  #mobile-tab-log.visible, #mobile-tab-chat.visible { display: flex; }
+  #log-entries-m { min-height: 200px; padding: 4px 0; }
+  #chat-messages-m { min-height: 160px; padding: 8px 12px; }
+  #chat-input-row-m {
+    display: flex; gap: 6px; padding: 8px 12px;
+    border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  #chat-input-m {
+    flex: 1; padding: 8px 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
+    border-radius: 3px; color: var(--text);
+    font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs); outline: none;
+  }
+  #chat-send-m {
+    padding: 8px 12px; background: rgba(255,255,255,0.04);
+    border: 1px solid #1c2840; color: #506070;
+    font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
+    cursor: pointer; border-radius: 3px;
+  }
+
+  /* Turn token — larger on mobile for easier tap */
+  .turn-token { width: 68px; height: 68px; }
+
+  /* Misc compact */
+  .pcard-avatar { width: 34px; height: 34px; }
+  .pcard-gear  { font-size: 14px; }
+  .zone-label  { font-size: var(--fs-xs); letter-spacing: 2px; margin-bottom: 4px; }
+  .zone-hw-area { padding: 2px 0 6px; }
+  .system-card { padding: 8px 10px; }
+  #player-bar { padding: 10px 14px; }
+  #player-title { font-size: var(--fs-xs); }
+
+  /* Pcard left-bar for mobile profiles */
+  #pcard-1m::before { background: #4488ff; box-shadow: 0 0 8px #4488ff; }
+  #pcard-2m::before { background: #ff4455; box-shadow: 0 0 8px #ff4455; }
+}
+
+@media (min-width: 801px) {
+  html, body { height: 100%; overflow: hidden; }
+  #mobile-nav { display: none !important; }
+  #mobile-profiles { display: none !important; }
+  #mobile-logchat { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- MOBILE NAV BAR (hidden on desktop) -->
+<nav id="mobile-nav">
+  <a id="mobile-nav-logo" href="#">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <!-- Rocket body -->
+      <ellipse cx="14" cy="12" rx="4.5" ry="8" fill="#2266ff" opacity="0.9"/>
+      <!-- Nose cone -->
+      <polygon points="14,2 10.5,8 17.5,8" fill="#88bbff"/>
+      <!-- Left fin -->
+      <polygon points="9.5,16 6,22 11,19" fill="#1a55cc"/>
+      <!-- Right fin -->
+      <polygon points="18.5,16 22,22 17,19" fill="#1a55cc"/>
+      <!-- Engine glow -->
+      <ellipse cx="14" cy="21" rx="2.8" ry="1.4" fill="#ffcc00" opacity="0.85"/>
+      <ellipse cx="14" cy="23" rx="1.8" ry="2.5" fill="#ff6600" opacity="0.6"/>
+      <!-- Porthole -->
+      <circle cx="14" cy="12" r="2" fill="#a8d0ff" opacity="0.7"/>
+      <!-- Stars -->
+      <circle cx="5" cy="6" r="0.8" fill="white" opacity="0.6"/>
+      <circle cx="22" cy="4" r="0.6" fill="white" opacity="0.5"/>
+      <circle cx="24" cy="14" r="0.7" fill="white" opacity="0.4"/>
+      <circle cx="3" cy="17" r="0.5" fill="white" opacity="0.5"/>
+    </svg>
+    HOMEWORLDS
+  </a>
+  <button id="mobile-nav-menu" onclick="toggleMobileMenu()" title="Menu">☰</button>
+</nav>
+
+<!-- MOBILE MENU DROPDOWN (hidden by default) -->
+<div id="mobile-menu-dropdown" style="display:none;position:fixed;top:53px;right:0;left:0;background:#0c1120;border-bottom:1px solid #1c2840;z-index:50;padding:8px 0;">
+  <div id="mobile-menu-inner" style="display:flex;flex-direction:column;gap:0;"></div>
+</div>
+
+<!-- MOBILE PLAYER PROFILES (hidden on desktop) -->
+<div id="mobile-profiles">
+  <div class="player-card" id="pcard-2m">
+    <div class="pcard-avatar p2" id="pcard-avatar-2m">P2</div>
+    <div class="pcard-info">
+      <div class="pcard-name" id="pcard-name-2m">Player 2</div>
+      <div class="pcard-elo" id="pcard-elo-2m">◆ 1200</div>
+    </div>
+    <div class="pcard-timer-wrap">
+      <span class="pcard-timer" id="timer-display-2m">—</span>
+    </div>
+    <button class="pcard-gear" id="pcard-gear-2m" title="Report" onclick="showReportDialog(2)">⚙</button>
+  </div>
+  <div class="player-card" id="pcard-1m">
+    <div class="pcard-avatar p1" id="pcard-avatar-1m">P1</div>
+    <div class="pcard-info">
+      <div class="pcard-name" id="pcard-name-1m">Player 1</div>
+      <div class="pcard-elo" id="pcard-elo-1m">◆ 1200</div>
+    </div>
+    <div class="pcard-timer-wrap">
+      <span class="pcard-timer" id="timer-display-1m">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="player-bar">
+    <div id="player-title">PLAYER 1 — SETUP</div>
+    <div id="guide-text">Choose your first homeworld star.</div>
+  </div>
+  <div id="action-section">
+    <div id="catastrophe-panel"></div>
+    <div id="sac-counter"></div>
+    <div id="action-buttons"></div>
+    <div id="sub-picker"></div>
+  </div>
+</div>
+
+<!-- BOTTOM BUTTONS (direct body child for mobile ordering) -->
+<div id="bottom-btns">
+  <button class="ctrl-btn" id="btn-forfeit" title="Forfeit">⚑</button>
+  <button class="ctrl-btn" id="btn-undo">↺ Undo</button>
+  <button class="ctrl-btn" id="btn-end"><span class="btn-label">Skip Turn ›</span><div class="hold-fill"></div></button>
+</div>
+
+<!-- BANK (direct body child for responsive ordering) -->
+<div id="bank-section">
+  <div id="bank-title">Stash</div>
+  <div id="bank-grid"></div>
+</div>
+
+<!-- BOARD -->
+<div id="board">
+  <!-- Arrow drawing overlay — sits on top, pointer-events only for right-click -->
+  <svg id="arrow-svg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:50;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arrowhead-blue"
+              markerWidth="3"
+              markerHeight="3"
+              viewBox="0 0 6 6"
+              refX="5"
+              refY="3"
+              orient="auto">
+        <path d="M0,0 L0,6 L6,3 z"
+              fill="rgba(100,210,255,0.75)" />
+      </marker>
+
+      <marker id="arrowhead-orange"
+              markerWidth="3"
+              markerHeight="3"
+              viewBox="0 0 6 6"
+              refX="5"
+              refY="3"
+              orient="auto">
+        <path d="M0,0 L0,6 L6,3 z"
+              fill="rgba(255,160,40,0.75)" />
+      </marker>
+    </defs>
+  </svg>
+  <div class="zone-hw-area">
+    <div class="zone-label" style="text-align:center">— PLAYER 2 HOMEWORLD —</div>
+    <div id="zone-p2"></div>
+  </div>
+  <div id="zone-mid">
+    <!-- mid systems sorted by proximity to P2 (top) → P1 (bottom) -->
+  </div>
+  <div class="zone-hw-area">
+    <div class="zone-label" style="text-align:center">— PLAYER 1 HOMEWORLD —</div>
+    <div id="zone-p1"></div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div id="right-panel">
+  <!-- P2 at top (opponent) — gear icon for report -->
+  <div class="player-card" id="pcard-2">
+    <div class="pcard-avatar p2" id="pcard-avatar-2">P2</div>
+    <div class="pcard-info">
+      <div class="pcard-name" id="pcard-name-2">Player 2</div>
+      <div class="pcard-elo" id="pcard-elo-2">◆ 1200</div>
+    </div>
+    <div class="pcard-timer-wrap">
+      <span class="pcard-timer" id="timer-display-2">—</span>
+    </div>
+    <button class="pcard-gear" id="pcard-gear-2" title="Options" onclick="showReportDialog(2)">⚙</button>
+  </div>
+  <!-- P1 (you) -->
+  <div class="player-card" id="pcard-1">
+    <div class="pcard-avatar p1" id="pcard-avatar-1">P1</div>
+    <div class="pcard-info">
+      <div class="pcard-name" id="pcard-name-1">Player 1</div>
+      <div class="pcard-elo" id="pcard-elo-1">◆ 1200</div>
+    </div>
+    <div class="pcard-timer-wrap">
+      <span class="pcard-timer" id="timer-display-1">—</span>
+    </div>
+  </div>
+  <!-- Game log fills remaining space -->
+  <div id="log-panel">
+    <div id="log-header">
+      <span>Game Log</span>
+      <span id="log-turn-count">—</span>
+    </div>
+    <div id="log-entries">
+      <div style="font-size:12px;color:#253040;text-align:center;padding:16px 10px;letter-spacing:1px;line-height:1.8">No moves yet.<br>Log appears here.</div>
+    </div>
+  </div>
+  <!-- Collapsible chat at bottom -->
+  <div id="chat-panel">
+    <div id="chat-header">
+      <span id="chat-header-label">Chat</span>
+      <span id="chat-toggle">▲</span>
+    </div>
+    <div id="chat-body" class="collapsed">
+      <div id="chat-messages">
+        <div class="chat-msg system"><span class="cm-text">Chat is only visible during this game session.</span></div>
+      </div>
+      <div id="chat-input-row">
+        <input id="chat-input" type="text" placeholder="Message…" maxlength="200" autocomplete="off">
+        <button id="chat-send">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE LOG & CHAT TABS (hidden on desktop) -->
+<div id="mobile-logchat">
+  <div id="mobile-tab-bar">
+    <button class="mobile-tab-btn active" id="mtab-log-btn" onclick="switchMobileTab('log')">📋 Game Log</button>
+    <button class="mobile-tab-btn" id="mtab-chat-btn" onclick="switchMobileTab('chat')">💬 Chat</button>
+  </div>
+  <!-- Log tab -->
+  <div id="mobile-tab-log" class="visible">
+    <div id="log-entries-m" style="overflow-y:auto;max-height:300px;padding:4px 0;">
+      <div style="font-size:12px;color:#253040;text-align:center;padding:16px 10px;letter-spacing:1px;line-height:1.8">No moves yet.</div>
+    </div>
+  </div>
+  <!-- Chat tab -->
+  <div id="mobile-tab-chat">
+    <div id="chat-messages-m">
+      <div class="chat-msg system"><span class="cm-text">Chat is only visible during this game session.</span></div>
+    </div>
+    <div id="chat-input-row-m">
+      <input id="chat-input-m" type="text" placeholder="Message…" maxlength="200" autocomplete="off">
+      <button id="chat-send-m">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- WIN OVERLAY -->
+<div id="win-overlay">
+  <div id="win-title">VICTORY</div>
+  <div id="win-sub">PLAYER <span id="win-player">1</span> HAS CONQUERED THE COSMOS</div>
+  <div style="display:flex;gap:12px;margin-top:4px;">
+    <button id="btn-copy-log" style="padding:10px 28px;background:transparent;border:1px solid #4a6080;color:#6080a0;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;transition:all 0.2s;">
+      ⎘ COPY LOG
+    </button>
+    <button id="btn-newgame" onclick="location.reload()">NEW GAME</button>
+  </div>
+</div>
+
+<!-- STARTUP MODAL -->
+<div id="startup-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:200;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:32px;width:420px;max-width:95vw;">
+    <div style="font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900;color:#ddeeff;letter-spacing:4px;text-align:center;margin-bottom:6px;">HOMEWORLDS</div>
+    <div style="font-size:12px;color:#304050;letter-spacing:3px;text-align:center;margin-bottom:28px;text-transform:uppercase">Two-Player Setup</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">
+      <!-- P1 -->
+      <div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:#4488ff;margin-bottom:8px;text-transform:uppercase;">Player 1 (Nexus)</div>
+        <input id="setup-name-1" type="text" placeholder="Username" maxlength="16" value="Player 1"
+          style="width:100%;padding:8px 10px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;margin-bottom:8px;outline:none;box-sizing:border-box">
+        <input id="setup-elo-1" type="number" placeholder="Rating (e.g. 1200)" value="1200" min="100" max="3000"
+          style="width:100%;padding:8px 10px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;box-sizing:border-box">
+      </div>
+      <!-- P2 -->
+      <div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:#ff4455;margin-bottom:8px;text-transform:uppercase;">Player 2 (Vertex)</div>
+        <input id="setup-name-2" type="text" placeholder="Username" maxlength="16" value="Player 2"
+          style="width:100%;padding:8px 10px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;margin-bottom:8px;outline:none;box-sizing:border-box">
+        <input id="setup-elo-2" type="number" placeholder="Rating (e.g. 1200)" value="1200" min="100" max="3000"
+          style="width:100%;padding:8px 10px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;box-sizing:border-box">
+      </div>
+    </div>
+
+    <div style="margin-bottom:24px;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:#506080;margin-bottom:10px;text-transform:uppercase;">Time Control</div>
+      <div id="time-control-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="tc-btn tc-active" data-mode="unlimited">∞ Unlimited</button>
+        <button class="tc-btn" data-mode="blitz">⚡ Blitz</button>
+        <button class="tc-btn" data-mode="sudden">💀 Sudden Death</button>
+        <button class="tc-btn" data-mode="turn">⏱ Turn Timer</button>
+        <button class="tc-btn" data-mode="tournament">🏆 Tournament</button>
+      </div>
+      <!-- Mode descriptions + inputs -->
+      <div id="tc-desc" style="font-size:12px;color:#4a6478;line-height:1.6;margin-bottom:8px;">No time limit per turn.</div>
+      <div id="tc-inputs" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    </div>
+
+    <!-- Advanced Mode -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px;background:rgba(255,255,255,0.02);border:1px solid #1c2840;border-radius:6px;">
+      <input type="checkbox" id="setup-advanced" style="width:16px;height:16px;accent-color:#4488ff;cursor:pointer;flex-shrink:0;">
+      <div>
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;color:#6a8aaa;margin-bottom:2px;">ADVANCED MODE</div>
+        <div style="font-size:11px;color:#3a5060;line-height:1.4;">Hide action buttons — interact by clicking colored stars &amp; ships directly.</div>
+      </div>
+    </div>
+
+    <button id="btn-start-game" style="width:100%;padding:14px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:all 0.2s;">
+      LAUNCH GAME ›
+    </button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  CONSTANTS
+// ============================================================
+const COLORS = ['red','blue','yellow','green'];
+const COLOR_POWERS = { red:'HIJACK', blue:'TRADE', yellow:'MOVE', green:'BUILD' };
+const SIZES = [1,2,3];
+const SIZE_PIPS = ['','·','··','···'];
+const SIZE_NAME = ['','Small','Medium','Large'];
+const COLOR_HEX = { red:'#ff3344', blue:'#2266ff', yellow:'#ffcc00', green:'#22dd77' };
+
+let uid = 0;
+const nextId = () => ++uid;
+
+// ============================================================
+//  STATE
+// ============================================================
+let G = null;
+
+// Player config — set from startup modal
+let PLAYER_CONFIG = {
+  names: ['', 'Player 1', 'Player 2'],
+  elos:  ['', '1200', '1200'],
+  timeMs: 0,   // 0 = unlimited; otherwise ms per player
+  advancedMode: false, // true = hide action buttons; shortcut-only play
+};
+
+function makeInitialState() {
+  const bank = {};
+  COLORS.forEach(c => { bank[c] = {1:3,2:3,3:3}; });
+  return {
+    phase: 'SETUP',      // SETUP | PLAY
+    currentPlayer: 1,
+    setupStep: 0,        // 0:star1 1:star2 2:ship
+    setupDone: false,    // true after player finishes setup, waiting for End Turn
+    setupCache: { stars: [] },
+    bank,
+    systems: [],
+    interaction: 'IDLE',
+    selectedShipId: null,
+    movingFromSysId: null,
+    sacrificePool: { color: null, count: 0 },
+    turnUsed: false,
+    history: null,
+    log: [],
+    _pendingActions: [],
+    currentTurn: 1,
+    // Timers (ms remaining per player)
+    timers: {
+      1: PLAYER_CONFIG.timeMs,
+      2: PLAYER_CONFIG.timeMs,
+    },
+  };
+}
+
+// ============================================================
+//  NOTATION
+// ============================================================
+const COLOR_LETTER = { red:'r', blue:'b', yellow:'y', green:'g' };
+
+// 40 short evocative star names for discovered systems (no Nexus/Vertex — reserved for homeworlds)
+const STAR_NAMES = [
+  'Aara','Brix','Ceth','Dova','Elix','Forn','Ghal','Hova','Irex','Juno',
+  'Kael','Lyra','Mors','Nox','Orin','Pyre','Qeth','Rael','Sorn','Thal',
+  'Ulex','Vorn','Wex','Xarl','Yova','Zeth','Alph','Bael','Crux','Drex',
+  'Enyx','Fael','Gorn','Helm','Ixar','Jeth','Kova','Luxe','Morx','Nael'
+];
+const _usedStarNames = new Set();
+function randomStarName() {
+  const available = STAR_NAMES.filter(n => !_usedStarNames.has(n));
+  if (available.length === 0) { _usedStarNames.clear(); }
+  const name = available.length > 0
+    ? available[Math.floor(Math.random() * available.length)]
+    : STAR_NAMES[Math.floor(Math.random() * STAR_NAMES.length)];
+  _usedStarNames.add(name);
+  return name;
+}
+
+function pieceNote(color, size) { return `${COLOR_LETTER[color]}${size}`; }
+
+const Note = {
+  homeworld: (s1, s2, ship, sysName) =>
+    `set HW ${pieceNote(s1.color,s1.size)} ${pieceNote(s2.color,s2.size)} ship ${pieceNote(ship.color,ship.size)} ${sysName}`,
+  build:      (ship, sysName)                  => `build ${pieceNote(ship.color,ship.size)} ${sysName}`,
+  trade:      (ship, sysName, newColor)        => `trade ${pieceNote(ship.color,ship.size)} ${sysName} ${COLOR_LETTER[newColor]}`,
+  discover:   (ship, fromName, sc, ss, newName)=> `discover ${pieceNote(ship.color,ship.size)} ${fromName} ${pieceNote(sc,ss)} ${newName}`,
+  move:       (ship, fromName, toName)         => `move ${pieceNote(ship.color,ship.size)} ${fromName} ${toName}`,
+  hijack:     (ship, sysName)                  => `hijack ${pieceNote(ship.color,ship.size)} ${sysName}`,
+  sacrifice:  (ship, sysName)                  => `sacrifice ${pieceNote(ship.color,ship.size)} ${sysName}`,
+  catastrophe:(sysName, color)                 => `catastrophe ${sysName} ${COLOR_LETTER[color]}`,
+  catastropheFailed: ()                        => `catastrophe failed`,
+  skip:       ()                               => `skip`,
+};
+
+function logAction(notation) {
+  G._pendingActions = G._pendingActions || [];
+  G._pendingActions.push(notation);
+  // Don't call renderLog here — log only updates on End Turn
+}
+
+function commitTurnLog() {
+  const actions = G._pendingActions || [];
+  if (actions.length > 0) {
+    G.log.push({ turn: G.currentTurn, player: G.currentPlayer, actions: [...actions] });
+    G.currentTurn++;
+  }
+  G._pendingActions = [];
+}
+
+
+
+function renderLog() {
+  const container = document.getElementById('log-entries');
+  const counter   = document.getElementById('log-turn-count');
+  if (!container) return;
+
+  const KEYWORDS = ['set','build','trade','discover','move','hijack','sacrifice','catastrophe','skip','failed','HW','ship'];
+  function highlight(str) {
+    return str.split(' ').map(t => {
+      if (KEYWORDS.includes(t))       return `<span class="ml-kw">${t}</span>`;
+      if (/^r\d/.test(t))             return `<span class="piece-r">${t}</span>`;
+      if (/^b\d/.test(t))             return `<span class="piece-b">${t}</span>`;
+      if (/^y\d/.test(t))             return `<span class="piece-y">${t}</span>`;
+      if (/^g\d/.test(t))             return `<span class="piece-g">${t}</span>`;
+      if (t === 'r')  return `<span class="piece-r">${t}</span>`;
+      if (t === 'b')  return `<span class="piece-b">${t}</span>`;
+      if (t === 'y')  return `<span class="piece-y">${t}</span>`;
+      if (t === 'g')  return `<span class="piece-g">${t}</span>`;
+      return t;
+    }).join(' ');
+  }
+
+  const rows = [];
+  (G.log || []).forEach(entry => {
+    entry.actions.forEach(a => {
+      const pClass = entry.player === 1 ? 'ml-p1' : 'ml-p2';
+      rows.push({
+        prefix: `<span class="ml-turn">${entry.turn}.</span><span class="${pClass}">P${entry.player}</span>`,
+        body: highlight(a)
+      });
+    });
+  });
+
+  if (counter) counter.textContent = rows.length > 0 ? `T${G.currentTurn}` : '—';
+
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="font-size:12px;color:#253040;text-align:center;padding:16px 10px;letter-spacing:1px;line-height:1.8">No moves yet.<br>Log appears here.</div>';
+    return;
+  }
+  container.innerHTML = rows.map(r =>
+    `<div class="mini-log-line"><span class="mini-log-prefix">${r.prefix}&nbsp;</span><span class="mini-log-body">${r.body}</span></div>`
+  ).join('');
+  container.scrollTop = container.scrollHeight;
+  // Sync to mobile tab
+  requestAnimationFrame(renderMobileLog);
+}
+
+// ============================================================
+//  GEOMETRY / PIECE RENDERING
+// ============================================================
+
+// Ship webp naming: assets/ships/{size}{color}.webp
+// size: small(1) medium(2) large(3) | color: r g b y
+const SIZE_PREFIX = ['', 'small', 'medium', 'large'];
+const COLOR_LETTER_MAP = { red:'r', blue:'b', yellow:'y', green:'g' };
+
+// Display sizes [width, height] per size
+const SHIP_DIMS = { 1:[24,40], 2:[32,56], 3:[40,72] };
+
+function shipImgHTML(color, size, player, opts = {}) {
+  const prefix = SIZE_PREFIX[size];
+  const letter = COLOR_LETTER_MAP[color];
+  const src = `assets/ships/${prefix}${letter}.webp`;
+  const [w, h] = SHIP_DIMS[size];
+  // Player 2 ships flip vertically
+  const flip = player === 2 ? 'transform:scaleY(-1);' : '';
+  const filter = opts.glow ? `filter:drop-shadow(0 0 6px ${COLOR_HEX[color]}) drop-shadow(0 0 3px #fff);` : '';
+  return `<img src="${src}" width="${w}" height="${h}" style="display:block;${flip}${filter}" draggable="false">`;
+}
+
+// Star dims [width, height] per size
+const STAR_DIMS = { 1:[28,28], 2:[36,36], 3:[46,46] };
+
+function starImgHTML(color, size, opts = {}) {
+  const prefix = SIZE_PREFIX[size];
+  const letter = COLOR_LETTER_MAP[color];
+  const src = `assets/stars/${prefix}${letter}.webp`;
+  const [w, h] = STAR_DIMS[size];
+  const filter = opts.glow ? `filter:drop-shadow(0 0 8px ${COLOR_HEX[color]});` : '';
+  return `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`;
+}
+
+// Keep triangleSVG for bank stash display (smaller, neutral orientation)
+function triangleSVG(color, size, player, opts = {}) {
+  const dims = [0, 26, 36, 48];
+  const d = dims[size];
+  const pad = 2;
+  let pts;
+  if (player === 2) {
+    pts = `${d/2},${d-pad} ${pad},${pad} ${d-pad},${pad}`;
+  } else {
+    pts = `${d/2},${pad} ${d-pad},${d-pad} ${pad},${d-pad}`;
+  }
+  const hex = COLOR_HEX[color];
+  const pipY = player === 2 ? d * 0.44 : d * 0.7;
+  const pipSize = Math.floor(d * 0.32);
+  const pip = `<text x="${d/2}" y="${pipY}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.7)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
+  const glow = opts.glow ? `filter="url(#glow-${color})"` : '';
+  return `<svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}" style="display:block">
+    <defs>
+      <filter id="glow-${color}" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="2" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <polygon points="${pts}" fill="${hex}" stroke="rgba(0,0,0,0.4)" stroke-width="1" ${glow}/>
+    ${pip}
+  </svg>`;
+}
+
+function diamondSVG(color, size, opts = {}) {
+  // Stars shown as diamonds
+  const dims = [0, 28, 36, 46];
+  const d = dims[size];
+  const h = d * 0.85;
+  const cx = d/2, cy = h/2;
+  const hex = COLOR_HEX[color];
+  const pts = `${cx},2 ${d-2},${cy} ${cx},${h-2} 2,${cy}`;
+  const pipSize = Math.floor(d * 0.3);
+  const pip = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.65)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
+  const glow = opts.glow ? `filter="url(#glow-s-${color})"` : '';
+  return `<svg width="${d}" height="${h}" viewBox="0 0 ${d} ${h}" style="display:block">
+    <defs>
+      <filter id="glow-s-${color}" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <polygon points="${pts}" fill="${hex}" stroke="rgba(255,255,255,0.2)" stroke-width="1" ${glow}/>
+    ${pip}
+  </svg>`;
+}
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function findShip(id) {
+  for (const sys of G.systems) {
+    const s = sys.ships.find(x => x.id === id);
+    if (s) return s;
+  }
+}
+function findSystemByShip(id) {
+  return G.systems.find(sys => sys.ships.some(s => s.id === id));
+}
+function findSystem(id) {
+  return G.systems.find(s => s.id === id);
+}
+function systemSizes(sys) {
+  return new Set(sys.stars.map(s => s.size));
+}
+function isConnected(s1, s2) {
+  const a = systemSizes(s1), b = systemSizes(s2);
+  for (const sz of a) if (b.has(sz)) return false;
+  return true;
+}
+function getSystemPowers(sys, player) {
+  const p = new Set();
+  sys.stars.forEach(s => p.add(s.color));
+  sys.ships.forEach(s => { if (s.owner === player) p.add(s.color); });
+  if (G.sacrificePool.count > 0) p.add(G.sacrificePool.color);
+  return p;
+}
+function hasActionLeft(color) {
+  if (G.sacrificePool.count > 0) return G.sacrificePool.color === color && G.sacrificePool.count > 0;
+  return !G.turnUsed;
+}
+function consumeAction() {
+  if (G.sacrificePool.count > 0) G.sacrificePool.count--;
+  else G.turnUsed = true;
+}
+function saveHistory() {
+  G.history = JSON.stringify(G);
+}
+function getCatastrophes() {
+  // Returns array of { sys, color, count } for every system+color with 4+ pieces
+  const eligible = [];
+  G.systems.forEach(sys => {
+    COLORS.forEach(c => {
+      let count = 0;
+      sys.stars.forEach(s => { if (s.color === c) count++; });
+      sys.ships.forEach(s => { if (s.color === c) count++; });
+      if (count >= 4) eligible.push({ sys, color: c, count });
+    });
+  });
+  return eligible;
+}
+
+function triggerCatastrophe(sysId, color) {
+  const sys = findSystem(sysId);
+  if (!sys) return;
+  saveHistory();
+  logAction(Note.catastrophe(sys.name, color));
+
+  sys.stars.filter(s => s.color === color).forEach(s => G.bank[s.color][s.size]++);
+  sys.ships.filter(s => s.color === color).forEach(s => G.bank[s.color][s.size]++);
+  sys.stars = sys.stars.filter(s => s.color !== color);
+  sys.ships = sys.ships.filter(s => s.color !== color);
+
+  if (!sys.isHomeworld) {
+    if (sys.ships.length === 0) {
+      sys.stars.forEach(s => G.bank[s.color][s.size]++);
+      sys.stars = [];
+      G.systems = G.systems.filter(s => s.id !== sysId);
+    } else if (sys.stars.length === 0) {
+      sys.ships.forEach(s => G.bank[s.color][s.size]++);
+      sys.ships = [];
+      G.systems = G.systems.filter(s => s.id !== sysId);
+    }
+  } else {
+    if (sys.stars.length === 0) {
+      sys.ships.forEach(s => G.bank[s.color][s.size]++);
+      sys.ships = [];
+    }
+  }
+
+  // Catastrophe does NOT cost the turn — player continues
+  G.selectedShipId = null;
+  G.interaction = 'IDLE';
+  if (!checkWin()) render();
+}
+
+function cleanSystems() {
+  G.systems = G.systems.filter(sys => {
+    if (sys.isHomeworld) return true;
+    if (sys.ships.length === 0) {
+      sys.stars.forEach(st => G.bank[st.color][st.size]++);
+      return false;
+    }
+    return true;
+  });
+}
+function setGuide(msg) {
+  document.getElementById('guide-text').textContent = msg;
+}
+
+function getLargestOwnShip(sys, player) {
+  const ownShips = sys.ships.filter(s => s.owner === player);
+  if (ownShips.length === 0) return null;
+  return ownShips.reduce((max, s) => s.size > max.size ? s : max);
+}
+
+function checkWin() {
+  for (let p = 1; p <= 2; p++) {
+    const hw = G.systems.find(s => s.isHomeworld === p);
+    // Loss condition 1: homeworld system gone entirely
+    if (!hw) { showWin(3 - p); return true; }
+    // Loss condition 2: homeworld has no stars left (destroyed by catastrophe)
+    if (hw.stars.length === 0) { showWin(3 - p); return true; }
+    // Loss condition 3: no own ships at homeworld
+    const hasOwnShipsAtHW = hw.ships.some(s => s.owner === p);
+    if (!hasOwnShipsAtHW) { showWin(3 - p); return true; }
+  }
+  return false;
+}
+function showWin(player) {
+  stopTimerTick();
+  _chatMessages = [];
+  document.getElementById('win-player').textContent = player;
+  document.getElementById('win-overlay').classList.add('show');
+
+  // Wire up copy log button
+  const copyBtn = document.getElementById('btn-copy-log');
+  if (copyBtn) {
+    copyBtn.onclick = () => {
+      const winnerName = PLAYER_CONFIG.names[player] || `Player ${player}`;
+      const loserName  = PLAYER_CONFIG.names[3 - player] || `Player ${3 - player}`;
+
+      // Compact keyword map: long form → single letter abbreviation
+      function compactAction(a) {
+        return a
+          // homeworld: "set HW r2 b1 ship g3 Alpha" → "h r2 b1 g3 Alpha"
+          .replace(/^set HW\s+/, 'h ')
+          .replace(/\s+ship\s+/, ' ')
+          // other keywords → single letter
+          .replace(/^build\s+/,       'b ')
+          .replace(/^trade\s+/,       't ')
+          .replace(/^move\s+/,        'm ')
+          .replace(/^discover\s+/,    'd ')
+          .replace(/^hijack\s+/,      'a ')
+          .replace(/^sacrifice\s+/,   's ')
+          .replace(/^catastrophe\s+/, 'c ')
+          .replace(/^skip$/,          'sk');
+      }
+
+      // Compact a full turn's actions array → "action1 / action2 / ..."
+      function compactTurn(entry) {
+        return (entry.actions || []).map(compactAction).join(' / ');
+      }
+
+      // Pair P1 and P2 turns onto the same line.
+      // Setup turns (homeworld) are first two log entries; game turns alternate after.
+      const log = G.log || [];
+      const lines = [];
+
+      // Gather setup entries separately (they're logged individually during setup phase)
+      const setupEntries = log.filter(e => e.actions.some(a => a.startsWith('set HW') || a.startsWith('h ')));
+      const gameEntries  = log.filter(e => !e.actions.some(a => a.startsWith('set HW') || a.startsWith('h ')));
+
+      // Setup line: both HW setups on one line
+      const hw1 = setupEntries.find(e => e.player === 1);
+      const hw2 = setupEntries.find(e => e.player === 2);
+      if (hw1 || hw2) {
+        const p1str = hw1 ? compactTurn(hw1) : '—';
+        const p2str = hw2 ? compactTurn(hw2) : '—';
+        lines.push(`1. ${p1str} … ${p2str}`);
+      }
+
+      // Game turns: pair P1 then P2
+      let i = 0;
+      let turnNum = 2;
+      while (i < gameEntries.length) {
+        const e1 = gameEntries[i];
+        const e2 = gameEntries[i + 1];
+        if (e1 && e1.player === 1) {
+          const p1str = compactTurn(e1);
+          const p2str = e2 ? compactTurn(e2) : '—';
+          lines.push(`${turnNum}. ${p1str} … ${p2str}`);
+          i += 2;
+        } else if (e1 && e1.player === 2) {
+          lines.push(`${turnNum}. — … ${compactTurn(e1)}`);
+          i += 1;
+        } else {
+          i++;
+        }
+        turnNum++;
+      }
+
+      // Final result line
+      lines.push(`${winnerName} wins`);
+
+      const text = lines.join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = '✓ COPIED';
+        setTimeout(() => { copyBtn.textContent = '⎘ COPY LOG'; }, 2000);
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        ta.remove();
+        copyBtn.textContent = '✓ COPIED';
+        setTimeout(() => { copyBtn.textContent = '⎘ COPY LOG'; }, 2000);
+      });
+    };
+  }
+}
+function connectedSystems(sys) {
+  return G.systems.filter(s => s.id !== sys.id && isConnected(sys, s));
+}
+function bankStarsForDiscovery(fromSys) {
+  const taken = systemSizes(fromSys);
+  const result = [];
+  COLORS.forEach(c => SIZES.forEach(sz => {
+    if (!taken.has(sz) && G.bank[c][sz] > 0) result.push({ color: c, size: sz });
+  }));
+  return result;
+}
+
+// ============================================================
+//  RENDER MAIN
+// ============================================================
+
+// ============================================================
+//  ARROW DRAWING  (local analysis only — like chess.com)
+//
+//  Each ship-wrap and star-wrap gets a  data-pid="unique-string"
+//  attribute when rendered.  Arrows store { fromPid, toPid, color }
+//  and recompute screen positions from those elements on every render.
+//
+//  Right-click drag         → blue arrow
+//  Alt + right-click drag   → orange arrow
+//  Left-click on board      → clear all arrows
+//  Right-click same pair    → toggle (remove existing)
+// ============================================================
+
+const _arrows   = [];   // { fromPid, toPid, color }
+let   _arrowDrag = null; // { fromPid, fromEl, alt }
+let   _arrowPid  = 0;   // counter for unique piece IDs per render
+
+/** Called by renderSystem to stamp a unique ID on each piece element */
+function _stampPid(el) {
+  const pid = 'p' + (++_arrowPid);
+  el.dataset.pid = pid;
+  return pid;
+}
+
+/** Get center coords of a [data-pid] element relative to #board */
+function _pidCenter(pid) {
+  const el = document.querySelector(`[data-pid="${pid}"]`);
+  if (!el) return null;
+  const board = document.getElementById('board');
+  const br = board.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  return {
+    x: er.left + er.width  / 2 - br.left + board.scrollLeft,
+    y: er.top  + er.height / 2 - br.top  + board.scrollTop,
+  };
+}
+
+/** Find the nearest [data-pid] element to a client coordinate */
+function _nearestPid(clientX, clientY) {
+  const board = document.getElementById('board');
+  const br    = board.getBoundingClientRect();
+  let best = null, bestD = Infinity;
+  board.querySelectorAll('[data-pid]').forEach(el => {
+    const r  = el.getBoundingClientRect();
+    const cx = r.left + r.width  / 2;
+    const cy = r.top  + r.height / 2;
+    const d  = Math.hypot(cx - clientX, cy - clientY);
+    if (d < bestD) { bestD = d; best = { pid: el.dataset.pid, cx: cx - br.left + board.scrollLeft, cy: cy - br.top + board.scrollTop }; }
+  });
+  return bestD < 72 ? best : null;
+}
+
+function _renderArrows() {
+  const svg = document.getElementById('arrow-svg');
+  if (!svg) return;
+  svg.querySelectorAll('.a-arrow, .a-preview').forEach(el => el.remove());
+
+  _arrows.forEach(a => {
+    const from = _pidCenter(a.fromPid);
+    const to   = _pidCenter(a.toPid);
+    if (!from || !to) return;
+    const col  = a.color === 'orange' ? 'rgba(255,160,40,0.65)' : 'rgba(80,200,255,0.65)';
+    const mid  = a.color === 'orange' ? 'url(#arrowhead-orange)' : 'url(#arrowhead-blue)';
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('class','a-arrow');
+    line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+    line.setAttribute('x2', to.x);   line.setAttribute('y2', to.y);
+    line.setAttribute('stroke', col);
+    line.setAttribute('stroke-width','7');
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('marker-end', mid);
+    svg.appendChild(line);
+  });
+}
+
+let _arrowsListening = false;
+function _initArrows() {
+  if (_arrowsListening) return;
+  _arrowsListening = true;
+
+  const board = document.getElementById('board');
+
+  // Block context menu anywhere inside board (capture beats native image menu)
+  document.addEventListener('contextmenu', e => {
+    if (board && board.contains(e.target)) e.preventDefault();
+  }, { capture: true });
+
+  // Right-mousedown → start drag from nearest piece
+  document.addEventListener('mousedown', e => {
+    if (e.button !== 2) return;
+    const board = document.getElementById('board');
+    if (!board || !board.contains(e.target)) return;
+    const hit = _nearestPid(e.clientX, e.clientY);
+    if (!hit) return;
+    e.preventDefault();
+    _arrowDrag = { fromPid: hit.pid, fromX: hit.cx, fromY: hit.cy, alt: e.altKey };
+  }, { capture: true, passive: false });
+
+  // Mousemove → dashed preview line
+  document.addEventListener('mousemove', e => {
+    const svg = document.getElementById('arrow-svg');
+    if (!svg) return;
+    svg.querySelectorAll('.a-preview').forEach(el => el.remove());
+    if (!_arrowDrag) return;
+    const board = document.getElementById('board');
+    const br  = board.getBoundingClientRect();
+    const x2  = e.clientX - br.left + board.scrollLeft;
+    const y2  = e.clientY - br.top  + board.scrollTop;
+    const col = _arrowDrag.alt ? 'rgba(255,160,40,0.45)' : 'rgba(80,200,255,0.45)';
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('class','a-preview');
+    line.setAttribute('x1', _arrowDrag.fromX); line.setAttribute('y1', _arrowDrag.fromY);
+    line.setAttribute('x2', x2);               line.setAttribute('y2', y2);
+    line.setAttribute('stroke', col);
+    line.setAttribute('stroke-width','6');
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('stroke-dasharray','10 6');
+    svg.appendChild(line);
+  });
+
+  // Mouseup → commit or cancel
+  document.addEventListener('mouseup', e => {
+    if (e.button !== 2) return;
+    const svg = document.getElementById('arrow-svg');
+    if (svg) svg.querySelectorAll('.a-preview').forEach(el => el.remove());
+    if (!_arrowDrag) return;
+    const drag = _arrowDrag;
+    _arrowDrag = null;
+
+    const hit = _nearestPid(e.clientX, e.clientY);
+    if (!hit || hit.pid === drag.fromPid) return; // no movement or same piece
+
+    const color = drag.alt ? 'orange' : 'blue';
+    const idx = _arrows.findIndex(a => a.fromPid === drag.fromPid && a.toPid === hit.pid && a.color === color);
+    if (idx >= 0) _arrows.splice(idx, 1); // toggle off
+    else _arrows.push({ fromPid: drag.fromPid, toPid: hit.pid, color });
+    _renderArrows();
+  });
+
+  // Left-click on board → clear all arrows
+  document.addEventListener('click', e => {
+    const board = document.getElementById('board');
+    if (!board || !board.contains(e.target)) return;
+    if (_arrows.length === 0) return;
+    _arrows.length = 0;
+    _renderArrows();
+  });
+}
+
+function render() {
+  renderBank();
+  renderBoard();
+  renderSidebar();
+  renderLog();
+  renderPlayerCards();
+}
+
+// ============================================================
+//  RENDER BANK
+// ============================================================
+function renderBank() {
+  const grid = document.getElementById('bank-grid');
+  grid.innerHTML = '';
+
+  // Headers
+  grid.appendChild(makeEl('div', 'bank-header', ''));
+  ['S','M','L'].forEach(h => grid.appendChild(makeEl('div', 'bank-header', h)));
+
+  const BANK_ORDER = ['red','yellow','green','blue'];
+  BANK_ORDER.forEach(c => {
+    const label = makeEl('div', `bank-color-label c-${c}`, COLOR_POWERS[c]);
+    grid.appendChild(label);
+
+    SIZES.forEach(sz => {
+      const count = G.bank[c][sz];
+      const cell = document.createElement('div');
+      cell.className = 'bank-cell';
+
+      // Clickable during certain states
+      let clickable = false;
+      if (G.phase === 'SETUP' && !G.setupDone) {
+        if ((G.setupStep === 0 || G.setupStep === 1) && count > 0) {
+          clickable = true;  // Any size star for homeworld
+        } else if (G.setupStep === 2 && sz === 3 && count > 0) {
+          clickable = true;  // Large ship only — pick directly from bank
+        }
+      } else if (G.interaction === 'DISCOVERING' || G.interaction === 'MOVING') {
+        const fromSys = findSystem(G.movingFromSysId) || findSystemByShip(G.selectedShipId);
+        if (fromSys) {
+          const taken = systemSizes(fromSys);
+          if (!taken.has(sz) && count > 0) clickable = true;
+        }
+      } else if (G.interaction === 'BUILDING') {
+        const bldShip = findShip(G.selectedShipId);
+        const bldSys  = bldShip ? findSystemByShip(G.selectedShipId) : null;
+        if (bldSys) {
+          const ownColors = [...new Set(bldSys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))];
+          if (ownColors.includes(c)) {
+            const smallestSz = [1,2,3].find(s => G.bank[c][s] > 0);
+            if (smallestSz === sz && count > 0) clickable = true;
+          }
+        }
+      } else if (G.interaction === 'TRADING') {
+        const trdShip = findShip(G.selectedShipId);
+        if (trdShip && c !== trdShip.color && sz === trdShip.size && count > 0) clickable = true;
+      }
+
+      if (clickable) {
+        if (G.interaction === 'BUILDING') {
+          cell.classList.add('build-pick');
+        } else if (G.interaction === 'TRADING') {
+          cell.classList.add('trade-pick');
+        } else {
+          cell.classList.add('clickable');
+        }
+        cell.onclick = () => onBankClick(c, sz);
+      } else {
+        cell.classList.add('not-clickable');
+      }
+
+      // Stack of ship webp images (stacked, neutral up orientation)
+      const stack = document.createElement('div');
+      stack.className = 'bank-stack';
+      for (let i = 0; i < Math.min(count, 3); i++) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bank-piece-wrap';
+        wrap.innerHTML = shipImgHTML(c, sz, 0);
+        stack.appendChild(wrap);
+      }
+      if (count === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'font-size:12px;color:#2a3850;text-align:center;width:100%;padding-bottom:4px';
+        empty.textContent = '—';
+        stack.appendChild(empty);
+      }
+      cell.appendChild(stack);
+      grid.appendChild(cell);
+    });
+  });
+}
+
+function makeEl(tag, cls, text) {
+  const el = document.createElement(tag);
+  el.className = cls;
+  el.textContent = text;
+  return el;
+}
+
+// ============================================================
+//  RENDER BOARD
+// ============================================================
+
+/** BFS from a starting system, returns Map<sysId → distance> for all reachable systems */
+function bfsDistances(startSys) {
+  const dist = new Map();
+  if (!startSys) return dist;
+  dist.set(startSys.id, 0);
+  const queue = [startSys];
+  while (queue.length) {
+    const cur = queue.shift();
+    const d = dist.get(cur.id);
+    G.systems.forEach(s => {
+      if (!dist.has(s.id) && isConnected(cur, s)) {
+        dist.set(s.id, d + 1);
+        queue.push(s);
+      }
+    });
+  }
+  return dist;
+}
+
+// ── Turn token factory ──────────────────────────────────────
+function makeTurnToken(player) {
+  const canEnd = G.turnUsed || (G._pendingActions && G._pendingActions.length > 0) || G.sacrificePool.count > 0;
+  const midAction = G.interaction !== 'IDLE' && G.interaction !== 'SHIP_SELECTED';
+  const disabled = midAction; // can't end turn mid-action; skip is always allowed
+
+  const wrap = document.createElement('div');
+  wrap.className = 'turn-token-wrap';
+
+  const token = document.createElement('div');
+  const pName = (PLAYER_CONFIG.names[player] || `P${player}`);
+  const initials = pName.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  token.className = `turn-token p${player}${disabled ? ' disabled' : ''}`;
+  token.title = disabled ? 'Finish your current action first' : canEnd ? 'End Turn' : 'Skip Turn';
+
+  // Orbiting ring
+  const ring = document.createElement('div');
+  ring.className = 'token-ring';
+  token.appendChild(ring);
+
+  // Initials (shown at rest)
+  const init = document.createElement('span');
+  init.className = 'token-initials';
+  init.textContent = initials;
+  token.appendChild(init);
+
+  // Label (shown on hover)
+  const lbl = document.createElement('span');
+  lbl.className = 'token-label';
+  lbl.textContent = canEnd ? 'END\nTURN' : 'SKIP\nTURN';
+  token.appendChild(lbl);
+
+  if (!disabled) attachTurnTokenListeners(token);
+  wrap.appendChild(token);
+  return wrap;
+}
+
+function makeSetupToken(player) {
+  const wrap = document.createElement('div');
+  wrap.className = 'turn-token-wrap';
+  const token = document.createElement('div');
+  token.className = `turn-token p${player}`;
+  token.title = 'Confirm homeworld';
+
+  const ring = document.createElement('div');
+  ring.className = 'token-ring';
+  token.appendChild(ring);
+
+  const init = document.createElement('span');
+  init.className = 'token-initials';
+  init.textContent = '✓';
+  token.appendChild(init);
+
+  const lbl = document.createElement('span');
+  lbl.className = 'token-label';
+  lbl.textContent = 'CONFIRM';
+  token.appendChild(lbl);
+
+  attachTurnTokenListeners(token);
+  wrap.appendChild(token);
+  return wrap;
+}
+
+
+// ================================================================
+//  SHORTCUT INTERACTION HELPERS
+// ================================================================
+
+/**
+ * Is this own ship "selectable" (shows bob animation)?
+ * After sacrifice: only ships that can validly use the sacrifice color action.
+ */
+function isSelectableShip(ship, sys) {
+  if (G.turnUsed && G.sacrificePool.count === 0) return false;
+  if (G.sacrificePool.count === 0) return true; // normal turn — all own ships
+
+  const sc = G.sacrificePool.color;
+  if (sc === 'yellow') {
+    // Can move: not the last own ship in its homeworld
+    const isLastInHW = sys.isHomeworld === G.currentPlayer &&
+      sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+    return !isLastInHW;
+  }
+  if (sc === 'red') {
+    // During red sacrifice, player clicks ENEMIES directly — don't bob own ships
+    return false;
+  }
+  if (sc === 'blue') {
+    // Can trade: bank has another color of same size
+    return COLORS.some(col => col !== ship.color && G.bank[col][ship.size] > 0);
+  }
+  if (sc === 'green') {
+    // Can build: bank has any piece of this ship's color
+    return [1,2,3].some(sz => G.bank[ship.color][sz] > 0);
+  }
+  return true;
+}
+
+/**
+ * Fired when user clicks a colored star or own-ship in their selected ship's system.
+ * Routes to the appropriate action for that color.
+ */
+function onPowerClick(color, sys) {
+  const ship = findShip(G.selectedShipId);
+  if (!ship) return;
+  const shipSys = findSystemByShip(G.selectedShipId);
+  if (!shipSys || shipSys.id !== sys.id) return;
+
+  // Validate power source
+  const sacPool = G.sacrificePool.count > 0;
+  const powers  = getSystemPowers(sys, G.currentPlayer);
+  const hasPower = sacPool ? G.sacrificePool.color === color : powers.has(color);
+  if (!hasPower || !hasActionLeft(color)) return;
+
+  if (color === 'yellow') {
+    const isLastInHW = sys.isHomeworld === G.currentPlayer &&
+      sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+    if (isLastInHW) { setGuide('⚠ Cannot move your last ship away from your Homeworld — you would lose!'); return; }
+    startMove(ship, sys);
+  } else if (color === 'blue') {
+    const avail = COLORS.filter(c => c !== ship.color && G.bank[c][ship.size] > 0);
+    if (avail.length === 0) { setGuide('⚠ No other colors available to trade into.'); return; }
+    startTrade(ship, sys);
+  } else if (color === 'red') {
+    const largest = getLargestOwnShip(sys, G.currentPlayer);
+    const enemies = sys.ships.filter(s => s.owner !== G.currentPlayer);
+    if (!enemies.length) { setGuide('⚠ No enemy ships in this system.'); return; }
+    if (!largest || !enemies.some(s => s.size <= largest.size)) {
+      setGuide(`⚠ All enemies are larger than your biggest ship (Size ${largest?.size ?? '?'}).`); return;
+    }
+    startAttack(ship, sys);
+  } else if (color === 'green') {
+    const ownColors = [...new Set(sys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))];
+    const buildable = ownColors.filter(col => [1,2,3].some(sz => G.bank[col][sz] > 0));
+    if (!buildable.length) { setGuide('⚠ Bank empty for all your ship colors here.'); return; }
+    // Auto-execute if only one buildable color
+    if (buildable.length === 1) {
+      doBuild(sys, buildable[0]);
+    } else {
+      startBuild(ship, sys);
+    }
+  }
+}
+
+/**
+ * Direct attack — executes without entering ATTACKING mode first.
+ * Used when clicking an attackable enemy in SHIP_SELECTED state.
+ */
+function directAttack(targetShip, sys) {
+  saveHistory();
+  logAction(Note.hijack(targetShip, sys.name));
+  targetShip.owner = G.currentPlayer;
+  consumeAction();
+  G.interaction = 'IDLE';
+  G.selectedShipId = null;
+  if (!checkWin()) render();
+}
+
+
+function renderBoard() {
+  const zP1  = document.getElementById('zone-p1');
+  const zP2  = document.getElementById('zone-p2');
+  const zMid = document.getElementById('zone-mid');
+  [zP1, zP2, zMid].forEach(z => z.innerHTML = '');
+  _arrowPid = 0;
+
+  // Click on board background to deselect
+  const boardEl = document.getElementById('board');
+  boardEl.onclick = (e) => {
+    // Only fire if click lands on board/zone itself, not a child card
+    const onBackground = [boardEl, zP1, zP2, zMid].includes(e.target) ||
+      e.target.classList.contains('dist-row') ||
+      e.target.classList.contains('zone-hw-area') ||
+      e.target.classList.contains('zone-label');
+    if (!onBackground) return;
+    if (G.phase !== 'PLAY') return;
+    const cancellable = ['SHIP_SELECTED','MOVING','DISCOVERING','TRADING','ATTACKING','BUILDING'];
+    if (cancellable.includes(G.interaction)) {
+      G.interaction = 'IDLE';
+      G.selectedShipId = null;
+      G.movingFromSysId = null;
+      render();
+    }
+  };
+
+  if (G.phase === 'SETUP') {
+    renderSetupPreview(G.currentPlayer === 1 ? zP1 : zP2);
+  }
+
+  const hw2 = G.systems.find(s => s.isHomeworld === 2);
+  const hw1 = G.systems.find(s => s.isHomeworld === 1);
+
+  // Render homeworlds in their zones
+  if (hw2) {
+    zP2.appendChild(renderSystem(hw2));
+    if (G.phase === 'PLAY' && G.currentPlayer === 2) {
+      zP2.appendChild(makeTurnToken(2));
+    }
+  }
+  if (hw1) {
+    zP1.appendChild(renderSystem(hw1));
+    if (G.phase === 'PLAY' && G.currentPlayer === 1) {
+      zP1.appendChild(makeTurnToken(1));
+    }
+  }
+  // During setup: show confirm token on current player's zone when setup is done
+  if (G.phase === 'SETUP' && G.setupDone) {
+    const setupZone = G.currentPlayer === 1 ? zP1 : zP2;
+    setupZone.appendChild(makeSetupToken(G.currentPlayer));
+  }
+
+  // Mid systems: sort by BFS distance from P2, tiebreak by distance from P1 (descending)
+  const midSystems = G.systems.filter(s => !s.isHomeworld);
+  if (midSystems.length === 0) return;
+
+  const d2map = bfsDistances(hw2);
+  const d1map = bfsDistances(hw1);
+
+  const INF = 999;
+  // Score: closer to P2 = lower value → appears near top
+  midSystems.sort((a, b) => {
+    const da2 = d2map.get(a.id) ?? INF;
+    const db2 = d2map.get(b.id) ?? INF;
+    const da1 = d1map.get(a.id) ?? INF;
+    const db1 = d1map.get(b.id) ?? INF;
+    // Primary: distance from P2 ascending
+    if (da2 !== db2) return da2 - db2;
+    // Secondary: distance from P1 descending (farther from P1 = closer to P2 side)
+    return db1 - da1;
+  });
+
+  // Group into distance layers from P2, render one row per layer
+  const layers = new Map(); // d2 → systems[]
+  midSystems.forEach(s => {
+    const d = d2map.get(s.id) ?? INF;
+    if (!layers.has(d)) layers.set(d, []);
+    layers.get(d).push(s);
+  });
+
+  // Sort layer keys ascending so P2-adjacent rows appear at top
+  [...layers.keys()].sort((a, b) => a - b).forEach(d => {
+    const row = document.createElement('div');
+    row.className = 'dist-row';
+    layers.get(d).forEach(s => row.appendChild(renderSystem(s)));
+    zMid.appendChild(row);
+  });
+
+  _initArrows();
+  requestAnimationFrame(_renderArrows);
+}
+
+function renderSetupPreview(zone) {
+  if (G.setupCache.stars.length === 0) return;
+  const card = document.createElement('div');
+  card.className = `system-card homeworld-${G.currentPlayer}`;
+
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'sys-name';
+  nameDiv.textContent = `HOME ${G.currentPlayer} — PREVIEW`;
+  card.appendChild(nameDiv);
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:12px;color:#557;margin-bottom:6px;letter-spacing:0.5px';
+  hint.textContent = 'Click a piece to remove it';
+  card.appendChild(hint);
+
+  const starsDiv = document.createElement('div');
+  starsDiv.className = 'sys-stars';
+  G.setupCache.stars.forEach((star, idx) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'cursor:pointer;transition:filter 0.15s;';
+    wrap.title = `Remove ${star.color} size-${star.size} star`;
+    wrap.innerHTML = starImgHTML(star.color, star.size);
+    wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
+    wrap.onmouseleave = () => wrap.style.filter = '';
+    wrap.onclick = () => {
+      G.bank[star.color][star.size]++;
+      G.setupCache.stars.splice(idx, 1);
+      G.setupStep = idx; // step back to that star's position
+      render();
+    };
+    starsDiv.appendChild(wrap);
+  });
+  card.appendChild(starsDiv);
+  zone.appendChild(card);
+}
+
+function renderSystem(sys) {
+  const card = document.createElement('div');
+  card.className = 'system-card';
+  if (sys.isHomeworld === 1) card.classList.add('homeworld-1');
+  if (sys.isHomeworld === 2) card.classList.add('homeworld-2');
+  // Active turn glow on current player's homeworld
+  if (G.phase === 'PLAY' && sys.isHomeworld === G.currentPlayer) {
+    card.classList.add(`active-turn-p${G.currentPlayer}`);
+  }
+
+  // Highlight as valid move target
+  if (G.interaction === 'MOVING') {
+    const ship = findShip(G.selectedShipId);
+    const fromSys = findSystemByShip(G.selectedShipId);
+    if (sys.id !== fromSys?.id && isConnected(fromSys, sys)) {
+      card.classList.add('valid-move-target');
+      card.onclick = () => onMoveTargetClick(sys.id);
+    }
+  }
+
+  // System name
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'sys-name';
+  nameDiv.textContent = sys.name;
+  card.appendChild(nameDiv);
+
+  // During setup of own homeworld: show remove hint
+  if (G.phase === 'SETUP' && G.setupDone && sys.isHomeworld === G.currentPlayer) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:12px;color:#664444;margin-bottom:6px;letter-spacing:0.5px';
+    hint.textContent = 'Click any piece to undo';
+    card.appendChild(hint);
+  }
+
+  // Single inline row: ▽ ships (left) · stars (centre) · △ ships (right)
+  const downShips = sys.ships.filter(s => s.owner === 2);
+  const upShips   = sys.ships.filter(s => s.owner === 1);
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:36px;margin-top:6px;';
+
+  // ── Precompute shortcut context for this system ──────────────
+  const selShip   = G.phase === 'PLAY' ? findShip(G.selectedShipId) : null;
+  const selSys    = selShip ? findSystemByShip(G.selectedShipId) : null;
+  const isSelSys  = selSys && selSys.id === sys.id; // selected ship lives here
+  const sacPool   = G.sacrificePool.count > 0;
+  const sysPowers = G.phase === 'PLAY' ? getSystemPowers(sys, G.currentPlayer) : new Set();
+
+  // Is this system a valid move destination right now?
+  const isMoveDest = G.interaction === 'MOVING' && selSys &&
+    sys.id !== selSys.id && isConnected(selSys, sys);
+
+  // Helper: build a ship wrap element
+  function makeShipWrap(ship) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ship-wrap';
+    const isOwn    = ship.owner === G.currentPlayer;
+    const isSelected = G.selectedShipId === ship.id;
+    const isEnemy  = !isOwn;
+
+    if (isOwn)      wrap.classList.add('own-ship');
+    if (isEnemy)    wrap.classList.add('enemy');
+    if (isSelected) wrap.classList.add('selected');
+
+    // ── MOVING state: clicking ANY ship in a valid destination → move there ──
+    if (G.interaction === 'MOVING' && isMoveDest) {
+      wrap.style.cursor = 'pointer';
+      wrap.onclick = (e) => { e.stopPropagation(); onMoveTargetClick(sys.id); };
+      wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, { glow: false });
+      const ownerDot = document.createElement('div');
+      ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+      wrap.appendChild(ownerDot);
+      _stampPid(wrap);
+    return wrap;
+    }
+
+    // ── ATTACKING mode: click enemy to capture ──
+    if (G.interaction === 'ATTACKING' && isEnemy) {
+      const largest = getLargestOwnShip(sys, G.currentPlayer);
+      if (largest && ship.size <= largest.size) {
+        wrap.classList.add('valid-attack');
+        wrap.onclick = (e) => { e.stopPropagation(); onAttackTargetClick(ship.id); };
+      }
+      wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {});
+      const ownerDot = document.createElement('div');
+      ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+      wrap.appendChild(ownerDot);
+      _stampPid(wrap);
+    return wrap;
+    }
+
+    // ── RED SACRIFICE: enemy ships are directly clickable without selecting own ship first ──
+    if (sacPool && G.sacrificePool.color === 'red' && isEnemy) {
+      // Find largest own ship in THIS system to use as the attacker
+      const largest = getLargestOwnShip(sys, G.currentPlayer);
+      if (largest && ship.size <= largest.size && hasActionLeft('red')) {
+        wrap.classList.add('valid-attack-direct');
+        wrap.onclick = (e) => {
+          e.stopPropagation();
+          // Use largest own ship in this system as attacker
+          saveHistory();
+          logAction(Note.hijack(ship, sys.name));
+          ship.owner = G.currentPlayer;
+          consumeAction();
+          G.interaction = 'IDLE';
+          G.selectedShipId = null;
+          if (!checkWin()) render();
+        };
+        wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, {}));
+        const od = document.createElement('div');
+        od.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+        wrap.appendChild(od);
+        _stampPid(wrap);
+    return wrap;
+      }
+    }
+
+    // ── SHIP_SELECTED: shortcuts via clicking pieces in selected ship's system ──
+    if (G.interaction === 'SHIP_SELECTED' && isSelSys && !isSelected) {
+      if (isEnemy) {
+        // Direct attack shortcut: click capturable enemy → attack immediately
+        const hasPow = sacPool ? G.sacrificePool.color === 'red' : sysPowers.has('red');
+        const largest = getLargestOwnShip(sys, G.currentPlayer);
+        if (hasPow && hasActionLeft('red') && largest && ship.size <= largest.size) {
+          wrap.classList.add('valid-attack-direct');
+          wrap.onclick = (e) => { e.stopPropagation(); directAttack(ship, sys); };
+          wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {});
+          const ownerDot = document.createElement('div');
+          ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+          wrap.appendChild(ownerDot);
+          _stampPid(wrap);
+    return wrap;
+        }
+      } else if (isOwn) {
+        // Own ship in selected system: click to use its color as power, or re-select
+        const hasPow = sacPool ? G.sacrificePool.color === ship.color : sysPowers.has(ship.color);
+        if (hasPow && hasActionLeft(ship.color)) {
+          // This ship's color provides a usable action — treat as power trigger
+          wrap.classList.add('piece-power');
+          wrap.dataset.color = ship.color;
+          const POWER_LABEL = { yellow:'MOVE', blue:'TRADE', green:'BUILD', red:'HIJACK' };
+          const tip = document.createElement('span');
+          tip.className = 'power-tip';
+          tip.textContent = POWER_LABEL[ship.color] || ship.color.toUpperCase();
+          wrap.appendChild(tip);
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(ship.color, sys); };
+        } else {
+          // No valid action for this color — re-select to this ship
+          wrap.onclick = (e) => { e.stopPropagation(); onShipClick(ship.id); };
+        }
+        wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {}) + wrap.innerHTML;
+        const ownerDot = document.createElement('div');
+        ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+        wrap.appendChild(ownerDot);
+        _stampPid(wrap);
+    return wrap;
+      }
+    }
+
+    // ── SETUP ──
+    if (G.phase === 'SETUP' && G.setupDone && sys.isHomeworld === G.currentPlayer && isOwn) {
+      wrap.style.cursor = 'pointer';
+      wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
+      wrap.onmouseleave = () => wrap.style.filter = '';
+      wrap.onclick = () => restartSetup();
+    } else if (isOwn) {
+      // IDLE / default: select this ship
+      if (G.phase === 'PLAY') {
+        if (isSelectableShip(ship, sys)) wrap.classList.add('selectable');
+      }
+      // If this IS the selected ship, clicking it triggers its own color as a power
+      if (isSelected && G.interaction === 'SHIP_SELECTED') {
+        const hasPow = sacPool ? G.sacrificePool.color === ship.color : sysPowers.has(ship.color);
+        if (hasPow && hasActionLeft(ship.color)) {
+          wrap.classList.add('piece-power');
+          wrap.dataset.color = ship.color;
+          const POWER_LABEL = { yellow:'MOVE', blue:'TRADE', green:'BUILD', red:'HIJACK' };
+          const tip = document.createElement('span');
+          tip.className = 'power-tip';
+          tip.textContent = POWER_LABEL[ship.color] || ship.color.toUpperCase();
+          wrap.appendChild(tip);
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(ship.color, sys); };
+        } else {
+          // No power available for this color — click does nothing (deselect via board bg)
+          wrap.onclick = (e) => { e.stopPropagation(); };
+        }
+      } else {
+        wrap.onclick = (e) => { e.stopPropagation(); onShipClick(ship.id); };
+      }
+    }
+
+    // Insert image FIRST so any previously appended children (power-tip) are not overwritten
+    wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, { glow: isSelected }));
+    const ownerDot = document.createElement('div');
+    ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
+    wrap.appendChild(ownerDot);
+    _stampPid(wrap);
+    return wrap;
+  }
+
+  // ▽ down ships on LEFT
+  downShips.forEach(ship => row.appendChild(makeShipWrap(ship)));
+
+  // Stars in centre — with power-click shortcuts when ship is selected
+  sys.stars.forEach(star => {
+    const isSetupOwnHW = G.phase === 'SETUP' && G.setupDone && sys.isHomeworld === G.currentPlayer;
+    const wrap = document.createElement('div');
+    wrap.style.flexShrink = '0';
+
+    if (isSetupOwnHW) {
+      wrap.style.cursor = 'pointer';
+      wrap.title = `Remove ${star.color} size-${star.size} star`;
+      wrap.innerHTML = starImgHTML(star.color, star.size);
+      wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
+      wrap.onmouseleave = () => wrap.style.filter = '';
+      wrap.onclick = () => restartSetup();
+    } else {
+      wrap.innerHTML = starImgHTML(star.color, star.size);
+      _stampPid(wrap);
+
+      // Shortcut: clicking a star in selected ship's system triggers that color's action
+      if (G.interaction === 'SHIP_SELECTED' && isSelSys) {
+        const hasPow = sacPool ? G.sacrificePool.color === star.color : sysPowers.has(star.color);
+        if (hasPow && hasActionLeft(star.color)) {
+          wrap.classList.add('piece-power');
+          wrap.dataset.color = star.color;
+          const POWER_LABEL = { yellow:'MOVE', blue:'TRADE', green:'BUILD', red:'HIJACK' };
+          const tip = document.createElement('span');
+          tip.className = 'power-tip';
+          tip.textContent = POWER_LABEL[star.color] || star.color.toUpperCase();
+          wrap.appendChild(tip);
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(star.color, sys); };
+        }
+      }
+
+      // Shortcut: clicking a star in a valid move-destination system also moves there
+      if (G.interaction === 'MOVING' && isMoveDest) {
+        wrap.style.cursor = 'pointer';
+        wrap.onclick = (e) => { e.stopPropagation(); onMoveTargetClick(sys.id); };
+      }
+    }
+    row.appendChild(wrap);
+  });
+
+  // △ up ships on RIGHT
+  upShips.forEach(ship => row.appendChild(makeShipWrap(ship)));
+
+  card.appendChild(row);
+
+  return card;
+}
+
+// ============================================================
+//  RENDER SIDEBAR
+// ============================================================
+function renderCatastrophePanel() {
+  const panel = document.getElementById('catastrophe-panel');
+  panel.innerHTML = '';
+  if (G.phase !== 'PLAY') return;
+
+  const eligible = getCatastrophes();
+  if (eligible.length === 0) return;  // only show when eligible
+
+  eligible.forEach(({ sys, color }) => {
+    const btn = document.createElement('button');
+    btn.style.cssText = `width:100%;padding:7px 10px;margin-bottom:4px;border-radius:4px;
+      border:1px solid #994400;background:rgba(180,70,0,0.12);
+      color:#cc6622;font-family:'Share Tech Mono',monospace;font-size:12px;
+      letter-spacing:1px;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;
+      transition:all 0.15s;`;
+    const colorDot = `<span style="width:8px;height:8px;border-radius:50%;background:${COLOR_HEX[color]};flex-shrink:0;display:inline-block;"></span>`;
+    btn.innerHTML = `<span style="font-size:12px">☄</span>${colorDot}<span style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;text-transform:uppercase;">Catastrophe · ${sys.name}</span>`;
+    btn.onmouseenter = () => { btn.style.borderColor='#ff6600'; btn.style.color='#ff9933'; btn.style.background='rgba(255,100,0,0.2)'; };
+    btn.onmouseleave = () => { btn.style.borderColor='#994400'; btn.style.color='#cc6622'; btn.style.background='rgba(180,70,0,0.12)'; };
+    btn.onclick = () => triggerCatastrophe(sys.id, color);
+    panel.appendChild(btn);
+  });
+}
+
+function renderSidebar() {
+  const titleEl = document.getElementById('player-title');
+  const guideEl = document.getElementById('guide-text');
+  const actionBtns = document.getElementById('action-buttons');
+  const subPicker = document.getElementById('sub-picker');
+  const sacCounter = document.getElementById('sac-counter');
+  const undoBtn = document.getElementById('btn-undo');
+
+  subPicker.innerHTML = '';
+  actionBtns.innerHTML = '';
+  sacCounter.style.display = 'none';
+
+  undoBtn.disabled = !(G.history || (G._pendingActions && G._pendingActions.length > 0));
+
+  // ---- SETUP PHASE ----
+  if (G.phase === 'SETUP') {
+    document.getElementById('catastrophe-panel').innerHTML = '';
+    titleEl.textContent = `PLAYER ${G.currentPlayer} — SETUP`;
+
+    if (G.setupDone) {
+      guideEl.textContent = G.currentPlayer === 1
+        ? 'Homeworld set! Click the ✓ token on your homeworld to continue.'
+        : 'Homeworld set! Click the ✓ token on your homeworld to begin the game.';
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'action-btn';
+      resetBtn.textContent = '↩ RESTART SELECTION';
+      resetBtn.onclick = restartSetup;
+      actionBtns.appendChild(resetBtn);
+    } else {
+      const stepLabels = [
+        'Click any star in the STASH to choose your 1st homeworld star.',
+        'Click any star in the STASH to choose your 2nd homeworld star.',
+        'Click a Large (size 3) ship in the STASH to choose your starting ship.'
+      ];
+      guideEl.textContent = stepLabels[G.setupStep];
+
+      if (G.setupCache.stars.length > 0) {
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'action-btn';
+        resetBtn.style.marginTop = '4px';
+        resetBtn.textContent = '↩ RESTART SELECTION';
+        resetBtn.onclick = restartSetup;
+        actionBtns.appendChild(resetBtn);
+      }
+    }
+    return;
+  }
+
+  // ---- PLAY PHASE ----
+  titleEl.textContent = `PLAYER ${G.currentPlayer}'S TURN`;
+
+  // Catastrophe alerts — always check, shown at top of action panel
+  renderCatastrophePanel();
+
+  // Sacrifice pool counter
+  if (G.sacrificePool.count > 0) {
+    sacCounter.style.display = 'block';
+    sacCounter.textContent = `SACRIFICE: ${G.sacrificePool.count} ${G.sacrificePool.color.toUpperCase()} action${G.sacrificePool.count !== 1 ? 's' : ''} left`;
+  }
+  if (PLAYER_CONFIG.advancedMode) {
+    const advBadge = document.createElement('div');
+    advBadge.style.cssText = 'font-size:10px;color:#2a4060;letter-spacing:1px;text-align:center;padding:4px 0;font-family:\'Orbitron\',sans-serif;';
+    advBadge.textContent = '— SHORTCUT MODE —';
+    actionBtns.appendChild(advBadge);
+  }
+
+
+  const midAction = ['SHIP_SELECTED','MOVING','DISCOVERING','TRADING','ATTACKING','BUILDING'].includes(G.interaction)
+                    || G.sacrificePool.count > 0;
+  const hasDoneAction = G.turnUsed || (G._pendingActions && G._pendingActions.length > 0);
+
+  if (midAction) {
+    // token handles disabled state
+  } else if (!hasDoneAction) {
+      } else {
+    }
+
+  // Interaction state guide
+  const adv = PLAYER_CONFIG.advancedMode;
+  const guides = {
+    IDLE:          'Select one of your ships.',
+    SHIP_SELECTED: adv ? 'Click a colored star or ship to act. Click board to deselect.' : 'Choose an action — or click a star/ship of that color to act directly.',
+    MOVING:        'Click a destination system or a stash star to discover.',
+    DISCOVERING:   'Click a star in the Stash to create a new system.',
+    TRADING:       'Choose the new color for your ship.',
+    ATTACKING:     'Click a highlighted enemy ship to hijack it.',
+    BUILDING:      'Choose the color of the ship to build.',
+  };
+  guideEl.textContent = guides[G.interaction] || '';
+
+  if (G.interaction === 'IDLE' || G.interaction === 'SHIP_SELECTED') {
+    if (G.interaction === 'SHIP_SELECTED') {
+      const ship = findShip(G.selectedShipId);
+      const sys = findSystemByShip(G.selectedShipId);
+      if (!ship || !sys) { G.interaction = 'IDLE'; return render(); }
+
+      const powers = getSystemPowers(sys, G.currentPlayer);
+      const sacPool = G.sacrificePool.count > 0;
+
+      // Action buttons
+      const makeActionBtn = (label, color, action, canAct, disabledReason = null) => {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        if (canAct) btn.style.borderColor = COLOR_HEX[color];
+        btn.textContent = label;
+        btn.disabled = !canAct;
+        if (!canAct && disabledReason) {
+          btn.title = disabledReason;
+          const hint = document.createElement('div');
+          hint.style.cssText = 'font-size:12px;color:#ff6655;margin-top:3px;letter-spacing:0.5px';
+          hint.textContent = disabledReason;
+          btn.onclick = action;
+          actionBtns.appendChild(btn);
+          actionBtns.appendChild(hint);
+          return;
+        }
+        btn.onclick = action;
+        actionBtns.appendChild(btn);
+      };
+
+      const canBld = (powers.has('green') || sacPool) && hasActionLeft('green');
+      const canTrd = (powers.has('blue') || sacPool) && hasActionLeft('blue');
+      const canMov = (powers.has('yellow') || sacPool) && hasActionLeft('yellow');
+      const canAtk = (powers.has('red') || sacPool) && hasActionLeft('red');
+
+      // Override for sacrifice pool
+      const effectiveCanBld = sacPool ? (G.sacrificePool.color === 'green' && G.sacrificePool.count > 0) : canBld;
+      const effectiveCanTrd = sacPool ? (G.sacrificePool.color === 'blue' && G.sacrificePool.count > 0) : canTrd;
+      const effectiveCanMov = sacPool ? (G.sacrificePool.color === 'yellow' && G.sacrificePool.count > 0) : canMov;
+      const effectiveCanAtk = sacPool ? (G.sacrificePool.color === 'red' && G.sacrificePool.count > 0) : canAtk;
+      const effectivePowers = sacPool ? new Set([G.sacrificePool.color]) : powers;
+
+      const isLastInHW = sys.isHomeworld === G.currentPlayer &&
+        sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+      const moveEnabled = sacPool ? (G.sacrificePool.color === 'yellow' && effectiveCanMov) : (powers.has('yellow') && canMov);
+
+      const enemyShips = sys.ships.filter(s => s.owner !== G.currentPlayer);
+      const largest = getLargestOwnShip(sys, G.currentPlayer);
+      const capturable = enemyShips.filter(s => largest && s.size <= largest.size);
+      const atkPowerOk = sacPool ? (G.sacrificePool.color === 'red' && effectiveCanAtk) : (powers.has('red') && canAtk);
+      const atkDisabledReason = !atkPowerOk ? null
+        : enemyShips.length === 0 ? 'No enemy ships in this system'
+        : capturable.length === 0 ? `Enemy ships are larger than your biggest ship (Size ${largest?.size ?? '?'})`
+        : null;
+
+      if (!PLAYER_CONFIG.advancedMode) {
+        makeActionBtn('🔵 TRADE (blue)', 'blue', () => startTrade(ship, sys), sacPool ? (G.sacrificePool.color==='blue' && effectiveCanTrd) : (powers.has('blue') && canTrd));
+        makeActionBtn('🟡 MOVE (yellow)', 'yellow', () => startMove(ship, sys), !isLastInHW && moveEnabled, isLastInHW ? 'Last ship in homeworld — cannot move away' : null);
+        makeActionBtn('🔴 HIJACK (red)', 'red', () => startAttack(ship, sys), atkPowerOk && !atkDisabledReason, atkDisabledReason);
+        makeActionBtn('🟢 BUILD (green)', 'green', () => startBuild(ship, sys), sacPool ? (G.sacrificePool.color==='green' && effectiveCanBld) : (powers.has('green') && canBld));
+      }
+
+      if (!sacPool) {
+        const sep = document.createElement('div');
+        sep.className = 'sep';
+        actionBtns.appendChild(sep);
+
+        // Sacrifice
+        const isOnlyShipInHW = sys.isHomeworld === G.currentPlayer && sys.ships.filter(s => s.owner === G.currentPlayer).length === 1;
+        const sacBtn = document.createElement('button');
+        sacBtn.className = 'action-btn sac';
+        sacBtn.textContent = '💀 SACRIFICE';
+        sacBtn.disabled = G.turnUsed || isOnlyShipInHW;
+        if (isOnlyShipInHW) sacBtn.title = 'Cannot sacrifice your only ship in your homeworld!';
+        sacBtn.onclick = () => doSacrifice(ship, sys);
+        actionBtns.appendChild(sacBtn);
+      }
+
+      // (deselect by clicking board background)
+    }
+  } else if (G.interaction === 'MOVING') {
+    // Show discover button + cancel
+    const fromSys = findSystemByShip(G.selectedShipId);
+    const discoverStars = bankStarsForDiscovery(fromSys);
+    if (discoverStars.length > 0) {
+      const discBtn = document.createElement('button');
+      discBtn.className = 'action-btn';
+      discBtn.style.borderColor = '#ffcc00';
+      discBtn.textContent = '★ DISCOVER NEW SYSTEM';
+      discBtn.onclick = () => { G.interaction = 'DISCOVERING'; render(); };
+      actionBtns.appendChild(discBtn);
+    }
+    addCancelBtn(actionBtns);
+  } else if (G.interaction === 'DISCOVERING') {
+    // Guide to click stash
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:12px;color:#7090b0;line-height:1.5;padding:8px 0';
+    infoDiv.textContent = 'Click a glowing star in the STASH to create a new system.';
+    actionBtns.appendChild(infoDiv);
+    addCancelBtn(actionBtns);
+  } else if (G.interaction === 'TRADING') {
+    const ship = findShip(G.selectedShipId);
+    const avail = ship ? COLORS.filter(col => col !== ship.color && G.bank[col][ship.size] > 0) : [];
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:12px;color:#2266ff;line-height:1.6;padding:4px 0 8px';
+    if (!ship || avail.length === 0) {
+      infoDiv.style.color = '#ff8888';
+      infoDiv.textContent = '⚠ No colors available to trade into at this size.';
+    } else {
+      infoDiv.innerHTML = `Trading your <span style="color:${COLOR_HEX[ship.color]}">${ship.color} ${SIZE_NAME[ship.size]}</span>.<br>Click a highlighted cell in the <b style="color:#ddeeff">Stash</b> to pick new color.`;
+    }
+    actionBtns.appendChild(infoDiv);
+    addCancelBtn(actionBtns);
+  } else if (G.interaction === 'ATTACKING') {
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:12px;color:#ff8888;line-height:1.5';
+    infoDiv.textContent = 'Click a highlighted enemy ship to capture it.';
+    actionBtns.appendChild(infoDiv);
+    addCancelBtn(actionBtns);
+  } else if (G.interaction === 'BUILDING') {
+    const sys = findSystemByShip(G.selectedShipId);
+    const ownColors = sys ? [...new Set(sys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))] : [];
+    const buildable = ownColors.filter(col => [1,2,3].some(sz => G.bank[col][sz] > 0));
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:12px;color:#22dd77;line-height:1.6;padding:4px 0 8px';
+    if (buildable.length === 0) {
+      infoDiv.style.color = '#ff8888';
+      infoDiv.textContent = '⚠ Bank empty for all your ship colors here.';
+    } else {
+      const colorList = buildable.map(col => {
+        const sz = [1,2,3].find(s => G.bank[col][s] > 0);
+        return `<span style="color:${COLOR_HEX[col]}">${SIZE_NAME[sz]} ${col}</span>`;
+      }).join(', ');
+      infoDiv.innerHTML = `Click a highlighted cell in the <b style="color:#ddeeff">Stash</b> to build:<br>${colorList}`;
+    }
+    actionBtns.appendChild(infoDiv);
+    addCancelBtn(actionBtns);
+  }
+}
+
+function addCancelBtn(container) {
+  const btn = document.createElement('button');
+  btn.className = 'action-btn';
+  btn.textContent = '✕ CANCEL';
+  btn.style.marginTop = '4px';
+  btn.onclick = cancelInteraction;
+  container.appendChild(btn);
+}
+
+function cancelInteraction() {
+  G.interaction = G.selectedShipId ? 'SHIP_SELECTED' : 'IDLE';
+  G.movingFromSysId = null;
+  render();
+}
+
+// ============================================================
+//  SETUP ACTIONS
+// ============================================================
+function onBankClick(color, size) {
+  if (G.phase === 'SETUP' && !G.setupDone) {
+    if (G.setupStep < 2) {
+      G.bank[color][size]--;
+      G.setupCache.stars.push({ color, size });
+      G.setupStep++;
+      render();
+    } else if (G.setupStep === 2 && size === 3) {
+      finalizeSetup(color);
+    }
+  } else if (G.interaction === 'DISCOVERING' || G.interaction === 'MOVING') {
+    doDiscover(color, size);
+  } else if (G.interaction === 'BUILDING') {
+    const sys = findSystemByShip(G.selectedShipId);
+    if (sys) doBuild(sys, color);
+  } else if (G.interaction === 'TRADING') {
+    const ship = findShip(G.selectedShipId);
+    if (ship) doTrade(ship, color);
+  }
+}
+
+function finalizeSetup(shipColor) {
+  G.bank[shipColor][3]--;
+  const p = G.currentPlayer;
+  const stars = G.setupCache.stars;
+  const ship = { color: shipColor, size: 3 };
+  const sysName = p === 1 ? 'Nexus' : 'Vertex';
+  const notation = Note.homeworld(stars[0], stars[1], ship, sysName);
+  G.systems.push({
+    id: nextId(), name: sysName, isHomeworld: p,
+    stars: [...G.setupCache.stars],
+    ships: [{ id: nextId(), color: shipColor, size: 3, owner: p }]
+  });
+  // Stage as pending — will be committed when player clicks End Turn
+  G._pendingActions = [notation];
+  G.setupCache = { stars: [] };
+  G.setupStep = 0;
+  G.setupDone = true;
+  render();
+}
+
+function restartSetup() {
+  // If homeworld was already finalized, undo it
+  if (G.setupDone) {
+    const hw = G.systems.find(s => s.isHomeworld === G.currentPlayer);
+    if (hw) {
+      hw.stars.forEach(s => G.bank[s.color][s.size]++);
+      hw.ships.forEach(s => G.bank[s.color][s.size]++);
+      G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
+    }
+    G.setupDone = false;
+  }
+  // Return any partially-picked stars
+  G.setupCache.stars.forEach(s => G.bank[s.color][s.size]++);
+  G.setupCache = { stars: [] };
+  G.setupStep = 0;
+  G._pendingActions = [];  // clear any staged log entry
+  render();
+}
+
+// ============================================================
+//  PLAY ACTIONS
+// ============================================================
+function onShipClick(shipId) {
+  const ship = findShip(shipId);
+  if (!ship) return;
+
+  // MOVING: clicking any ship in a valid destination system → move there
+  if (G.interaction === 'MOVING') {
+    const clickedSys = findSystemByShip(shipId);
+    const fromSys    = findSystemByShip(G.selectedShipId);
+    if (clickedSys && fromSys && clickedSys.id !== fromSys.id && isConnected(fromSys, clickedSys)) {
+      onMoveTargetClick(clickedSys.id);
+    }
+    return;
+  }
+
+  if (ship.owner !== G.currentPlayer) return;
+  const clickedSys = findSystemByShip(shipId);
+
+  // ── SACRIFICE POOL: clicking own ship immediately applies the sacrificed action ──
+  if (G.sacrificePool.count > 0 && G.interaction === 'IDLE') {
+    const sc = G.sacrificePool.color;
+    G.selectedShipId = shipId; // set so actions know which ship
+
+    if (sc === 'blue') {
+      // Trade: go straight to TRADING state for this ship
+      const avail = COLORS.filter(col => col !== ship.color && G.bank[col][ship.size] > 0);
+      if (avail.length === 0) { setGuide('⚠ No other colors available to trade into.'); G.selectedShipId = null; return; }
+      G.interaction = 'TRADING';
+      render();
+      return;
+    }
+
+    if (sc === 'yellow') {
+      // Move: go straight to MOVING state for this ship
+      const isLastInHW = clickedSys && clickedSys.isHomeworld === G.currentPlayer &&
+        clickedSys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+      if (isLastInHW) { setGuide('⚠ Cannot move your last ship away from your Homeworld.'); G.selectedShipId = null; return; }
+      G.interaction = 'MOVING';
+      G.movingFromSysId = clickedSys ? clickedSys.id : null;
+      render();
+      return;
+    }
+
+    if (sc === 'green' && clickedSys) {
+      // Build: auto-execute if only one buildable color, else go to BUILDING
+      const ownColors = [...new Set(clickedSys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))];
+      const buildable = ownColors.filter(col => [1,2,3].some(sz => G.bank[col][sz] > 0));
+      if (buildable.length === 0) { setGuide('⚠ Bank empty for all your ship colors here.'); G.selectedShipId = null; return; }
+      if (buildable.length === 1) {
+        doBuild(clickedSys, buildable[0]);
+      } else {
+        G.interaction = 'BUILDING';
+        render();
+      }
+      return;
+    }
+
+    // Fallback: go to SHIP_SELECTED so player can pick manually
+    G.interaction = 'SHIP_SELECTED';
+    render();
+    return;
+  }
+
+  // ── Normal flow (no sacrifice pool) ──
+  // Already have a ship selected
+  if (G.interaction === 'SHIP_SELECTED' && G.selectedShipId) {
+    const selSys = findSystemByShip(G.selectedShipId);
+
+    if (selSys && clickedSys && selSys.id === clickedSys.id) {
+      // Same system → trigger this ship's color as a power
+      onPowerClick(ship.color, clickedSys);
+      return;
+    } else {
+      // Different system → re-select that ship
+      G.selectedShipId = shipId;
+      G.movingFromSysId = null;
+      render();
+      return;
+    }
+  }
+
+  // IDLE → select this ship
+  G.interaction = 'SHIP_SELECTED';
+  G.selectedShipId = shipId;
+  G.movingFromSysId = null;
+  render();
+}
+
+function onAttackTargetClick(targetShipId) {
+  if (G.interaction !== 'ATTACKING') return;
+  const sys = findSystemByShip(targetShipId);
+  const target = findShip(targetShipId);
+  if (!sys || !target) return;
+  if (target.owner === G.currentPlayer) return;
+  const largest = getLargestOwnShip(sys, G.currentPlayer);
+  if (!largest || largest.size < target.size) {
+    setGuide(`⚠ Cannot capture: your largest ship (Size ${largest?.size ?? '?'}) must be ≥ enemy size (${target.size}).`);
+    return;
+  }
+  saveHistory();
+  logAction(Note.hijack(target, sys.name));
+  target.owner = G.currentPlayer;
+  consumeAction();
+  G.interaction = 'IDLE';
+  G.selectedShipId = null;
+  if (!checkWin()) render();
+}
+
+function onMoveTargetClick(sysId) {
+  if (G.interaction !== 'MOVING') return;
+  const ship = findShip(G.selectedShipId);
+  const fromSys = findSystemByShip(G.selectedShipId);
+  const toSys = findSystem(sysId);
+  if (!ship || !fromSys || !toSys) return;
+  if (!isConnected(fromSys, toSys)) return;
+  // Guard: block if would leave own homeworld with no ships
+  const isLastInHW = fromSys.isHomeworld === G.currentPlayer &&
+    fromSys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+  if (isLastInHW) {
+    setGuide('⚠ Cannot move your last ship away from your Homeworld — you would lose!');
+    return;
+  }
+  saveHistory();
+  logAction(Note.move(ship, fromSys.name, toSys.name));
+  fromSys.ships = fromSys.ships.filter(s => s.id !== ship.id);
+  toSys.ships.push(ship);
+  consumeAction();
+  cleanSystems();
+  G.selectedShipId = null;
+  G.movingFromSysId = null;
+  G.interaction = 'IDLE';
+  if (!checkWin()) render();
+}
+
+// ---- START ACTION MODES ----
+function startTrade(ship, sys) {
+  const availColors = COLORS.filter(c => c !== ship.color && G.bank[c][ship.size] > 0);
+  if (availColors.length === 0) { alert('No other colors available in the stash!'); return; }
+  G.interaction = 'TRADING';
+  render();
+}
+
+function startMove(ship, sys) {
+  // Block if this is the player's last ship in their homeworld
+  const isLastInHW = sys.isHomeworld === G.currentPlayer &&
+    sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+  if (isLastInHW) {
+    setGuide('⚠ Cannot move your last ship away from your Homeworld — you would lose!');
+    return;
+  }
+  G.interaction = 'MOVING';
+  G.movingFromSysId = sys.id;
+  render();
+}
+
+function startAttack(ship, sys) {
+  // Per spec: use the LARGEST own ship in the system for size comparison
+  const largest = getLargestOwnShip(sys, G.currentPlayer);
+  if (!largest) return;
+  const enemies = sys.ships.filter(s => s.owner !== G.currentPlayer && s.size <= largest.size);
+  if (enemies.length === 0) {
+    const allEnemies = sys.ships.filter(s => s.owner !== G.currentPlayer);
+    if (allEnemies.length === 0) setGuide('⚠ No enemy ships in this system.');
+    else setGuide(`⚠ Cannot hijack: your largest ship here is Size ${largest.size}, but all enemies are larger.`);
+    return;
+  }
+  G.interaction = 'ATTACKING';
+  render();
+}
+
+function startBuild(ship, sys) {
+  // Colors you can build = colors of your own ships in this system
+  const ownColors = [...new Set(sys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))];
+  const buildable = ownColors.filter(c => [1,2,3].some(sz => G.bank[c][sz] > 0));
+  if (buildable.length === 0) {
+    setGuide('⚠ Cannot build: bank is empty for all colors of your ships in this system.');
+    return;
+  }
+  G.interaction = 'BUILDING';
+  render();
+}
+
+// ---- EXECUTE ACTIONS ----
+function doTrade(ship, newColor) {
+  if (G.interaction !== 'TRADING' && G.interaction !== 'SHIP_SELECTED') return;
+  G.interaction = 'IDLE';
+  saveHistory();
+  const sys = findSystemByShip(ship.id);
+  logAction(Note.trade(ship, sys?.name ?? '?', newColor));
+  G.bank[ship.color][ship.size]++;
+  G.bank[newColor][ship.size]--;
+  ship.color = newColor;
+  consumeAction();
+  G.interaction = 'IDLE';
+  G.selectedShipId = null;
+  render();
+}
+
+function doBuild(sys, color) {
+  if (G.interaction !== 'BUILDING' && G.interaction !== 'SHIP_SELECTED') return;
+  const sz = [1,2,3].find(s => G.bank[color][s] > 0);
+  if (!sz) { alert('Bank empty for this color!'); return; }
+  G.interaction = 'IDLE'; // set immediately before any async/render
+  saveHistory();
+  G.bank[color][sz]--;
+  const newShip = { id: nextId(), color, size: sz, owner: G.currentPlayer };
+  sys.ships.push(newShip);
+  logAction(Note.build(newShip, sys.name));
+  consumeAction();
+  G.interaction = 'IDLE';
+  G.selectedShipId = null;
+  render();
+}
+
+function doDiscover(starColor, starSize) {
+  const ship = findShip(G.selectedShipId);
+  const fromSys = findSystemByShip(G.selectedShipId);
+  if (!ship || !fromSys) return;
+  // Block if last own ship in homeworld
+  const isLastInHW = fromSys.isHomeworld === G.currentPlayer &&
+    fromSys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+  if (isLastInHW) {
+    setGuide('⚠ Cannot move your last ship away from your Homeworld — you would lose!');
+    G.interaction = 'SHIP_SELECTED';
+    render();
+    return;
+  }
+  // Verify the new star size doesn't overlap with fromSys (connectivity)
+  const taken = systemSizes(fromSys);
+  if (taken.has(starSize)) { setGuide('⚠ Star size overlaps with origin — systems would not be connected!'); return; }
+  saveHistory();
+  G.bank[starColor][starSize]--;
+  const newName = randomStarName();
+  const newSys = {
+    id: nextId(),
+    name: newName,
+    isHomeworld: null,
+    stars: [{ color: starColor, size: starSize }],
+    ships: []
+  };
+  logAction(Note.discover(ship, fromSys.name, starColor, starSize, newName));
+  fromSys.ships = fromSys.ships.filter(s => s.id !== ship.id);
+  newSys.ships.push(ship);
+  G.systems.push(newSys);
+  consumeAction();
+  cleanSystems();
+  G.selectedShipId = null;
+  G.movingFromSysId = null;
+  G.interaction = 'IDLE';
+  render();
+}
+
+function doSacrifice(ship, sys) {
+  const isOnlyShipInHW = sys.isHomeworld === G.currentPlayer && sys.ships.filter(s => s.owner === G.currentPlayer).length === 1;
+  if (isOnlyShipInHW) { alert('Cannot sacrifice your only ship in your homeworld!'); return; }
+  if (G.turnUsed) { alert('Already used your action this turn!'); return; }
+  saveHistory();
+  logAction(Note.sacrifice(ship, sys.name));
+  G.bank[ship.color][ship.size]++;
+  sys.ships = sys.ships.filter(s => s.id !== ship.id);
+  G.sacrificePool = { color: ship.color, count: ship.size };
+  G.turnUsed = true;
+  G.selectedShipId = null;
+  G.interaction = 'IDLE';
+  cleanSystems();
+  checkWin();
+  render();
+}
+
+// ============================================================
+//  CONTROLS
+// ============================================================
+document.getElementById('btn-forfeit').onclick = () => {
+  if (!G || G.phase !== 'PLAY') return;
+  showForfeitDialog(G.currentPlayer);
+};
+document.getElementById('btn-undo').onclick = () => {
+  if (G.phase === 'SETUP') {
+    restartSetup();
+    return;
+  }
+  if (G.history) {
+    G = JSON.parse(G.history);
+  } else if (G._pendingActions && G._pendingActions.length > 0) {
+    G._pendingActions = [];
+  }
+  // Always fully reset interaction state
+  G.selectedShipId = null;
+  G.movingFromSysId = null;
+  G.interaction = 'IDLE';
+  render();
+};
+
+// Turn-token end-turn logic
+let _endTurnHoldTimer = null;
+const _HOLD_MS = 600;
+
+function doEndTurn() {
+    stopTimerTick();  // pause timer immediately — resumes when player clicks BEGIN TURN
+    if (G.phase === 'SETUP' && G.setupDone) {
+      const p = G.currentPlayer;
+      commitTurnLog();
+      renderLog();
+      G.setupDone = false;
+      G.history = null;
+      if (p === 1) {
+        G.currentPlayer = 2;
+        showPassBanner('PLAYER 2 — SETUP', 'Choose your homeworld stars and ship');
+      } else {
+        G.phase = 'PLAY';
+        G.currentPlayer = 1;
+        startTimerTick();
+        showPassBanner("PLAYER 1'S TURN", 'The game begins — good luck!');
+      }
+      return;
+    }
+    if (G.phase !== 'PLAY') return;
+    if (!G.turnUsed && G.sacrificePool.count === 0 && (!G._pendingActions || G._pendingActions.length === 0)) {
+      logAction(Note.skip());
+    }
+    commitTurnLog();
+    renderLog();
+
+    // Timer adjustments on end turn
+    const prevPlayer = G.currentPlayer;
+    if (PLAYER_CONFIG.tcMode === 'tournament') {
+      // +12 hrs to the player who just moved, capped at 24 hrs
+      G.timers[prevPlayer] = Math.min(G.timers[prevPlayer] + 12 * 3600 * 1000, 24 * 3600 * 1000);
+    }
+
+    G.currentPlayer = G.currentPlayer === 1 ? 2 : 1;
+    G.turnUsed = false;
+    G.sacrificePool = { color: null, count: 0 };
+    G.selectedShipId = null;
+    G.movingFromSysId = null;
+    G.interaction = 'IDLE';
+    G.history = null;
+
+    // Turn Timer: reset next player's clock to one full turn
+    if (PLAYER_CONFIG.tcMode === 'turn' && PLAYER_CONFIG.tcTurnMs) {
+      G.timers[G.currentPlayer] = PLAYER_CONFIG.tcTurnMs;
+    }
+
+    showPassBanner(`PLAYER ${G.currentPlayer}'S TURN`, `Pass the device to Player ${G.currentPlayer}`);
+  }
+
+function attachTurnTokenListeners(tokenEl) {
+  tokenEl.addEventListener('click', (e) => {
+    if (tokenEl.classList.contains('disabled')) return;
+    doEndTurn();
+  });
+  // Touch: tap anywhere on the token
+  tokenEl.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if (tokenEl.classList.contains('disabled')) return;
+    doEndTurn();
+  });
+}
+
+// Turn token interactions wired in renderBoard() — see attachTurnTokenListeners()
+
+
+function showPassBanner(title, subtitle) {
+  stopTimerTick();
+  const banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px';
+  banner.innerHTML = `
+    <div style="font-family:'Orbitron',sans-serif;font-size:24px;font-weight:700;color:#ddeeff;letter-spacing:4px">${title}</div>
+    <div style="font-size:12px;color:#4a6080;letter-spacing:2px">${subtitle}</div>
+    <button onclick="this.parentElement.remove();startTimerTick();render()" style="padding:12px 36px;background:transparent;border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:4px">BEGIN TURN</button>
+  `;
+  document.body.appendChild(banner);
+  render();
+}
+
+
+// ============================================================
+//  CHAT
+// ============================================================
+let _chatMessages = [];
+
+function initChat() {
+  _chatMessages = [{ system: true, text: 'Chat is only visible during this game session.' }];
+  renderChat();
+}
+
+function addChatMsg(player, text) {
+  if (!text.trim()) return;
+  _chatMessages.push({ player, text: text.trim() });
+  renderChat();
+}
+
+function renderChat() {
+  const el = document.getElementById('chat-messages');
+  const elM = document.getElementById('chat-messages-m');
+  const html = _chatMessages.map(m => {
+    if (m.system) return `<div class="chat-msg system"><span class="cm-text">${m.text}</span></div>`;
+    const name = PLAYER_CONFIG.names[m.player] || `Player ${m.player}`;
+    return `<div class="chat-msg"><span class="cm-who p${m.player}">${escapeHtml(name)}:</span> <span class="cm-text">${escapeHtml(m.text)}</span></div>`;
+  }).join('');
+  if (el) { el.innerHTML = html; el.scrollTop = el.scrollHeight; }
+  if (elM) { elM.innerHTML = html; elM.scrollTop = elM.scrollHeight; }
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+(function setupChat() {
+  const header  = document.getElementById('chat-header');
+  const body    = document.getElementById('chat-body');
+  const toggle  = document.getElementById('chat-toggle');
+  const input   = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send');
+
+  header.addEventListener('click', () => {
+    const collapsed = body.classList.toggle('collapsed');
+    toggle.classList.toggle('open', !collapsed);
+  });
+
+  function sendMsg() {
+    if (!G || G.phase === 'SETUP') return;
+    const txt = input.value.trim();
+    if (!txt) return;
+    addChatMsg(G.currentPlayer, txt);
+    input.value = '';
+  }
+
+  sendBtn.addEventListener('click', sendMsg);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendMsg(); } });
+
+  // Mobile chat send
+  const sendBtnM = document.getElementById('chat-send-m');
+  const inputM   = document.getElementById('chat-input-m');
+  function sendMsgM() {
+    if (!G || G.phase === 'SETUP') return;
+    const txt = inputM.value.trim();
+    if (!txt) return;
+    addChatMsg(G.currentPlayer, txt);
+    inputM.value = '';
+  }
+  if (sendBtnM) sendBtnM.addEventListener('click', sendMsgM);
+  if (inputM)   inputM.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendMsgM(); } });
+})();
+
+// ============================================================
+//  TIMER
+// ============================================================
+let _timerInterval = null;
+
+function startTimerTick() {
+  if (_timerInterval) return;
+  if (!PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs) return; // unlimited
+  _timerInterval = setInterval(() => {
+    if (!G || G.phase !== 'PLAY') return;
+    const p = G.currentPlayer;
+    G.timers[p] = Math.max(0, G.timers[p] - 250);
+    renderPlayerCards();
+    if (G.timers[p] <= 0) {
+      clearInterval(_timerInterval); _timerInterval = null;
+      showWin(p === 1 ? 2 : 1);
+    }
+  }, 250);
+}
+
+function stopTimerTick() {
+  clearInterval(_timerInterval); _timerInterval = null;
+}
+
+function formatTimer(ms) {
+  if (!PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs) return '—';
+  if (ms <= 0) return '0:00';
+  const totalSec = Math.ceil(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+
+function renderPlayerCards() {
+  [1, 2].forEach(p => {
+    const nameEl   = document.getElementById(`pcard-name-${p}`);
+    const eloEl    = document.getElementById(`pcard-elo-${p}`);
+    const timerEl  = document.getElementById(`timer-display-${p}`);
+    const cardEl   = document.getElementById(`pcard-${p}`);
+    const avatarEl = document.getElementById(`pcard-avatar-${p}`);
+
+    if (nameEl) nameEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
+    if (eloEl)  eloEl.textContent  = `◆ ${PLAYER_CONFIG.elos[p] || 1200}`;
+
+    const isActiveSetup = G && G.phase === 'SETUP' && G.currentPlayer === p;
+    const isActivePlay  = G && G.phase === 'PLAY'  && G.currentPlayer === p;
+    const isActive = isActiveSetup || isActivePlay;
+    const isUnlimited = !PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs;
+
+    const timeMs = G ? G.timers[p] : (PLAYER_CONFIG.timeMs || PLAYER_CONFIG.tcTurnMs || 0);
+    const urgentThresh = PLAYER_CONFIG.tcMode === 'tournament' ? 5 * 60 * 1000 : 30000;
+    const isUrgent = (PLAYER_CONFIG.timeMs > 0 || PLAYER_CONFIG.tcTurnMs > 0) && timeMs < urgentThresh;
+
+    if (timerEl) {
+      timerEl.textContent = isUnlimited ? '' : formatTimer(timeMs);
+      timerEl.className = 'pcard-timer';
+      if (isActivePlay && !isUnlimited) timerEl.classList.add('active', `p${p}`);
+      if (isActivePlay && isUrgent) timerEl.classList.add('urgent');
+    }
+
+    if (cardEl) {
+      cardEl.classList.toggle('active-card', isActive);
+      cardEl.classList.toggle('blink-bar', isActive);
+      cardEl.style.cursor = 'default';
+      cardEl.onclick = null; // no longer click-to-forfeit
+    }
+
+    // Update gear button: only shown on opponent card, updates label with their name
+    const gearEl = document.getElementById(`pcard-gear-${p}`);
+    if (gearEl) {
+      const opponentName = PLAYER_CONFIG.names[p] || `Player ${p}`;
+      gearEl.title = `Report ${opponentName}`;
+      gearEl.onclick = (e) => { e.stopPropagation(); showReportDialog(p); };
+    }
+
+    if (avatarEl) {
+      const name = PLAYER_CONFIG.names[p] || `P${p}`;
+      const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+      avatarEl.textContent = initials;
+    }
+  });
+  renderMobileProfiles();
+}
+
+// ============================================================
+//  FORFEIT / REPORT DIALOGS
+// ============================================================
+function showForfeitDialog(player) {
+  const name = PLAYER_CONFIG.names[player] || `Player ${player}`;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:80;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:#0c1120;border:1px solid #3a2040;border-radius:10px;padding:28px;width:320px;text-align:center;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:16px;color:#cc88ff;letter-spacing:2px;margin-bottom:10px;">FORFEIT GAME?</div>
+      <div style="font-size:12px;color:#7090a8;margin-bottom:22px;line-height:1.7;">
+        You are about to concede the game.<br>
+        <span style="color:#9060c0">${escapeHtml(name)}</span> will lose and the opponent wins.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button id="forfeit-cancel" style="padding:9px 22px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;border-radius:4px;">Cancel</button>
+        <button id="forfeit-confirm" style="padding:9px 22px;background:rgba(150,60,200,0.15);border:1px solid #8844cc;color:#cc88ff;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;border-radius:4px;">Forfeit</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#forfeit-cancel').onclick = () => overlay.remove();
+  overlay.querySelector('#forfeit-confirm').onclick = () => {
+    overlay.remove();
+    const winner = player === 1 ? 2 : 1;
+    showWin(winner);
+  };
+}
+
+function showReportDialog(player) {
+  const name = PLAYER_CONFIG.names[player] || `Player ${player}`;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:80;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:#0c1120;border:1px solid #2a3850;border-radius:10px;padding:28px;width:340px;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:12px;color:#7090a8;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;">Report Player</div>
+      <div style="font-size:12px;color:#ddeeff;margin-bottom:16px;">${escapeHtml(name)}</div>
+      <div style="font-size:12px;color:#506070;margin-bottom:8px;letter-spacing:1px;text-transform:uppercase;">Reason</div>
+      <div id="report-reasons" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+        ${['Stalling','Swearing in chat','Inappropriate / NSFW chat','Other'].map(r =>
+          `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#7090a8;">
+            <input type="radio" name="report-reason" value="${r}" style="accent-color:#4488ff;"> ${r}
+          </label>`
+        ).join('')}
+      </div>
+      <div id="report-other-wrap" style="display:none;margin-bottom:14px;">
+        <textarea id="report-details" placeholder="Describe the issue…" rows="3"
+          style="width:100%;padding:7px 9px;background:#060912;border:1px solid #1c2840;border-radius:4px;
+          color:#a8c0e0;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;resize:none;box-sizing:border-box;"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="report-cancel" style="padding:9px 18px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;border-radius:4px;">Cancel</button>
+        <button id="report-submit" style="padding:9px 18px;background:rgba(34,102,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;border-radius:4px;">Submit Report</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  // Show "Other" text area when Other is selected
+  overlay.querySelectorAll('input[name="report-reason"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const wrap = overlay.querySelector('#report-other-wrap');
+      wrap.style.display = radio.value === 'Other' ? 'block' : 'none';
+    });
+  });
+
+  overlay.querySelector('#report-cancel').onclick = () => overlay.remove();
+  overlay.querySelector('#report-submit').onclick = () => {
+    const sel = overlay.querySelector('input[name="report-reason"]:checked');
+    if (!sel) { alert('Please select a reason.'); return; }
+    overlay.remove();
+    // Show brief confirmation toast
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:24px;right:280px;background:#0c1120;border:1px solid #2266ff;color:#4488ff;font-family:"Share Tech Mono",monospace;font-size:12px;padding:10px 18px;border-radius:6px;z-index:90;letter-spacing:1px;';
+    toast.textContent = 'Report submitted. Thank you.';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  };
+}
+
+// ============================================================
+//  STARTUP MODAL
+// ============================================================
+(function() {
+  // Time control mode config
+  const TC_MODES = {
+    unlimited:  { desc: 'No time limit per turn.',                                                       inputs: [] },
+    blitz:      { desc: '10 minutes total per player. First to run out loses.',                          inputs: [] },
+    sudden:     { desc: 'Each player starts with a set amount of time. Run out = lose.',                 inputs: [
+                    { id: 'tc-sudden-min', label: 'Minutes each', type: 'number', default: 20, min: 1, max: 360 }
+                  ]},
+    turn:       { desc: 'Each turn has the same fixed time. Clock resets to this amount every turn.',   inputs: [
+                    { id: 'tc-turn-min', label: 'Minutes per turn', type: 'number', default: 5, min: 1, max: 60 }
+                  ]},
+    tournament: { desc: 'Each player starts with 12 hrs. After every move you make, +12 hrs is added back (max 24 hrs). Ideal for async play.', inputs: [] },
+  };
+
+  function renderTCInputs(mode) {
+    const cfg = TC_MODES[mode];
+    document.getElementById('tc-desc').textContent = cfg.desc;
+    const inputArea = document.getElementById('tc-inputs');
+    inputArea.innerHTML = '';
+    cfg.inputs.forEach(inp => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:3px;';
+      wrap.innerHTML = `<label style="font-size:12px;color:#506080;letter-spacing:1px">${inp.label}</label>
+        <input id="${inp.id}" type="${inp.type}" value="${inp.default}" min="${inp.min}" max="${inp.max}"
+          style="width:90px;padding:6px 8px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;">`;
+      inputArea.appendChild(wrap);
+    });
+  }
+
+  // Time control button toggles
+  document.querySelectorAll('.tc-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tc-btn').forEach(b => b.classList.remove('tc-active'));
+      btn.classList.add('tc-active');
+      renderTCInputs(btn.dataset.mode);
+    });
+  });
+  renderTCInputs('unlimited'); // init
+
+  document.getElementById('btn-start-game').addEventListener('click', () => {
+    const name1 = document.getElementById('setup-name-1').value.trim() || 'Player 1';
+    const name2 = document.getElementById('setup-name-2').value.trim() || 'Player 2';
+    const elo1  = document.getElementById('setup-elo-1').value.trim() || '1200';
+    const elo2  = document.getElementById('setup-elo-2').value.trim() || '1200';
+    const activeTC = document.querySelector('.tc-btn.tc-active');
+    const mode = activeTC ? activeTC.dataset.mode : 'unlimited';
+
+    let timeMs = 0;
+    let tcTurnMs = 0; // for 'turn' mode: ms to reset each turn
+    if (mode === 'blitz')       timeMs = 10 * 60 * 1000;
+    else if (mode === 'sudden') timeMs = (parseInt(document.getElementById('tc-sudden-min')?.value) || 20) * 60 * 1000;
+    else if (mode === 'turn') {
+      tcTurnMs = (parseInt(document.getElementById('tc-turn-min')?.value) || 5) * 60 * 1000;
+      timeMs = tcTurnMs; // each player's "timer" starts at one turn's worth
+    }
+    else if (mode === 'tournament') timeMs = 12 * 60 * 60 * 1000;
+
+    PLAYER_CONFIG = {
+      names:    ['', name1, name2],
+      elos:     ['', elo1, elo2],
+      timeMs,
+      tcMode:   mode,
+      tcTurnMs, // for turn mode
+      advancedMode: document.getElementById('setup-advanced').checked,
+    };
+
+    G = makeInitialState();
+    document.getElementById('startup-modal').remove();
+    initChat();
+    renderPlayerCards();
+    render();
+  });
+
+  // Start button hover
+  const sb = document.getElementById('btn-start-game');
+  sb.onmouseenter = () => { sb.style.background='rgba(34,102,255,0.25)'; sb.style.color='#88aaff'; };
+  sb.onmouseleave = () => { sb.style.background='rgba(34,102,255,0.15)'; sb.style.color='#4488ff'; };
+})();
+
+// ============================================================
+//  MOBILE — Nav, Tab switching, Profile sync
+// ============================================================
+
+function toggleMobileMenu() {
+  const dd = document.getElementById('mobile-menu-dropdown');
+  const inner = document.getElementById('mobile-menu-inner');
+  const isOpen = dd.style.display !== 'none';
+  if (!isOpen) {
+    // Build menu items
+    inner.innerHTML = '';
+    const items = [
+      { label: '⚑ Forfeit', action: () => { dd.style.display='none'; if(G&&G.phase==='PLAY') showForfeitDialog(G.currentPlayer); } },
+      { label: '⚙ Settings', action: () => { dd.style.display='none'; } },
+      { label: '↺ New Game', action: () => location.reload() },
+    ];
+    items.forEach(item => {
+      const btn = document.createElement('button');
+      btn.style.cssText = 'display:block;width:100%;padding:14px 20px;background:none;border:none;border-bottom:1px solid #1c2840;color:#a8c0e0;font-family:Share Tech Mono,monospace;font-size:16px;text-align:left;cursor:pointer;transition:background 0.15s;';
+      btn.textContent = item.label;
+      btn.onclick = item.action;
+      btn.onmouseenter = () => btn.style.background = 'rgba(255,255,255,0.05)';
+      btn.onmouseleave = () => btn.style.background = 'none';
+      inner.appendChild(btn);
+    });
+  }
+  dd.style.display = isOpen ? 'none' : 'block';
+}
+// Close menu on outside click
+document.addEventListener('click', e => {
+  const dd = document.getElementById('mobile-menu-dropdown');
+  const btn = document.getElementById('mobile-nav-menu');
+  if (dd && !dd.contains(e.target) && e.target !== btn) dd.style.display = 'none';
+});
+
+function switchMobileTab(tab) {
+  const logTab  = document.getElementById('mobile-tab-log');
+  const chatTab = document.getElementById('mobile-tab-chat');
+  const logBtn  = document.getElementById('mtab-log-btn');
+  const chatBtn = document.getElementById('mtab-chat-btn');
+  if (!logTab || !chatTab) return;
+  if (tab === 'log') {
+    logTab.classList.add('visible');   chatTab.classList.remove('visible');
+    logBtn.classList.add('active');    chatBtn.classList.remove('active');
+  } else {
+    chatTab.classList.add('visible');  logTab.classList.remove('visible');
+    chatBtn.classList.add('active');   logBtn.classList.remove('active');
+  }
+}
+
+// Sync mobile profile cards (mirrors renderPlayerCards but for -m elements)
+function renderMobileProfiles() {
+  const isMobile = window.matchMedia('(max-width: 800px)').matches;
+  if (!isMobile) return;
+  [1, 2].forEach(p => {
+    const nameEl  = document.getElementById(`pcard-name-${p}m`);
+    const eloEl   = document.getElementById(`pcard-elo-${p}m`);
+    const timerEl = document.getElementById(`timer-display-${p}m`);
+    const cardEl  = document.getElementById(`pcard-${p}m`);
+    const avatarEl= document.getElementById(`pcard-avatar-${p}m`);
+    if (!nameEl) return;
+    nameEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
+    eloEl.textContent  = `◆ ${PLAYER_CONFIG.elos[p] || 1200}`;
+    const isUnlimited = !PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs;
+    const isActivePlay = G && G.phase === 'PLAY' && G.currentPlayer === p;
+    const timeMs = G ? G.timers[p] : (PLAYER_CONFIG.timeMs || PLAYER_CONFIG.tcTurnMs || 0);
+    if (timerEl) {
+      timerEl.textContent = isUnlimited ? '' : formatTimer(timeMs);
+      timerEl.className = 'pcard-timer';
+      if (isActivePlay && !isUnlimited) timerEl.classList.add('active', `p${p}`);
+    }
+    if (cardEl) {
+      const isActive = G && G.currentPlayer === p;
+      cardEl.classList.toggle('active-card', isActive);
+      cardEl.classList.toggle('blink-bar', isActive);
+    }
+    if (avatarEl) {
+      const name = PLAYER_CONFIG.names[p] || `P${p}`;
+      avatarEl.textContent = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    }
+  });
+}
+
+// Sync mobile log (mirrors log-entries into log-entries-m)
+function renderMobileLog() {
+  const src = document.getElementById('log-entries');
+  const dst = document.getElementById('log-entries-m');
+  if (!dst || !src) return;
+  dst.innerHTML = src.innerHTML;
+  dst.scrollTop = dst.scrollHeight;
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+// G is initialized from the startup modal — don't call render() here
+
+</script>
+</body>
+</html>
