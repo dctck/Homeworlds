@@ -3858,26 +3858,43 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   let _archived = false;
   window.addEventListener('gameEnded', async ({ detail }) => {
     if (!window._ONLINE?.active) return;
+    console.log('[HW] gameEnded fired, winner=', detail.winner, 'MY_SLOT=', MY_SLOT, '_archived=', _archived);
     if (typeof window.commitTurnLog === 'function') window.commitTurnLog();
     await saveState();
+    console.log('[HW] saveState done');
 
-    // Only host (MY_SLOT=1) archives to avoid double-write race
-    if (MY_SLOT === 1 && !_archived) {
+    // Anyone whose client sees the game end can archive.
+    // Guard: check if already archived in Firebase first (prevents double-write if both clients race)
+    if (!_archived) {
       _archived = true;
-      const record = {
-        winner:    detail.winner,
-        players:   [null,
-          window.PLAYER_CONFIG?.names[1] || 'Player 1',
-          window.PLAYER_CONFIG?.names[2] || 'Player 2'],
-        log:       (window.G?.log) || [],
-        snapshots: window._gameSnapshots || [],
-        playedAt:  Date.now(),
-      };
+      console.log('[HW] Attempting to archive game...');
       try {
+        // Check if already archived (other client may have beaten us)
+        const existingSnap = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
+        if (existingSnap.val()) {
+          console.log('[HW] Already archived as', existingSnap.val(), '— skipping');
+          return;
+        }
+
+        const record = {
+          winner:    detail.winner,
+          players:   [null,
+            window.PLAYER_CONFIG?.names[1] || 'Player 1',
+            window.PLAYER_CONFIG?.names[2] || 'Player 2'],
+          log:       (window.G?.log) || [],
+          snapshots: window._gameSnapshots || [],
+          playedAt:  Date.now(),
+        };
+        console.log('[HW] record built, snapshots:', record.snapshots.length, 'log entries:', record.log.length);
+
         const counterSnap = await get(ref(db, 'gamesPlayedCount'));
         const nextId = ((counterSnap.val() || 0) + 1);
+        console.log('[HW] Writing to gamesPlayed/', nextId);
         await set(ref(db, `gamesPlayed/${nextId}`), record);
         await set(ref(db, 'gamesPlayedCount'), nextId);
+        console.log('[HW] gamesPlayed written OK');
+
+        // Update star counts
         const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
         const room = roomSnap.val();
         if (room) {
@@ -3886,43 +3903,54 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           const lUid   = l === 1 ? room.player1?.uid   : room.player2?.uid;
           const wStars = w === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
           const lStars = l === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
+          console.log('[HW] Updating stars — winner uid:', wUid, '+3; loser uid:', lUid, '-1');
           if (wUid) await update(ref(db, `players/${wUid}`), { stars: wStars + 3 });
           if (lUid) await update(ref(db, `players/${lUid}`), { stars: Math.max(0, lStars - 1) });
         }
+
+        // Tag room so both clients can find the review
         await update(ref(db, `rooms/${ROOM_ID}`), {
           status: 'archived',
           archivedGameId: String(nextId),
           winner: detail.winner,
           winnerName: record.players[detail.winner] || `Player ${detail.winner}`,
         });
+        console.log('[HW] Room tagged archived, archivedGameId=', nextId);
       } catch(e) {
-        console.error('Auto-archive failed', e);
+        console.error('[HW] Auto-archive FAILED:', e);
+        _archived = false; // allow retry
       }
     }
   });
 
-  // ── "Review Game" / "Lobby" buttons call this to mark exit ────
-  // Room is only deleted once BOTH players have exited.
+  // ── "Lobby" / "Review Game" buttons mark this player as exited ──
+  // Room is deleted once both slots have exited.
   window._markExited = async function() {
     if (!window._ONLINE?.active) return;
+    console.log('[HW] _markExited called for slot', MY_SLOT);
     try {
       await set(ref(db, `rooms/${ROOM_ID}/exitedBy/${MY_SLOT}`), true);
       const snap = await get(ref(db, `rooms/${ROOM_ID}/exitedBy`));
       const ex = snap.val() || {};
+      console.log('[HW] exitedBy now:', ex);
       if (ex[1] && ex[2]) {
+        console.log('[HW] Both exited — deleting room');
         await set(ref(db, `rooms/${ROOM_ID}`), null);
       }
-    } catch(e) {}
+    } catch(e) { console.warn('[HW] _markExited error:', e); }
   };
 
-  // ── "Review Game": navigate to review page (archive already done) ─
+  // ── "Review Game" navigates to review page (archive already done) ─
   window._archiveOnline = async function() {
-    // Poll for archivedGameId written by host
-    for (let i = 0; i < 30; i++) {
+    console.log('[HW] _archiveOnline: polling for archivedGameId...');
+    for (let i = 0; i < 40; i++) {
       const snap = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
-      if (snap.val()) return String(snap.val());
-      await new Promise(r => setTimeout(r, 300));
+      const val = snap.val();
+      console.log(`[HW] poll ${i+1}/40: archivedGameId =`, val);
+      if (val) return String(val);
+      await new Promise(r => setTimeout(r, 500));
     }
+    console.warn('[HW] _archiveOnline: timed out waiting for archivedGameId');
     return null;
   };
 
