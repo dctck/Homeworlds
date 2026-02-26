@@ -1504,15 +1504,16 @@ function getLargestOwnShip(sys, player) {
 function checkWin() {
   for (let p = 1; p <= 2; p++) {
     const hw = G.systems.find(s => s.isHomeworld === p);
-    // Loss condition 1: homeworld system gone entirely
-    if (!hw) { showWin(3 - p); return true; }
-    // Loss condition 2: homeworld has no stars left (destroyed by catastrophe)
-    if (hw.stars.length === 0) { showWin(3 - p); return true; }
-    // Loss condition 3: no own ships at homeworld
-    const hasOwnShipsAtHW = hw.ships.some(s => s.owner === p);
-    if (!hasOwnShipsAtHW) { showWin(3 - p); return true; }
+    if (!hw)                                  { triggerWin(3 - p); return true; }
+    if (hw.stars.length === 0)                { triggerWin(3 - p); return true; }
+    if (!hw.ships.some(s => s.owner === p))   { triggerWin(3 - p); return true; }
   }
   return false;
+}
+function triggerWin(winner) {
+  showWin(winner);
+  // Let online module push OVER state immediately (don't wait for End Turn)
+  window.dispatchEvent(new CustomEvent('gameEnded', { detail: { winner } }));
 }
 // Build compact log text for clipboard
 function buildLogText(winnerPlayer) {
@@ -3855,6 +3856,14 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     onDisconnect(presRef).set({ uid: user.uid, online: false });
   }
 
+  // ── When game ends mid-turn, push OVER state immediately ─────
+  window.addEventListener('gameEnded', async ({ detail }) => {
+    if (!window._ONLINE?.active) return;
+    // Commit any pending actions and push state with phase:OVER
+    if (typeof window.commitTurnLog === 'function') window.commitTurnLog();
+    await saveState();
+  });
+
   // ── Archive game to Firebase, update stars, delete room ──────
   window._archiveOnline = async function(record) {
     try {
@@ -3909,11 +3918,19 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const g = JSON.parse(JSON.stringify(window.G));
     g.history = null; g.interaction = 'IDLE';
     g.selectedShipId = null; g._pendingActions = [];
-    // Include snapshots so recipient can enter review mode too
     if (window._gameSnapshots?.length) g._snapshots = window._gameSnapshots;
+    const ts = Date.now();
     await set(ref(db, `rooms/${ROOM_ID}/game`), {
-      gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts: Date.now(),
+      gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts,
     });
+    // Update room metadata so lobby can show whose turn it is + game status
+    const meta = { currentPlayer: g.currentPlayer, updatedAt: ts };
+    if (g.phase === 'OVER') {
+      meta.status = 'archived';
+      meta.winner = g.winner;
+      meta.winnerName = window.PLAYER_CONFIG?.names[g.winner] || `Player ${g.winner}`;
+    }
+    await update(ref(db, `rooms/${ROOM_ID}`), meta);
   }
 
   // ── Intercept showPassBanner: fires when a turn ends ─────────

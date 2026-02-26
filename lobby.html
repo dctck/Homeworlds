@@ -112,7 +112,8 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 .room-card{background:rgba(12,17,32,.75);border:1px solid var(--border);border-radius:6px;padding:13px 15px;margin-bottom:9px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;transition:border-color .2s}
 .room-card:hover{border-color:#2a4060}
 .room-name{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;color:var(--bright);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.room-priv{font-size:9px;color:#ff8844;letter-spacing:1px}
+.room-priv{font-size:9px;color:#ff8844;letter-spacing:1px;padding:2px 6px;border-radius:2px;border:1px solid transparent}
+@keyframes pulse-badge{0%,100%{opacity:1}50%{opacity:.5}}
 .room-meta{font-size:10px;color:#4a6080;line-height:1.9}
 .room-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
 .btn-join{padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;background:rgba(68,136,255,.12);border:1px solid var(--p1);color:var(--p1);transition:all .15s;white-space:nowrap}
@@ -389,10 +390,11 @@ function renderRooms(rooms){
   const list = document.getElementById('room-list');
   const myUid = ME?.uid;
   let entries = Object.values(rooms)
-    .filter(r => r.status !== 'finished')
-    .sort((a,b) => b.createdAt - a.createdAt);
+    .filter(r => r.status !== 'finished' && r.status !== 'deleted')
+    .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
   if (currentFilter !== 'all') {
-    entries = entries.filter(r => r.status === currentFilter);
+    if (currentFilter === 'playing') entries = entries.filter(r => r.status === 'playing');
+    else if (currentFilter === 'waiting') entries = entries.filter(r => r.status === 'waiting');
   }
   if (!entries.length){
     const icons = {all:'🌌',waiting:'🌌',playing:'⚔️'};
@@ -407,19 +409,50 @@ function renderRooms(rooms){
     const isHost  = room.hostUid === myUid;
     const isGuest = room.player2?.uid === myUid;
     const isParticipant = isHost || isGuest;
+    const mySlot = isHost ? 1 : isGuest ? 2 : 0;
+    const isArchived = room.status === 'archived';
     const hostTier = tierHTML(room.player1?.stars||0);
     const tc = formatTc(room.settings);
+
+    // My turn indicator: I'm in this game, it's playing, and it's my slot's turn
+    const isMyTurn = isParticipant && room.status === 'playing' && room.currentPlayer === mySlot;
+
+    // Badges
+    let badges = '';
+    if (isParticipant && !isArchived) badges += '<span class="room-priv" style="color:#22dd77;border-color:#22dd7740;background:#22dd7712">★ YOURS</span>';
+    if (isMyTurn) badges += '<span class="room-priv" style="color:#ffcc00;border-color:#ffcc0040;background:#ffcc0012;animation:pulse-badge .9s ease-in-out infinite">● MY TURN</span>';
+    if (room.isPrivate) badges += '<span class="room-priv">🔒 PRIVATE</span>';
+
+    let statusHtml, actionsHtml;
+    if (isArchived) {
+      const winnerName = room.winnerName || `Player ${room.winner}`;
+      statusHtml = `<span class="room-status" style="color:#4a6080;border-color:#2a3850;background:rgba(255,255,255,.03)">ENDED</span>`;
+      actionsHtml = isParticipant && room.archivedGameId
+        ? `<button class="btn-join" style="border-color:#4a6080;color:#6080a0" onclick="location.href='review.html?game=${room.archivedGameId}'">REVIEW</button>`
+        : '';
+      badges += `<span class="room-priv" style="color:#8090a0;border-color:#2a384040;background:transparent">🏆 ${esc(winnerName)}</span>`;
+    } else if (room.status === 'playing') {
+      statusHtml = `<span class="room-status s-play">PLAYING</span>`;
+      actionsHtml = isHost
+        ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=1'">REJOIN</button>`
+        : isGuest
+        ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=2'">REJOIN</button>`
+        : '';
+    } else {
+      statusHtml = `<span class="room-status s-wait">OPEN</span>`;
+      actionsHtml = isHost
+        ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=1'">REJOIN</button>`
+        : `<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password||''}">JOIN</button>`;
+    }
+
     card.innerHTML=`
       <div>
-        <div class="room-name">${esc(room.name)}${room.isPrivate?'<span class="room-priv">🔒 PRIVATE</span>':''} ${isParticipant?'<span class="room-priv" style="color:#22dd77;border-color:#22dd7740;background:#22dd7712">★ YOURS</span>':''}</div>
+        <div class="room-name">${esc(room.name)} ${badges}</div>
         <div class="room-meta">HOST: ${esc(room.player1?.name||'—')} &nbsp;${hostTier}&nbsp; · ${tc}</div>
       </div>
       <div class="room-actions">
-        <span class="room-status ${room.status==='waiting'?'s-wait':'s-play'}">${room.status==='waiting'?'OPEN':'PLAYING'}</span>
-        ${isHost?`<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=1'">REJOIN</button>`:
-          isGuest?`<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=2'">REJOIN</button>`:
-          room.status==='waiting'?`<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password||''}">JOIN</button>`:
-          ''}
+        ${statusHtml}
+        ${actionsHtml}
       </div>`;
     list.appendChild(card);
   });
