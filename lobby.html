@@ -3,374 +3,263 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lobby — Homeworlds</title>
+<title>Lobby — Homeworlds Duel</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #060912; --panel: #0c1120; --border: #1c2840;
-  --text: #a8c0e0; --bright: #ddeeff;
-  --red: #ff3344; --blue: #2266ff; --yellow: #ffcc00; --green: #22dd77;
-  --p1: #4488ff; --p2: #ff4455;
+  --bg:#060912;--panel:#0c1120;--border:#1c2840;
+  --text:#a8c0e0;--bright:#ddeeff;--p1:#4488ff;--p2:#ff4455;--green:#22dd77;
 }
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; overflow: hidden; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{height:100%;background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;overflow:hidden}
+@media(max-width:768px){body{overflow:auto}}
 
-body::before {
-  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background-image:
-    radial-gradient(circle at 15% 25%, rgba(255,255,255,0.5) 1px, transparent 1px),
-    radial-gradient(circle at 40% 70%, rgba(255,255,255,0.3) 1px, transparent 1px),
-    radial-gradient(circle at 70% 15%, rgba(255,255,255,0.4) 1px, transparent 1px),
-    radial-gradient(circle at 85% 80%, rgba(255,255,255,0.5) 1px, transparent 1px),
-    radial-gradient(circle at 55% 45%, rgba(255,255,255,0.3) 1px, transparent 1px),
-    radial-gradient(circle at 25% 85%, rgba(255,255,255,0.4) 1px, transparent 1px),
-    radial-gradient(circle at 90% 40%, rgba(255,255,255,0.3) 1px, transparent 1px),
-    radial-gradient(circle at 10% 60%, rgba(255,255,255,0.5) 1px, transparent 1px);
-  background-size: 800px 800px;
+    radial-gradient(circle at 15% 25%,rgba(255,255,255,.5) 1px,transparent 1px),
+    radial-gradient(circle at 40% 70%,rgba(255,255,255,.3) 1px,transparent 1px),
+    radial-gradient(circle at 70% 15%,rgba(255,255,255,.4) 1px,transparent 1px),
+    radial-gradient(circle at 85% 80%,rgba(255,255,255,.5) 1px,transparent 1px),
+    radial-gradient(circle at 55% 45%,rgba(255,255,255,.3) 1px,transparent 1px),
+    radial-gradient(circle at 25% 85%,rgba(255,255,255,.4) 1px,transparent 1px);
+  background-size:800px 800px;
 }
 
-/* ── Layout ── */
-.app {
-  display: grid;
-  grid-template-rows: 48px 1fr;
-  grid-template-columns: 320px 1fr;
-  grid-template-areas:
-    "header header"
-    "sidebar main";
-  height: 100vh; position: relative; z-index: 1;
+/* ── Desktop grid ── */
+.app{display:grid;grid-template-rows:48px 1fr;grid-template-columns:310px 1fr;grid-template-areas:"hdr hdr" "side main";height:100vh;position:relative;z-index:1}
+@media(max-width:768px){
+  .app{display:flex;flex-direction:column;height:auto;min-height:100vh}
+  body{height:auto}
 }
 
 /* ── Header ── */
-header {
-  grid-area: header;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 24px;
-  background: var(--panel); border-bottom: 1px solid var(--border);
-}
-.logo {
-  font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 13px;
-  letter-spacing: 4px; color: var(--bright);
-}
-.logo span { color: var(--p1); }
-.header-right { display: flex; align-items: center; gap: 16px; }
-.player-chip {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 12px 4px 4px;
-  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-  border-radius: 20px;
-}
-.avatar {
-  width: 28px; height: 28px; border-radius: 50%;
-  background: rgba(68,136,255,0.2); border: 1px solid var(--p1);
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700;
-  color: var(--p1); overflow: hidden; flex-shrink: 0;
-}
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
-.player-info { display: flex; flex-direction: column; gap: 1px; }
-.player-name { font-size: 11px; color: var(--bright); letter-spacing: 1px; }
-.player-elo  { font-size: 9px; color: #4a6080; letter-spacing: 1px; }
-.nav-link {
-  font-size: 10px; letter-spacing: 2px; color: #4a6080;
-  text-decoration: none; transition: color 0.2s; font-family: 'Orbitron', sans-serif;
-}
-.nav-link:hover { color: var(--bright); }
+header{grid-area:hdr;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{font-family:'Orbitron',sans-serif;font-weight:900;font-size:13px;letter-spacing:3px;color:var(--bright);text-decoration:none}
+.logo span{color:var(--p1)}
+.hdr-right{display:flex;align-items:center;gap:14px}
+.player-chip{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:20px}
+.avatar{width:28px;height:28px;border-radius:50%;background:rgba(68,136,255,.2);border:1px solid var(--p1);display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;color:var(--p1);overflow:hidden;flex-shrink:0}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.pname{font-size:11px;color:var(--bright);letter-spacing:1px}
+.ptier{font-size:9px;letter-spacing:1px}
+.nav-link{font-size:10px;letter-spacing:2px;color:#4a6080;text-decoration:none;font-family:'Orbitron',sans-serif;transition:color .2s}
+.nav-link:hover{color:var(--bright)}
 
-/* ── Sidebar: Create Room ── */
-#sidebar {
-  grid-area: sidebar;
-  background: var(--panel); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; overflow-y: auto;
-}
-.sidebar-section {
-  padding: 16px; border-bottom: 1px solid var(--border);
-}
-.sidebar-label {
-  font-family: 'Orbitron', sans-serif; font-size: 9px;
-  letter-spacing: 3px; color: #4a6080; margin-bottom: 14px;
-  text-transform: uppercase;
-}
-.form-row { margin-bottom: 12px; }
-.form-label { font-size: 10px; color: #506070; letter-spacing: 1px; margin-bottom: 5px; display: block; }
-.form-input {
-  width: 100%; padding: 8px 10px;
-  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-  border-radius: 4px; color: var(--bright); font-family: 'Share Tech Mono', monospace;
-  font-size: 12px; outline: none; transition: border-color 0.2s;
-}
-.form-input:focus { border-color: #3a5080; }
-.form-input::placeholder { color: #2a3850; }
+/* ── Sidebar ── */
+#sidebar{grid-area:side;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+@media(max-width:768px){#sidebar{border-right:none;border-bottom:1px solid var(--border)}}
+.ss{padding:14px 16px;border-bottom:1px solid var(--border)}
+.ss-label{font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:3px;color:#4a6080;margin-bottom:14px;text-transform:uppercase}
+.form-row{margin-bottom:11px}
+.form-label{font-size:10px;color:#506070;letter-spacing:1px;margin-bottom:5px;display:block}
+.form-input{width:100%;padding:8px 10px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:4px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:#3a5080}
+.form-input::placeholder{color:#2a3850}
 
-/* Toggle switch */
-.toggle-row {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 12px;
-}
-.toggle-label { font-size: 11px; color: var(--text); }
-.toggle {
-  position: relative; width: 40px; height: 22px;
-  display: inline-block; cursor: pointer;
-}
-.toggle input { opacity: 0; width: 0; height: 0; }
-.toggle-track {
-  position: absolute; inset: 0; border-radius: 11px;
-  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
-  transition: 0.2s;
-}
-.toggle input:checked + .toggle-track { background: rgba(68,136,255,0.3); border-color: var(--p1); }
-.toggle-thumb {
-  position: absolute; top: 3px; left: 3px;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: #4a6080; transition: 0.2s;
-}
-.toggle input:checked ~ .toggle-thumb { background: var(--p1); transform: translateX(18px); }
+/* Password with eye toggle */
+.pw-wrap{position:relative}
+.pw-wrap .form-input{padding-right:38px}
+.pw-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#4a6080;font-size:14px;padding:2px 4px;line-height:1;transition:color .15s}
+.pw-eye:hover{color:var(--bright)}
 
-/* Time control tabs */
-.tc-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.tc-btn {
-  flex: 1; min-width: 60px; padding: 6px 4px;
-  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
-  border-radius: 3px; color: #4a6080;
-  font-family: 'Share Tech Mono', monospace; font-size: 10px;
-  cursor: pointer; transition: all 0.15s; text-align: center;
-}
-.tc-btn:hover { border-color: #3a5080; color: var(--text); }
-.tc-btn.active { background: rgba(68,136,255,0.1); border-color: var(--p1); color: var(--p1); }
+/* Toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+.toggle-label{font-size:11px;color:var(--text)}
+.toggle{position:relative;width:40px;height:22px;display:inline-block;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid var(--border);transition:.2s}
+.toggle input:checked+.toggle-track{background:rgba(68,136,255,.28);border-color:var(--p1)}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#4a6080;transition:.2s}
+.toggle input:checked~.toggle-thumb{background:var(--p1);transform:translateX(18px)}
 
-.tc-detail { font-size: 10px; color: #4a6080; margin-top: 4px; display: none; }
-.tc-detail.show { display: block; }
-.tc-detail input {
-  width: 50px; padding: 3px 6px; background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border); border-radius: 3px;
-  color: var(--bright); font-family: 'Share Tech Mono', monospace; font-size: 11px;
-}
+/* Time control — 3 rows: 2+2+1 */
+.tc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px}
+.tc-full{grid-column:1/-1}
+.tc-btn{padding:6px 6px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:3px;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all .15s;text-align:center;line-height:1.3}
+.tc-btn:hover{border-color:#3a5080;color:var(--text)}
+.tc-btn.active{background:rgba(68,136,255,.1);border-color:var(--p1);color:var(--p1)}
+.tc-desc{font-size:10px;color:#3a5060;line-height:1.5;min-height:28px;padding:4px 2px;letter-spacing:.3px}
+.tc-custom{margin-top:6px;font-size:10px;color:#4a6080;display:none;align-items:center;gap:6px}
+.tc-custom.show{display:flex}
+.tc-custom input{width:48px;padding:3px 6px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:3px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:11px;text-align:center}
 
-/* Password field (hidden unless private) */
-#password-row { display: none; }
+.btn-create{width:100%;padding:11px;cursor:pointer;background:rgba(34,221,119,.1);border:1px solid rgba(34,221,119,.4);color:var(--green);font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;border-radius:4px;transition:all .15s;margin-top:2px}
+.btn-create:hover{background:rgba(34,221,119,.2);box-shadow:0 0 14px rgba(34,221,119,.2)}
+.btn-create:disabled{opacity:.3;cursor:not-allowed}
 
-.btn-create {
-  width: 100%; padding: 12px; cursor: pointer;
-  background: rgba(34,221,119,0.1); border: 1px solid rgba(34,221,119,0.4);
-  color: #22dd77; font-family: 'Orbitron', sans-serif;
-  font-size: 11px; letter-spacing: 2px; border-radius: 4px;
-  transition: all 0.15s; margin-top: 4px;
-}
-.btn-create:hover { background: rgba(34,221,119,0.2); box-shadow: 0 0 16px rgba(34,221,119,0.2); }
-.btn-create:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-passplay{width:100%;padding:10px;cursor:pointer;background:rgba(255,255,255,.03);border:1px solid var(--border);color:#506070;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;border-radius:4px;transition:all .15s}
+.btn-passplay:hover{border-color:#3a5080;color:var(--text)}
 
-/* Passplay section */
-.btn-passplay {
-  width: 100%; padding: 10px; cursor: pointer;
-  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-  color: #506070; font-family: 'Orbitron', sans-serif;
-  font-size: 10px; letter-spacing: 2px; border-radius: 4px;
-  transition: all 0.15s;
-}
-.btn-passplay:hover { border-color: #3a5080; color: var(--text); }
+/* ── Main ── */
+#main{grid-area:main;display:flex;flex-direction:column;overflow:hidden}
+@media(max-width:768px){#main{overflow:visible;flex:1}}
+.main-hdr{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.main-title{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:3px;color:#506080}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.4s ease-in-out infinite;display:inline-block;margin-right:6px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.filter-tabs{display:flex;gap:6px}
+.ftab{padding:4px 11px;border-radius:3px;font-size:10px;letter-spacing:1px;cursor:pointer;border:1px solid transparent;transition:all .15s;font-family:'Share Tech Mono',monospace}
+.ftab.active{background:rgba(255,255,255,.06);border-color:var(--border);color:var(--bright)}
+.ftab:not(.active){color:#3a5060}
+.ftab:not(.active):hover{color:var(--text)}
 
-/* ── Main: Room list ── */
-#main {
-  grid-area: main; display: flex; flex-direction: column; overflow: hidden;
-}
-.main-header {
-  padding: 14px 20px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0;
-}
-.main-title {
-  font-family: 'Orbitron', sans-serif; font-size: 10px;
-  letter-spacing: 3px; color: #506080;
-}
-.live-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: #22dd77;
-  animation: blink 1.4s ease-in-out infinite; display: inline-block; margin-right: 6px;
-}
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+#room-list{flex:1;overflow-y:auto;padding:12px 14px}
+@media(max-width:768px){#room-list{overflow:visible}}
+#room-list::-webkit-scrollbar{width:4px}
+#room-list::-webkit-scrollbar-thumb{background:#1c2840;border-radius:2px}
 
-/* Filter tabs */
-.filter-tabs { display: flex; gap: 8px; }
-.filter-tab {
-  padding: 4px 12px; border-radius: 3px; font-size: 10px; letter-spacing: 1px;
-  cursor: pointer; border: 1px solid transparent; transition: all 0.15s;
-  font-family: 'Share Tech Mono', monospace;
-}
-.filter-tab.active { background: rgba(255,255,255,0.06); border-color: var(--border); color: var(--bright); }
-.filter-tab:not(.active) { color: #3a5060; }
-.filter-tab:not(.active):hover { color: var(--text); }
+.room-card{background:rgba(12,17,32,.75);border:1px solid var(--border);border-radius:6px;padding:13px 15px;margin-bottom:9px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;transition:border-color .2s}
+.room-card:hover{border-color:#2a4060}
+.room-name{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;color:var(--bright);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.room-priv{font-size:9px;color:#ff8844;letter-spacing:1px}
+.room-meta{font-size:10px;color:#4a6080;line-height:1.9}
+.room-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.btn-join{padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;background:rgba(68,136,255,.12);border:1px solid var(--p1);color:var(--p1);transition:all .15s;white-space:nowrap}
+.btn-join:hover{background:rgba(68,136,255,.25);box-shadow:0 0 10px rgba(68,136,255,.3)}
+.room-status{font-size:9px;letter-spacing:1px;padding:3px 7px;border-radius:2px;white-space:nowrap}
+.s-wait{color:var(--green);border:1px solid rgba(34,221,119,.3);background:rgba(34,221,119,.06)}
+.s-play{color:#ffcc00;border:1px solid rgba(255,204,0,.3);background:rgba(255,204,0,.06)}
 
-/* Room list */
-#room-list { flex: 1; overflow-y: auto; padding: 12px 16px; }
-#room-list::-webkit-scrollbar { width: 4px; }
-#room-list::-webkit-scrollbar-thumb { background: #1c2840; border-radius: 2px; }
+/* Tier badge */
+.tier-badge{font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:1px;padding:2px 6px;border-radius:2px}
 
-.room-card {
-  background: rgba(12,17,32,0.7); border: 1px solid var(--border);
-  border-radius: 6px; padding: 14px 16px; margin-bottom: 10px;
-  display: grid; grid-template-columns: 1fr auto;
-  align-items: center; gap: 12px;
-  transition: border-color 0.2s;
-}
-.room-card:hover { border-color: #2a4060; }
-.room-name {
-  font-family: 'Orbitron', sans-serif; font-size: 11px;
-  letter-spacing: 1px; color: var(--bright); margin-bottom: 4px;
-  display: flex; align-items: center; gap: 6px;
-}
-.room-private { font-size: 9px; color: #ff8844; letter-spacing: 1px; }
-.room-meta { font-size: 10px; color: #4a6080; line-height: 1.8; }
-.room-host { color: #6080a0; }
-.room-elo  { color: #506070; }
-.room-tc   { color: #405060; }
-.room-actions { display: flex; gap: 8px; align-items: center; }
-.btn-join {
-  padding: 8px 16px; border-radius: 4px; cursor: pointer;
-  font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px;
-  background: rgba(68,136,255,0.12); border: 1px solid var(--p1);
-  color: var(--p1); transition: all 0.15s; white-space: nowrap;
-}
-.btn-join:hover { background: rgba(68,136,255,0.25); box-shadow: 0 0 12px rgba(68,136,255,0.3); }
-.room-status {
-  font-size: 9px; letter-spacing: 1px; padding: 3px 8px; border-radius: 2px;
-}
-.status-waiting { color: #22dd77; border: 1px solid rgba(34,221,119,0.3); background: rgba(34,221,119,0.06); }
-.status-playing { color: #ffcc00; border: 1px solid rgba(255,204,0,0.3); background: rgba(255,204,0,0.06); }
+.empty-state{text-align:center;padding:52px 20px;color:#253040}
+.empty-state-icon{font-size:38px;margin-bottom:14px}
+.empty-state-text{font-size:11px;letter-spacing:1px;line-height:2}
 
-.empty-state {
-  text-align: center; padding: 60px 20px; color: #253040;
-}
-.empty-state-icon { font-size: 40px; margin-bottom: 16px; }
-.empty-state-text { font-size: 12px; letter-spacing: 1px; line-height: 2; }
-
-/* ── Password modal ── */
-#modal-overlay {
-  display: none; position: fixed; inset: 0; z-index: 200;
-  background: rgba(0,0,0,0.8); backdrop-filter: blur(4px);
-  align-items: center; justify-content: center;
-}
-#modal-overlay.show { display: flex; }
-.modal {
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 10px; padding: 32px; width: 320px;
-}
-.modal-title {
-  font-family: 'Orbitron', sans-serif; font-size: 12px;
-  letter-spacing: 2px; color: var(--bright); margin-bottom: 8px;
-}
-.modal-sub { font-size: 11px; color: #4a6080; margin-bottom: 20px; }
-.modal-btns { display: flex; gap: 10px; margin-top: 20px; }
-.btn-cancel {
-  flex: 1; padding: 10px; cursor: pointer;
-  background: transparent; border: 1px solid var(--border);
-  color: #506070; font-family: 'Share Tech Mono', monospace;
-  font-size: 11px; border-radius: 4px; transition: all 0.15s;
-}
-.btn-cancel:hover { border-color: #3a5080; color: var(--text); }
-.btn-confirm {
-  flex: 1; padding: 10px; cursor: pointer;
-  background: rgba(68,136,255,0.12); border: 1px solid var(--p1);
-  color: var(--p1); font-family: 'Orbitron', sans-serif;
-  font-size: 10px; letter-spacing: 1px; border-radius: 4px; transition: all 0.15s;
-}
-.btn-confirm:hover { background: rgba(68,136,255,0.25); }
+/* ── Modal ── */
+#modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.82);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#modal-overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:30px;width:100%;max-width:320px;margin:16px}
+.modal-title{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:var(--bright);margin-bottom:8px}
+.modal-sub{font-size:11px;color:#4a6080;margin-bottom:18px}
+.modal-btns{display:flex;gap:10px;margin-top:18px}
+.btn-cancel{flex:1;padding:10px;cursor:pointer;background:transparent;border:1px solid var(--border);color:#506070;font-family:'Share Tech Mono',monospace;font-size:11px;border-radius:4px;transition:all .15s}
+.btn-cancel:hover{border-color:#3a5080;color:var(--text)}
+.btn-confirm{flex:1;padding:10px;cursor:pointer;background:rgba(68,136,255,.12);border:1px solid var(--p1);color:var(--p1);font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;border-radius:4px;transition:all .15s}
+.btn-confirm:hover{background:rgba(68,136,255,.25)}
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- HEADER -->
-  <header>
-    <a href="index.html" class="logo">HOME<span>W</span>ORLDS</a>
-    <div class="header-right">
-      <div class="player-chip" id="player-chip">
-        <div class="avatar" id="hdr-avatar"></div>
-        <div class="player-info">
-          <span class="player-name" id="hdr-name">—</span>
-          <span class="player-elo"  id="hdr-elo">ELO —</span>
-        </div>
-      </div>
-      <a href="profile.html" class="nav-link">PROFILE</a>
-      <a href="#" class="nav-link" id="btn-signout">SIGN OUT</a>
-    </div>
-  </header>
-
-  <!-- SIDEBAR: CREATE ROOM -->
-  <aside id="sidebar">
-    <div class="sidebar-section">
-      <div class="sidebar-label">CREATE ROOM</div>
-
-      <div class="form-row">
-        <label class="form-label">ROOM NAME</label>
-        <input class="form-input" id="room-name" placeholder="My Galaxy" maxlength="32">
-      </div>
-
-      <div class="toggle-row">
-        <span class="toggle-label">PRIVATE ROOM</span>
-        <label class="toggle">
-          <input type="checkbox" id="toggle-private">
-          <div class="toggle-track"></div>
-          <div class="toggle-thumb"></div>
-        </label>
-      </div>
-
-      <div class="form-row" id="password-row">
-        <label class="form-label">PASSWORD</label>
-        <input class="form-input" id="room-password" type="password" placeholder="Set a password" maxlength="24">
-      </div>
-
-      <div class="form-row">
-        <label class="form-label">TIME CONTROL</label>
-        <div class="tc-tabs">
-          <button class="tc-btn active" data-tc="unlimited">∞ FREE</button>
-          <button class="tc-btn" data-tc="blitz">⚡ BLITZ</button>
-          <button class="tc-btn" data-tc="sudden">🔔 SUDDEN</button>
-          <button class="tc-btn" data-tc="turn">⏱ TURN</button>
-        </div>
-        <div class="tc-detail" id="tc-detail-sudden">
-          Sudden death: <input type="number" id="tc-sudden-min" value="20" min="5" max="120"> min each
-        </div>
-        <div class="tc-detail" id="tc-detail-turn">
-          Per turn: <input type="number" id="tc-turn-min" value="5" min="1" max="30"> min
-        </div>
-      </div>
-
-      <button class="btn-create" id="btn-create">CREATE ROOM</button>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-label">QUICK PLAY</div>
-      <button class="btn-passplay" onclick="window.location.href='game.html?mode=passplay'">
-        PASS &amp; PLAY — LOCAL TWO PLAYER
-      </button>
-    </div>
-  </aside>
-
-  <!-- MAIN: ROOM LIST -->
-  <main id="main">
-    <div class="main-header">
-      <div class="main-title">
-        <span class="live-dot"></span>OPEN ROOMS
-      </div>
-      <div class="filter-tabs">
-        <div class="filter-tab active" data-filter="waiting">WAITING</div>
-        <div class="filter-tab" data-filter="playing">IN PROGRESS</div>
+<!-- HEADER -->
+<header>
+  <a href="index.html" class="logo">HOME<span>W</span>ORLDS DUEL</a>
+  <div class="hdr-right">
+    <div class="player-chip" id="player-chip">
+      <div class="avatar" id="hdr-avatar"></div>
+      <div>
+        <div class="pname" id="hdr-name">—</div>
+        <div class="ptier" id="hdr-tier"></div>
       </div>
     </div>
-    <div id="room-list">
-      <div class="empty-state">
-        <div class="empty-state-icon">🌌</div>
-        <div class="empty-state-text">No open rooms yet.<br>Create one to challenge the galaxy.</div>
+    <a href="profile.html" class="nav-link">PROFILE</a>
+    <a href="#" class="nav-link" id="btn-signout">SIGN OUT</a>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="ss">
+    <div class="ss-label">CREATE ROOM</div>
+
+    <div class="form-row">
+      <label class="form-label">ROOM NAME</label>
+      <input class="form-input" id="room-name" placeholder="My Galaxy" maxlength="32">
+    </div>
+
+    <div class="toggle-row">
+      <span class="toggle-label">PRIVATE ROOM</span>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-private">
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>
+
+    <div class="form-row" id="password-row" style="display:none">
+      <label class="form-label">PASSWORD (VISIBLE)</label>
+      <div class="pw-wrap">
+        <input class="form-input" id="room-password" type="text"
+               placeholder="Set a room password" maxlength="24"
+               autocomplete="off" spellcheck="false">
+        <!-- password is intentionally type="text" so host can see what they're setting -->
+      </div>
+      <div style="font-size:10px;color:#3a5060;margin-top:4px;letter-spacing:.5px">
+        Share this with the player you want to invite.
       </div>
     </div>
-  </main>
+
+    <div class="form-row">
+      <label class="form-label">TIME CONTROL</label>
+      <!-- Row 1 -->
+      <div class="tc-grid">
+        <button class="tc-btn active" data-tc="unlimited">∞ UNLIMITED</button>
+        <button class="tc-btn" data-tc="blitz">⚡ BLITZ</button>
+      </div>
+      <!-- Row 2 -->
+      <div class="tc-grid">
+        <button class="tc-btn" data-tc="sudden">🔔 SUDDEN DEATH</button>
+        <button class="tc-btn" data-tc="turn">⏱ TURN TIMER</button>
+      </div>
+      <!-- Row 3 -->
+      <div class="tc-grid">
+        <button class="tc-btn tc-full" data-tc="tournament">🏆 TOURNAMENT</button>
+      </div>
+      <div class="tc-desc" id="tc-desc">No time limit — play at your own pace.</div>
+      <div class="tc-custom" id="tc-custom-sudden">
+        <span>Total time each:</span>
+        <input type="number" id="tc-sudden-min" value="20" min="5" max="120">
+        <span>min</span>
+      </div>
+      <div class="tc-custom" id="tc-custom-turn">
+        <span>Per turn:</span>
+        <input type="number" id="tc-turn-min" value="5" min="1" max="30">
+        <span>min</span>
+      </div>
+    </div>
+
+    <button class="btn-create" id="btn-create">CREATE ROOM</button>
+  </div>
+
+  <div class="ss">
+    <div class="ss-label">QUICK PLAY</div>
+    <button class="btn-passplay" onclick="window.location.href='game.html?mode=passplay'">
+      PASS &amp; PLAY — LOCAL TWO PLAYER
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main id="main">
+  <div class="main-hdr">
+    <div class="main-title"><span class="live-dot"></span>OPEN ROOMS</div>
+    <div class="filter-tabs">
+      <div class="ftab active" data-filter="waiting">WAITING</div>
+      <div class="ftab" data-filter="playing">IN PROGRESS</div>
+    </div>
+  </div>
+  <div id="room-list">
+    <div class="empty-state">
+      <div class="empty-state-icon">🌌</div>
+      <div class="empty-state-text">No open rooms yet.<br>Create one to challenge the galaxy.</div>
+    </div>
+  </div>
+</main>
 
 </div>
 
-<!-- PASSWORD MODAL (join private room) -->
+<!-- JOIN PASSWORD MODAL -->
 <div id="modal-overlay">
   <div class="modal">
     <div class="modal-title">PRIVATE ROOM</div>
-    <div class="modal-sub">Enter the password to join this room.</div>
-    <input class="form-input" id="modal-password" type="password" placeholder="Password">
+    <div class="modal-sub">Enter the password to join.</div>
+    <div class="pw-wrap">
+      <input class="form-input" id="modal-password" type="password" placeholder="Password" autocomplete="off">
+      <button class="pw-eye" id="modal-pw-eye" title="Show/hide">👁</button>
+    </div>
     <div class="modal-btns">
       <button class="btn-cancel" id="modal-cancel">CANCEL</button>
       <button class="btn-confirm" id="modal-confirm">JOIN</button>
@@ -379,243 +268,188 @@ header {
 </div>
 
 <script type="module">
-import { initializeApp }       from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getAuth, signOut,
-         onAuthStateChanged }  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getDatabase, ref,
-         get, set, push,
-         onValue, update }     from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-import { firebaseConfig }      from './firebase-config.js';
+import { initializeApp }      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getDatabase,ref,get,set,push,onValue,update } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { firebaseConfig } from './firebase-config.js';
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getDatabase(app);
 
-let ME = null;     // current player profile
+// ── Tier ────────────────────────────────────────────────────
+const TIERS=[
+  {name:'Iron',min:0,max:4,color:'#8a9bb0'},{name:'Bronze',min:5,max:9,color:'#cd7f32'},
+  {name:'Silver',min:10,max:14,color:'#c0c0c0'},{name:'Gold',min:15,max:19,color:'#ffd700'},
+  {name:'Platinum',min:20,max:24,color:'#00d4ff'},{name:'Emerald',min:25,max:29,color:'#22dd77'},
+  {name:'Diamond',min:30,max:34,color:'#b9f2ff'},{name:'Master',min:35,max:39,color:'#9b59b6'},
+  {name:'Grandmaster',min:40,max:44,color:'#ff6b35'},{name:'Star Captain',min:45,max:Infinity,color:'#ffcc00'},
+];
+function getTier(s=0){return TIERS.find(t=>s>=t.min&&s<=t.max)||TIERS[0]}
+function tierHTML(stars){const t=getTier(stars);return `<span class="tier-badge" style="color:${t.color};border:1px solid ${t.color}40;background:${t.color}12">${t.name.toUpperCase()}</span>`;}
+
+// ── TC descriptions ──────────────────────────────────────────
+const TC_DESC = {
+  unlimited:  'No time limit — play at your own pace.',
+  blitz:      '10 minutes total per player. Fast and tactical.',
+  sudden:     'Custom total time per player. Time runs out = you lose.',
+  turn:       'Fixed time per turn. Fails to act = auto-skip.',
+  tournament: '30 min total + 30 sec added per move. Standard competitive format.',
+};
+
+let selectedTc  = 'unlimited';
+let ME          = null;
+let lastRooms   = {};
 let currentFilter = 'waiting';
-let pendingJoinRoom = null;
+let pendingJoin   = null;
 
 // ── Auth guard ───────────────────────────────────────────────
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, async user => {
   if (!user) { window.location.href = 'index.html'; return; }
   const snap = await get(ref(db, `players/${user.uid}`));
-  ME = snap.val() || { uid: user.uid, name: 'Pilot', elo: 1200 };
+  ME = snap.val() || { uid: user.uid, name: 'Pilot', stars: 0 };
 
-  // Header
   document.getElementById('hdr-name').textContent = ME.name;
-  document.getElementById('hdr-elo').textContent  = `ELO ${ME.elo}`;
+  const t = getTier(ME.stars || 0);
+  document.getElementById('hdr-tier').innerHTML = `<span style="color:${t.color}">${t.name.toUpperCase()}</span>`;
   const av = document.getElementById('hdr-avatar');
-  if (user.photoURL) av.innerHTML = `<img src="${user.photoURL}" alt="">`;
+  const avatar = ME.avatarBase64 || ME.avatarUrl || '';
+  if (avatar) av.innerHTML = `<img src="${avatar}" alt="">`;
   else av.textContent = ME.name[0].toUpperCase();
 
-  // Default room name
   document.getElementById('room-name').value = `${ME.name}'s Room`;
-
   subscribeRooms();
 });
 
-document.getElementById('btn-signout').onclick = async (e) => {
-  e.preventDefault();
-  await signOut(auth);
-  window.location.href = 'index.html';
-};
-
-// ── Time control tabs ────────────────────────────────────────
-let selectedTc = 'unlimited';
-document.querySelectorAll('.tc-btn').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.tc-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedTc = btn.dataset.tc;
-    document.querySelectorAll('.tc-detail').forEach(d => d.classList.remove('show'));
-    if (selectedTc === 'sudden') document.getElementById('tc-detail-sudden').classList.add('show');
-    if (selectedTc === 'turn')   document.getElementById('tc-detail-turn').classList.add('show');
-  };
-});
+document.getElementById('btn-signout').onclick = async e => { e.preventDefault(); await signOut(auth); window.location.href='index.html'; };
 
 // ── Private toggle ───────────────────────────────────────────
 document.getElementById('toggle-private').onchange = function() {
   document.getElementById('password-row').style.display = this.checked ? 'block' : 'none';
 };
 
+// ── TC tabs ──────────────────────────────────────────────────
+document.querySelectorAll('.tc-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tc-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTc = btn.dataset.tc;
+    document.getElementById('tc-desc').textContent = TC_DESC[selectedTc] || '';
+    document.getElementById('tc-custom-sudden').classList.toggle('show', selectedTc === 'sudden');
+    document.getElementById('tc-custom-turn').classList.toggle('show', selectedTc === 'turn');
+  };
+});
+
 // ── Filter tabs ──────────────────────────────────────────────
-document.querySelectorAll('.filter-tab').forEach(tab => {
+document.querySelectorAll('.ftab').forEach(tab => {
   tab.onclick = () => {
-    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     currentFilter = tab.dataset.filter;
-    renderRooms(lastRoomsSnap);
+    renderRooms(lastRooms);
   };
 });
 
 // ── Create room ──────────────────────────────────────────────
 document.getElementById('btn-create').onclick = async () => {
   if (!ME) return;
-  const name     = document.getElementById('room-name').value.trim() || `${ME.name}'s Room`;
-  const isPriv   = document.getElementById('toggle-private').checked;
-  const password = isPriv ? document.getElementById('room-password').value.trim() : '';
+  const name   = document.getElementById('room-name').value.trim() || `${ME.name}'s Room`;
+  const isPriv = document.getElementById('toggle-private').checked;
+  const pw     = isPriv ? document.getElementById('room-password').value.trim() : '';
 
-  let timeMs = 0, tcTurnMs = 0;
-  if (selectedTc === 'blitz')   timeMs = 10 * 60 * 1000;
-  if (selectedTc === 'sudden')  timeMs = (parseInt(document.getElementById('tc-sudden-min').value) || 20) * 60 * 1000;
-  if (selectedTc === 'turn') {
-    tcTurnMs = (parseInt(document.getElementById('tc-turn-min').value) || 5) * 60 * 1000;
-    timeMs   = tcTurnMs;
-  }
+  let timeMs=0, tcTurnMs=0;
+  if (selectedTc==='blitz')      timeMs = 10*60*1000;
+  if (selectedTc==='sudden')     timeMs = (parseInt(document.getElementById('tc-sudden-min').value)||20)*60*1000;
+  if (selectedTc==='turn')     { tcTurnMs=(parseInt(document.getElementById('tc-turn-min').value)||5)*60*1000; timeMs=tcTurnMs; }
+  if (selectedTc==='tournament') { timeMs=30*60*1000; tcTurnMs=30*1000; }
 
-  const roomRef  = push(ref(db, 'rooms'));
-  const roomId   = roomRef.key;
-
-  await set(roomRef, {
-    id:          roomId,
-    name,
-    status:      'waiting',
-    isPrivate:   isPriv,
-    password:    password ? simpleHash(password) : '',
-    hostUid:     ME.uid,
-    guestUid:    null,
-    settings: { tcMode: selectedTc, timeMs, tcTurnMs },
-    player1:   { uid: ME.uid, name: ME.name, elo: ME.elo },
-    player2:     null,
-    currentTurn: 1,
-    createdAt:   Date.now(),
+  const roomRef = push(ref(db,'rooms'));
+  await set(roomRef,{
+    id:roomRef.key, name, status:'waiting', isPrivate:isPriv,
+    password: pw ? simpleHash(pw) : '',
+    hostUid:ME.uid, guestUid:null,
+    settings:{tcMode:selectedTc,timeMs,tcTurnMs},
+    player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0},
+    player2:null, currentTurn:1, createdAt:Date.now(),
   });
-
-  // Navigate host into the game
-  window.location.href = `game.html?room=${roomId}&player=1`;
+  window.location.href = `game.html?room=${roomRef.key}&player=1`;
 };
 
-// ── Subscribe to rooms (live) ────────────────────────────────
-let lastRoomsSnap = {};
-function subscribeRooms() {
-  onValue(ref(db, 'rooms'), snap => {
-    lastRoomsSnap = snap.val() || {};
-    renderRooms(lastRoomsSnap);
+// ── Room list ────────────────────────────────────────────────
+function subscribeRooms(){
+  onValue(ref(db,'rooms'), snap => {
+    lastRooms = snap.val() || {};
+    renderRooms(lastRooms);
   });
 }
 
-function renderRooms(rooms) {
+function renderRooms(rooms){
   const list = document.getElementById('room-list');
   const entries = Object.values(rooms)
     .filter(r => r.status === currentFilter)
-    .sort((a, b) => b.createdAt - a.createdAt);
+    .sort((a,b) => b.createdAt - a.createdAt);
 
-  if (entries.length === 0) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">${currentFilter === 'waiting' ? '🌌' : '⚔️'}</div>
-        <div class="empty-state-text">
-          ${currentFilter === 'waiting' ? 'No open rooms yet.<br>Create one to challenge the galaxy.' : 'No games currently in progress.'}
-        </div>
-      </div>`;
+  if (!entries.length){
+    list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">${currentFilter==='waiting'?'🌌':'⚔️'}</div><div class="empty-state-text">${currentFilter==='waiting'?'No open rooms yet.<br>Create one to challenge the galaxy.':'No games currently in progress.'}</div></div>`;
     return;
   }
-
-  list.innerHTML = '';
+  list.innerHTML='';
   entries.forEach(room => {
-    const card    = document.createElement('div');
-    card.className = 'room-card';
+    const card = document.createElement('div');
+    card.className='room-card';
     const isMyRoom = room.hostUid === ME?.uid;
+    const hostTier = tierHTML(room.player1?.stars||0);
     const tc = formatTc(room.settings);
-
-    card.innerHTML = `
+    card.innerHTML=`
       <div>
-        <div class="room-name">
-          ${escHtml(room.name)}
-          ${room.isPrivate ? '<span class="room-private">🔒 PRIVATE</span>' : ''}
-        </div>
-        <div class="room-meta">
-          <span class="room-host">HOST: ${escHtml(room.player1?.name || '—')}</span>
-          &nbsp;·&nbsp;
-          <span class="room-elo">ELO ${room.player1?.elo ?? '—'}</span>
-          &nbsp;·&nbsp;
-          <span class="room-tc">${tc}</span>
-        </div>
+        <div class="room-name">${esc(room.name)}${room.isPrivate?'<span class="room-priv">🔒 PRIVATE</span>':''}</div>
+        <div class="room-meta">HOST: ${esc(room.player1?.name||'—')} &nbsp;${hostTier}&nbsp; · ${tc}</div>
       </div>
       <div class="room-actions">
-        <span class="room-status ${room.status === 'waiting' ? 'status-waiting' : 'status-playing'}">
-          ${room.status === 'waiting' ? 'OPEN' : 'IN PROGRESS'}
-        </span>
-        ${room.status === 'waiting' && !isMyRoom
-          ? `<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password || ''}">JOIN</button>`
-          : ''}
-        ${isMyRoom && room.status === 'waiting'
-          ? `<button class="btn-join" style="border-color:#22dd77;color:#22dd77" onclick="rejoinRoom('${room.id}')">REJOIN</button>`
-          : ''}
+        <span class="room-status ${room.status==='waiting'?'s-wait':'s-play'}">${room.status==='waiting'?'OPEN':'PLAYING'}</span>
+        ${room.status==='waiting'&&!isMyRoom?`<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password||''}">JOIN</button>`:''}
+        ${isMyRoom&&room.status==='waiting'?`<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=1'">REJOIN</button>`:''}
       </div>`;
     list.appendChild(card);
   });
-
-  // Attach join handlers
   list.querySelectorAll('.btn-join[data-id]').forEach(btn => {
-    btn.onclick = () => handleJoin(btn.dataset.id, btn.dataset.priv === 'true', btn.dataset.hash);
+    btn.onclick = () => handleJoin(btn.dataset.id, btn.dataset.priv==='true', btn.dataset.hash);
   });
 }
 
-function rejoinRoom(roomId) {
-  window.location.href = `game.html?room=${roomId}&player=1`;
+// ── Join ─────────────────────────────────────────────────────
+async function handleJoin(id, isPriv, hash){
+  if (isPriv){ pendingJoin={id,hash}; document.getElementById('modal-password').value=''; document.getElementById('modal-overlay').classList.add('show'); return; }
+  await doJoin(id);
 }
-
-// ── Join room ────────────────────────────────────────────────
-async function handleJoin(roomId, isPrivate, storedHash) {
-  if (isPrivate) {
-    pendingJoinRoom = { roomId, storedHash };
-    document.getElementById('modal-password').value = '';
-    document.getElementById('modal-overlay').classList.add('show');
-    return;
-  }
-  await joinRoom(roomId);
-}
-
-document.getElementById('modal-cancel').onclick = () => {
+document.getElementById('modal-cancel').onclick=()=>{ document.getElementById('modal-overlay').classList.remove('show'); pendingJoin=null; };
+document.getElementById('modal-confirm').onclick=async()=>{
+  const pw=document.getElementById('modal-password').value.trim();
+  if (simpleHash(pw)!==pendingJoin.hash){ alert('Incorrect password.'); return; }
   document.getElementById('modal-overlay').classList.remove('show');
-  pendingJoinRoom = null;
+  await doJoin(pendingJoin.id); pendingJoin=null;
 };
-
-document.getElementById('modal-confirm').onclick = async () => {
-  const pw   = document.getElementById('modal-password').value.trim();
-  const hash = simpleHash(pw);
-  if (hash !== pendingJoinRoom.storedHash) {
-    alert('Incorrect password.');
-    return;
-  }
-  document.getElementById('modal-overlay').classList.remove('show');
-  await joinRoom(pendingJoinRoom.roomId);
-  pendingJoinRoom = null;
+// Show/hide join password
+document.getElementById('modal-pw-eye').onclick=()=>{
+  const inp=document.getElementById('modal-password');
+  inp.type = inp.type==='password' ? 'text' : 'password';
 };
-
-async function joinRoom(roomId) {
-  await update(ref(db, `rooms/${roomId}`), {
-    guestUid: ME.uid,
-    status:   'playing',
-    player2:  { uid: ME.uid, name: ME.name, elo: ME.elo },
-  });
-  window.location.href = `game.html?room=${roomId}&player=2`;
+async function doJoin(id){
+  await update(ref(db,`rooms/${id}`),{guestUid:ME.uid,status:'playing',player2:{uid:ME.uid,name:ME.name,stars:ME.stars||0}});
+  window.location.href=`game.html?room=${id}&player=2`;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
-function formatTc(s) {
-  if (!s || s.tcMode === 'unlimited') return '∞ FREE';
-  if (s.tcMode === 'blitz')           return '⚡ 10 MIN';
-  if (s.tcMode === 'sudden')          return `🔔 ${Math.round(s.timeMs/60000)} MIN`;
-  if (s.tcMode === 'turn')            return `⏱ ${Math.round(s.tcTurnMs/60000)} MIN/TURN`;
+function formatTc(s){
+  if (!s||s.tcMode==='unlimited') return '∞ UNLIMITED';
+  if (s.tcMode==='blitz')         return '⚡ BLITZ 10MIN';
+  if (s.tcMode==='sudden')        return `🔔 ${Math.round(s.timeMs/60000)}MIN EACH`;
+  if (s.tcMode==='turn')          return `⏱ ${Math.round(s.tcTurnMs/60000)}MIN/TURN`;
+  if (s.tcMode==='tournament')    return '🏆 TOURNAMENT';
   return s.tcMode;
 }
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-// Simple client-side hash for private room passwords
-// (not cryptographically secure, good enough for casual privacy)
-function simpleHash(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = (h * 0x01000193) >>> 0;
-  }
-  return h.toString(16);
-}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function simpleHash(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=(h*0x01000193)>>>0;} return h.toString(16); }
 </script>
 </body>
 </html>
