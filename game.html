@@ -944,6 +944,7 @@ body::before {
   <button class="ctrl-btn" id="btn-forfeit" title="Forfeit">⚑</button>
   <button class="ctrl-btn" id="btn-undo">↺ Undo</button>
   <button class="ctrl-btn" id="btn-end"><span class="btn-label">Skip Turn ›</span><div class="hold-fill"></div></button>
+  <button class="ctrl-btn" id="btn-lobby" style="display:none" onclick="location.href='lobby.html'" title="Back to Lobby">⬡ Lobby</button>
 </div>
 
 <!-- BANK (direct body child for responsive ordering) -->
@@ -3657,12 +3658,20 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   // ── Launch match ─────────────────────────────────────────────
-  function launchMatch(room, user) {
+  // Advance uid counter past all IDs in a loaded G so nextId() never collides
+  function syncUid(g) {
+    let maxId = 0;
+    (g.systems||[]).forEach(sys => {
+      maxId = Math.max(maxId, sys.id||0);
+      (sys.ships||[]).forEach(ship => maxId = Math.max(maxId, ship.id||0));
+    });
+    if (window.uid !== undefined) window.uid = Math.max(window.uid, maxId);
+  }
+
+  async function launchMatch(room, user) {
     if (_started) return;
     _started = true;
 
-    // PLAYER_CONFIG: MY player is MY_SLOT, opponent is OPP_SLOT
-    // P1=index 1, P2=index 2 — stays canonical
     window.PLAYER_CONFIG = {
       names:    ['', room.player1?.name||'Player 1', room.player2?.name||'Player 2'],
       elos:     ['', String(room.player1?.stars||0), String(room.player2?.stars||0)],
@@ -3676,44 +3685,63 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const modal = document.getElementById('startup-modal');
     if (modal) modal.remove();
 
-    window.G = window.makeInitialState();
-    if (typeof window.initChat === 'function') window.initChat();
+    // Show lobby button
+    const lobbyBtn = document.getElementById('btn-lobby');
+    if (lobbyBtn) lobbyBtn.style.display = '';
 
-    // Fix gear icon: gear belongs on OPPONENT's card
+    // Fix gear icon: always on opponent's card.
     // HTML has gear only on pcard-2. If I'm P2, move it to pcard-1.
     if (MY_SLOT === 2) {
       const gear2 = document.getElementById('pcard-gear-2');
       const card1 = document.getElementById('pcard-1');
-      if (gear2 && card1) {
-        gear2.id = 'pcard-gear-1';
-        card1.appendChild(gear2);
-      }
-      // Mobile
+      if (gear2 && card1) { gear2.id = 'pcard-gear-1'; card1.appendChild(gear2); }
       const gear2m = document.getElementById('pcard-gear-2m');
       const card1m = document.getElementById('pcard-1m');
-      if (gear2m && card1m) {
-        gear2m.id = 'pcard-gear-1m';
-        card1m.appendChild(gear2m);
+      if (gear2m && card1m) { gear2m.id = 'pcard-gear-1m'; card1m.appendChild(gear2m); }
+    }
+
+    // Win screen → Lobby
+    const winLobbyBtn = document.getElementById('btn-win-lobby');
+    const ngBtn = document.getElementById('btn-newgame');
+    if (winLobbyBtn) winLobbyBtn.style.display = '';
+    if (ngBtn) ngBtn.style.display = 'none';
+
+    if (typeof window.initChat === 'function') window.initChat();
+
+    // ── Restore existing game state from Firebase (handles rejoin) ──
+    const gameSnap = await get(ref(db, `rooms/${ROOM_ID}/game`));
+
+    if (gameSnap.exists() && gameSnap.val()?.gJson) {
+      // Game already in progress — restore it
+      const g = JSON.parse(gameSnap.val().gJson);
+      syncUid(g);
+      g.history = null; g.interaction = 'IDLE';
+      g.selectedShipId = null; g._pendingActions = [];
+      window.G = g;
+      window.renderPlayerCards();
+      window.render();
+
+      if (g.phase === 'OVER') {
+        // Game already finished — render shows win overlay
+      } else if (g.currentPlayer === MY_SLOT) {
+        const isSetup = g.phase === 'SETUP';
+        showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Continue your turn');
+      } else {
+        showWaiting('Waiting for opponent…');
+      }
+    } else {
+      // Fresh game — no state saved yet
+      window.G = window.makeInitialState();
+      window.renderPlayerCards();
+      window.render();
+      if (MY_SLOT === 1) {
+        showTurnBanner('YOUR TURN', 'Set up your homeworld first');
+      } else {
+        showWaiting('Waiting for Player 1 to set up their homeworld…');
       }
     }
 
-    window.renderPlayerCards();
-    window.render();
-
-    // Win screen → Lobby
-    const lobbyBtn  = document.getElementById('btn-win-lobby');
-    const ngBtn     = document.getElementById('btn-newgame');
-    if (lobbyBtn) lobbyBtn.style.display = '';
-    if (ngBtn)    ngBtn.style.display    = 'none';
-
-    // Player 1 (host) goes first
-    if (MY_SLOT === 1) {
-      showTurnBanner('YOUR TURN', 'Set up your homeworld first');
-    } else {
-      showWaiting('Waiting for Player 1 to set up their homeworld…');
-    }
-
-    // ── Listen for opponent's state pushes ─────────────────
+    // ── Listen for opponent's state pushes ──────────────────────
     onValue(ref(db, `rooms/${ROOM_ID}/game`), snap => {
       if (!snap.exists()) return;
       const d = snap.val();
@@ -3722,21 +3750,13 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window._lastOppTs = d.ts;
 
       const g = JSON.parse(d.gJson);
-
-      // Sync uid counter past all existing IDs so nextId() never collides
-      let maxId = 0;
-      g.systems.forEach(sys => {
-        maxId = Math.max(maxId, sys.id || 0);
-        sys.ships.forEach(ship => maxId = Math.max(maxId, ship.id || 0));
-      });
-      if (window.uid !== undefined) window.uid = Math.max(window.uid, maxId);
-
-      g.history = null;
-      g.interaction = 'IDLE';
-      g.selectedShipId = null;
-      g._pendingActions = [];
+      syncUid(g);
+      g.history = null; g.interaction = 'IDLE';
+      g.selectedShipId = null; g._pendingActions = [];
       window.G = g;
       window.render();
+
+      if (g.phase === 'OVER') return; // win overlay handles it
       const isSetup = g.phase === 'SETUP';
       showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Opponent finished their turn');
     });
