@@ -3713,7 +3713,10 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
     if (gameSnap.exists() && gameSnap.val()?.gJson) {
       // Game already in progress — restore it
-      const g = JSON.parse(gameSnap.val().gJson);
+      const saved = gameSnap.val();
+      const g = JSON.parse(saved.gJson);
+      // Mark this timestamp so onValue doesn't re-apply the same state
+      if (saved.writtenBy !== MY_SLOT) window._lastOppTs = saved.ts || 0;
       syncUid(g);
       g.history = null; g.interaction = 'IDLE';
       g.selectedShipId = null; g._pendingActions = [];
@@ -3745,19 +3748,26 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     onValue(ref(db, `rooms/${ROOM_ID}/game`), snap => {
       if (!snap.exists()) return;
       const d = snap.val();
-      if (!d?.gJson || d.writtenBy === MY_SLOT) return;
-      if ((d.ts||0) <= (window._lastOppTs||0)) return;
+      if (!d?.gJson) return;
+      if (d.writtenBy === MY_SLOT) return;           // echo of my own write
+      if ((d.ts||0) <= (window._lastOppTs||0)) return; // stale
+
+      // Don't stomp on local state mid-action (e.g. during a sacrifice sequence)
+      const g = window.G;
+      if (g && g.currentPlayer === MY_SLOT &&
+          (g.sacrificePool?.count > 0 || g.interaction !== 'IDLE')) return;
+
       window._lastOppTs = d.ts;
 
-      const g = JSON.parse(d.gJson);
-      syncUid(g);
-      g.history = null; g.interaction = 'IDLE';
-      g.selectedShipId = null; g._pendingActions = [];
-      window.G = g;
+      const incoming = JSON.parse(d.gJson);
+      syncUid(incoming);
+      incoming.history = null; incoming.interaction = 'IDLE';
+      incoming.selectedShipId = null; incoming._pendingActions = [];
+      window.G = incoming;
       window.render();
 
-      if (g.phase === 'OVER') return; // win overlay handles it
-      const isSetup = g.phase === 'SETUP';
+      if (incoming.phase === 'OVER') return;
+      const isSetup = incoming.phase === 'SETUP';
       showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Opponent finished their turn');
     });
 
