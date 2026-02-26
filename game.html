@@ -3568,19 +3568,11 @@ function renderMobileLog() {
 </script>
 <script type="module">
 // ============================================================
-//  ONLINE MULTIPLAYER — clean canonical-state sync
+//  ONLINE MULTIPLAYER — canonical, no perspective flip
 //
-//  Firebase canonical model:
-//    rooms/{id}/game = { gJson, writtenBy, ts }
-//    P1 = host (MY_SLOT=1).  P2 = guest (MY_SLOT=2).
-//
-//  MY_SLOT=1: local G  ==  canonical G.  No transformation.
-//  MY_SLOT=2: local G has ME as P1, opponent as P2.
-//             Flip P1↔P2 before writing and after reading.
-//
-//  Turn flow:
-//    My turn ends  → save canonical → show waiting
-//    Opponent ends → read canonical → flip if MY_SLOT=2 → show YOUR TURN
+//  MY_SLOT === my player number in the engine (1=host, 2=guest).
+//  Firebase stores canonical G directly — no transformation.
+//  I can only interact when G.currentPlayer === MY_SLOT.
 // ============================================================
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
@@ -3592,105 +3584,91 @@ import { firebaseConfig } from './firebase-config.js';
 
 const params  = new URLSearchParams(window.location.search);
 const ROOM_ID = params.get('room');
-const MY_SLOT = parseInt(params.get('player')) || 0; // 1=host, 2=guest
+const MY_SLOT = parseInt(params.get('player')) || 0;
+const OPP_SLOT = 3 - MY_SLOT; // 1→2, 2→1
 
 if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   // Pass-and-play — nothing to do
 } else {
+
   const fbApp = initializeApp(firebaseConfig);
   const auth  = getAuth(fbApp);
   const db    = getDatabase(fbApp);
-
   let _started = false;
 
-  // ── Boot after auth ─────────────────────────────────────────
+  // ── Auth → boot ─────────────────────────────────────────────
   onAuthStateChanged(auth, async user => {
     if (!user) { location.href = 'index.html'; return; }
-
-    const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
-    if (!roomSnap.exists()) { alert('Room not found.'); location.href = 'lobby.html'; return; }
-    const room = roomSnap.val();
-
-    // Verify this user belongs in this room
+    const snap = await get(ref(db, `rooms/${ROOM_ID}`));
+    if (!snap.exists()) { alert('Room not found.'); location.href = 'lobby.html'; return; }
+    const room = snap.val();
     const expected = MY_SLOT === 1 ? room.player1?.uid : room.player2?.uid;
     if (expected !== user.uid) { alert('Not your room slot.'); location.href = 'lobby.html'; return; }
 
     showLobbyWait(room);
 
-    // Watch room: launch when status=playing and both players present
+    // Watch room for start signal
     onValue(ref(db, `rooms/${ROOM_ID}`), snap => {
-      const r = snap.val();
-      if (!r) return;
+      const r = snap.val(); if (!r) return;
       showLobbyWait(r);
-      if (!_started && r.status === 'playing' && r.player1 && r.player2) {
+      if (!_started && r.status === 'playing' && r.player1 && r.player2)
         launchMatch(r, user);
-      }
     });
   });
 
-  // ── Pre-game lobby wait screen ──────────────────────────────
+  // ── Pre-game lobby wait ──────────────────────────────────────
   function showLobbyWait(room) {
     if (_started) return;
     const modal = document.getElementById('startup-modal');
     if (!modal) return;
     modal.style.display = 'flex';
-
-    const p1Name = room.player1?.name || '—';
-    const p2Name = room.player2?.name || '—';
-    const p1Ok = !!room.player1, p2Ok = !!room.player2;
-    const both = p1Ok && p2Ok, notStarted = room.status !== 'playing';
-
+    const p1n = room.player1?.name || '—', p2n = room.player2?.name || '—';
+    const p1ok = !!room.player1,  p2ok = !!room.player2;
+    const both = p1ok && p2ok, notStarted = room.status !== 'playing';
     modal.innerHTML = `
       <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:32px;width:420px;max-width:95vw;text-align:center;font-family:Share Tech Mono,monospace;color:#a8c0e0;">
         <div style="font-family:Orbitron,sans-serif;font-size:18px;font-weight:900;color:#ddeeff;letter-spacing:4px;margin-bottom:4px">HOMEWORLDS DUEL</div>
         <div style="font-size:11px;color:#304050;letter-spacing:2px;margin-bottom:24px">${esc(room.name||ROOM_ID.slice(-6).toUpperCase())}</div>
         <div style="display:flex;gap:16px;justify-content:center;margin-bottom:24px">
-          <div style="width:130px;padding:14px;border:1px solid ${p1Ok?'#2266ff':'#1c2840'};border-radius:6px;background:rgba(255,255,255,0.02)">
+          <div style="width:130px;padding:14px;border:1px solid ${p1ok?'#2266ff':'#1c2840'};border-radius:6px;background:rgba(255,255,255,0.02)">
             <div style="font-size:9px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 1</div>
-            <div style="font-size:13px;color:#4488ff;font-family:Orbitron,sans-serif">${esc(p1Name)}</div>
-            <div style="font-size:9px;margin-top:4px;color:${p1Ok?'#22dd77':'#304050'}">${p1Ok?'✓ READY':'waiting…'}</div>
+            <div style="font-size:13px;color:#4488ff;font-family:Orbitron,sans-serif">${esc(p1n)}</div>
+            <div style="font-size:9px;margin-top:4px;color:${p1ok?'#22dd77':'#304050'}">${p1ok?'✓ READY':'waiting…'}</div>
           </div>
           <div style="display:flex;align-items:center;color:#2a3850;font-size:18px">VS</div>
-          <div style="width:130px;padding:14px;border:1px solid ${p2Ok?'#ff4455':'#1c2840'};border-radius:6px;background:rgba(255,255,255,0.02)">
+          <div style="width:130px;padding:14px;border:1px solid ${p2ok?'#ff4455':'#1c2840'};border-radius:6px;background:rgba(255,255,255,0.02)">
             <div style="font-size:9px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 2</div>
-            <div style="font-size:13px;color:#ff4455;font-family:Orbitron,sans-serif">${esc(p2Name)}</div>
-            <div style="font-size:9px;margin-top:4px;color:${p2Ok?'#22dd77':'#304050'}">${p2Ok?'✓ READY':'waiting…'}</div>
+            <div style="font-size:13px;color:#ff4455;font-family:Orbitron,sans-serif">${esc(p2n)}</div>
+            <div style="font-size:9px;margin-top:4px;color:${p2ok?'#22dd77':'#304050'}">${p2ok?'✓ READY':'waiting…'}</div>
           </div>
         </div>
         <div style="font-size:11px;color:#4a6080;letter-spacing:1px;margin-bottom:20px;min-height:16px">
-          ${both && notStarted ? 'Both players ready!' : !p2Ok ? 'Waiting for opponent to join…' : 'Waiting for both players…'}
+          ${both && notStarted ? 'Both players ready!' : 'Waiting for opponent to join…'}
         </div>
-        ${both && notStarted ? `<button id="pg-start-btn" style="width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:3px;cursor:pointer;border-radius:6px;margin-bottom:12px;">START GAME ›</button>` : ''}
+        ${both && notStarted ? `<button id="pg-start" style="width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:3px;cursor:pointer;border-radius:6px;margin-bottom:12px;">START GAME ›</button>` : ''}
         <button onclick="location.href='lobby.html'" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:4px;">← BACK TO LOBBY</button>
       </div>`;
-
-    const startBtn = document.getElementById('pg-start-btn');
-    if (startBtn) {
-      startBtn.onclick = async () => {
-        startBtn.disabled = true; startBtn.textContent = 'STARTING…';
-        await update(ref(db, `rooms/${ROOM_ID}`), { status: 'playing' });
-      };
-    }
+    const sb = document.getElementById('pg-start');
+    if (sb) sb.onclick = async () => {
+      sb.disabled = true; sb.textContent = 'STARTING…';
+      await update(ref(db, `rooms/${ROOM_ID}`), { status: 'playing' });
+    };
   }
-
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  // ── Launch match ────────────────────────────────────────────
+  // ── Launch match ─────────────────────────────────────────────
   function launchMatch(room, user) {
     if (_started) return;
     _started = true;
 
-    // MY player data and opponent data based on which Firebase slot I occupy
-    const myData  = MY_SLOT === 1 ? room.player1 : room.player2;
-    const oppData = MY_SLOT === 1 ? room.player2 : room.player1;
-
-    // In the engine I am always P1 (blue, bottom), opponent is P2 (red, top)
+    // PLAYER_CONFIG: MY player is MY_SLOT, opponent is OPP_SLOT
+    // P1=index 1, P2=index 2 — stays canonical
     window.PLAYER_CONFIG = {
-      names:       ['', myData?.name  || 'Player 1', oppData?.name  || 'Player 2'],
-      elos:        ['', String(myData?.stars  || 0), String(oppData?.stars  || 0)],
-      timeMs:      room.settings?.timeMs   || 0,
-      tcMode:      room.settings?.tcMode   || 'unlimited',
-      tcTurnMs:    room.settings?.tcTurnMs || 0,
+      names:    ['', room.player1?.name||'Player 1', room.player2?.name||'Player 2'],
+      elos:     ['', String(room.player1?.stars||0), String(room.player2?.stars||0)],
+      timeMs:   room.settings?.timeMs   || 0,
+      tcMode:   room.settings?.tcMode   || 'unlimited',
+      tcTurnMs: room.settings?.tcTurnMs || 0,
       advancedMode: false,
     };
     window._ONLINE = { active: true, mySlot: MY_SLOT };
@@ -3700,31 +3678,58 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
     window.G = window.makeInitialState();
     if (typeof window.initChat === 'function') window.initChat();
+
+    // Fix gear icon: gear belongs on OPPONENT's card
+    // HTML has gear only on pcard-2. If I'm P2, move it to pcard-1.
+    if (MY_SLOT === 2) {
+      const gear2 = document.getElementById('pcard-gear-2');
+      const card1 = document.getElementById('pcard-1');
+      if (gear2 && card1) {
+        gear2.id = 'pcard-gear-1';
+        card1.appendChild(gear2);
+      }
+      // Mobile
+      const gear2m = document.getElementById('pcard-gear-2m');
+      const card1m = document.getElementById('pcard-1m');
+      if (gear2m && card1m) {
+        gear2m.id = 'pcard-gear-1m';
+        card1m.appendChild(gear2m);
+      }
+    }
+
     window.renderPlayerCards();
     window.render();
 
-    // Win screen: show Lobby button, hide New Game
-    const lobbyBtn   = document.getElementById('btn-win-lobby');
-    const newgameBtn = document.getElementById('btn-newgame');
-    if (lobbyBtn)    lobbyBtn.style.display   = '';
-    if (newgameBtn)  newgameBtn.style.display  = 'none';
+    // Win screen → Lobby
+    const lobbyBtn  = document.getElementById('btn-win-lobby');
+    const ngBtn     = document.getElementById('btn-newgame');
+    if (lobbyBtn) lobbyBtn.style.display = '';
+    if (ngBtn)    ngBtn.style.display    = 'none';
 
-    // MY_SLOT=1 (host) goes first in setup. MY_SLOT=2 waits.
+    // Player 1 (host) goes first
     if (MY_SLOT === 1) {
       showTurnBanner('YOUR TURN', 'Set up your homeworld first');
     } else {
       showWaiting('Waiting for Player 1 to set up their homeworld…');
     }
 
-    // Subscribe to canonical state written by opponent
+    // ── Listen for opponent's state pushes ─────────────────
     onValue(ref(db, `rooms/${ROOM_ID}/game`), snap => {
       if (!snap.exists()) return;
-      const data = snap.val();
-      if (!data?.gJson) return;
-      if (data.writtenBy === MY_SLOT) return;  // echo of my own write — ignore
-      if ((data.ts || 0) <= (window._lastOppTs || 0)) return;  // stale
-      window._lastOppTs = data.ts;
-      applyCanonical(JSON.parse(data.gJson));
+      const d = snap.val();
+      if (!d?.gJson || d.writtenBy === MY_SLOT) return;
+      if ((d.ts||0) <= (window._lastOppTs||0)) return;
+      window._lastOppTs = d.ts;
+
+      const g = JSON.parse(d.gJson);
+      g.history = null;
+      g.interaction = 'IDLE';
+      g.selectedShipId = null;
+      g._pendingActions = [];
+      window.G = g;
+      window.render();
+      const isSetup = g.phase === 'SETUP';
+      showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Opponent finished their turn');
     });
 
     // Presence
@@ -3733,145 +3738,85 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     onDisconnect(presRef).set({ uid: user.uid, online: false });
   }
 
-  // ── Apply canonical state received from opponent ────────────
-  function applyCanonical(canonical) {
-    // Canonical uses P1=host, P2=guest.
-    // MY_SLOT=1: apply as-is (canonical IS local).
-    // MY_SLOT=2: flip P1↔P2 so locally I'm always P1.
-    let localG;
-    if (MY_SLOT === 1) {
-      localG = canonical;
-    } else {
-      localG = flipPerspective(JSON.parse(JSON.stringify(canonical)));
-      localG.currentPlayer = 1; // after flip it's always my turn (local P1)
-    }
-    localG.history = null;
-    localG.interaction = 'IDLE';
-    localG.selectedShipId = null;
-    localG._pendingActions = [];
-    window.G = localG;
-    window.render();
-
-    const isSetup = localG.phase === 'SETUP';
-    showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Opponent finished their turn');
-  }
-
-  // ── Flip P1↔P2 throughout a G (deep clone first!) ──────────
-  function flipPerspective(g) {
-    g.systems.forEach(sys => {
-      if (sys.isHomeworld === 1) sys.isHomeworld = 2;
-      else if (sys.isHomeworld === 2) sys.isHomeworld = 1;
-      sys.ships.forEach(ship => {
-        if (ship.owner === 1) ship.owner = 2;
-        else if (ship.owner === 2) ship.owner = 1;
-      });
-    });
-    if (g.currentPlayer === 1) g.currentPlayer = 2;
-    else if (g.currentPlayer === 2) g.currentPlayer = 1;
-    const t1 = g.timers?.[1], t2 = g.timers?.[2];
-    if (g.timers) { g.timers[1] = t2; g.timers[2] = t1; }
-    return g;
-  }
-
-  // ── Save canonical state to Firebase ───────────────────────
-  async function saveCanonical(localG) {
-    let canonical = JSON.parse(JSON.stringify(localG));
-
-    // MY_SLOT=2: flip local perspective back to canonical before saving
-    if (MY_SLOT === 2) {
-      canonical = flipPerspective(canonical);
-    }
-    canonical.history = null;
-    canonical.interaction = 'IDLE';
-    canonical.selectedShipId = null;
-    canonical._pendingActions = [];
-
+  // ── Save canonical G to Firebase ─────────────────────────────
+  async function saveState() {
+    const g = JSON.parse(JSON.stringify(window.G));
+    g.history = null; g.interaction = 'IDLE';
+    g.selectedShipId = null; g._pendingActions = [];
     await set(ref(db, `rooms/${ROOM_ID}/game`), {
-      gJson:     JSON.stringify(canonical),
-      writtenBy: MY_SLOT,
-      ts:        Date.now(),
+      gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts: Date.now(),
     });
   }
 
-  // ── Intercept showPassBanner to detect end of MY turn ───────
-  //
-  //  In the engine I'm always P1. After my turn: G.currentPlayer=2.
-  //  showPassBanner fires with title containing "PLAYER 2".
-  //  That's the signal: my turn just ended → save canonical → wait.
-  //
-  //  Special case: MY_SLOT=2 finishing their SETUP turn.
-  //  The engine goes through p===1 path (never p===2 since I'm local P1),
-  //  so phase never auto-transitions to PLAY. We must force it here.
+  // ── Intercept showPassBanner: fires when a turn ends ─────────
+  // After MY turn: G.currentPlayer has flipped to OPP_SLOT.
+  // Title will contain "PLAYER ${OPP_SLOT}" → save + wait.
   const _origBanner = window.showPassBanner;
   window.showPassBanner = function(title, subtitle) {
     if (!window._ONLINE?.active) { _origBanner(title, subtitle); return; }
-
-    if (title.includes('PLAYER 2')) {
-      // My turn just ended.
-      const gCopy = JSON.parse(JSON.stringify(window.G));
-
-      // Special: MY_SLOT=2 ending their SETUP turn
-      //   Local engine: phase=SETUP, currentPlayer=2 (after p===1 path in doEndTurn)
-      //   Canonical must be: phase=PLAY, currentPlayer=1 (P1/host goes first in PLAY)
-      //   After flipPerspective: currentPlayer 2→1, which will be canonical P1 ✓
-      if (MY_SLOT === 2 && title.includes('SETUP')) {
-        gCopy.phase = 'PLAY';
-        gCopy.currentPlayer = 2; // flip will make this canonical currentPlayer=1
-      }
-
-      saveCanonical(gCopy);
+    // Opponent's number appears in title → my turn just ended
+    if (title.includes(`PLAYER ${OPP_SLOT}`)) {
+      saveState();
       showWaiting('Waiting for opponent…');
       return;
     }
-
-    // "PLAYER 1'S TURN" — only fires in pass-and-play (p===2 setup path).
-    // In online mode MY_SLOT=2 never triggers this (they're always local P1).
-    // Suppress silently.
+    // My number in title (only happens in pass-and-play flow) — suppress
   };
 
-  // ── Disable P2 turn token (opponent's token) ────────────────
+  // ── Lock input when it's not my turn ─────────────────────────
+  const _origShipClick = window.onShipClick;
+  window.onShipClick = function(id) {
+    if (window._ONLINE?.active && G.currentPlayer !== MY_SLOT) return;
+    _origShipClick(id);
+  };
+  const _origBankClick = window.onBankClick;
+  window.onBankClick = function(c, sz) {
+    if (window._ONLINE?.active && G.currentPlayer !== MY_SLOT) return;
+    _origBankClick(c, sz);
+  };
+
+  // ── Disable opponent's turn token ────────────────────────────
   const _origMakeTurnToken = window.makeTurnToken;
   window.makeTurnToken = function(player) {
     const wrap = _origMakeTurnToken(player);
-    if (window._ONLINE?.active && player === 2) {
+    if (window._ONLINE?.active && player === OPP_SLOT) {
       const tok = wrap.querySelector('.turn-token') || wrap;
       tok.classList.add('disabled');
       tok.title = "Opponent's turn";
-      const fresh = tok.cloneNode(true); // remove click listeners
-      tok.parentNode.replaceChild(fresh, tok);
+      tok.parentNode?.replaceChild(tok.cloneNode(true), tok);
     }
     return wrap;
   };
 
-  // ── Waiting overlay ─────────────────────────────────────────
+  // ── UI helpers ───────────────────────────────────────────────
   let _waitEl = null;
   function showWaiting(msg) {
-    if (_waitEl) { _waitEl.remove(); }
+    if (_waitEl) _waitEl.remove();
     _waitEl = document.createElement('div');
     _waitEl.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;';
+    if (!document.getElementById('_spincss')) {
+      const s = document.createElement('style');
+      s.id = '_spincss';
+      s.textContent = '@keyframes _spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(s);
+    }
     _waitEl.innerHTML = `
       <div style="width:40px;height:40px;border:2px solid #1c2840;border-top-color:#2266ff;border-radius:50%;animation:_spin 0.8s linear infinite"></div>
       <div style="font-family:Orbitron,sans-serif;font-size:13px;color:#4a6080;letter-spacing:2px">${msg}</div>
       <a href="lobby.html" style="font-size:10px;color:#304050;letter-spacing:1px;border:1px solid #1c2840;padding:8px 20px;border-radius:4px;text-decoration:none;">← LOBBY</a>`;
-    if (!document.getElementById('_spin_css')) {
-      const s = document.createElement('style');
-      s.id = '_spin_css';
-      s.textContent = '@keyframes _spin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(s);
-    }
     document.body.appendChild(_waitEl);
   }
 
   function showTurnBanner(title, subtitle) {
     if (_waitEl) { _waitEl.remove(); _waitEl = null; }
-    const banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px';
-    banner.innerHTML = `
+    const b = document.createElement('div');
+    b.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px';
+    b.innerHTML = `
       <div style="font-family:'Orbitron',sans-serif;font-size:24px;font-weight:700;color:#ddeeff;letter-spacing:4px">${title}</div>
       <div style="font-size:12px;color:#4a6080;letter-spacing:2px">${subtitle}</div>
       <button style="padding:12px 36px;background:transparent;border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:4px">BEGIN TURN</button>`;
-    banner.querySelector('button').onclick = () => { banner.remove(); window.startTimerTick?.(); window.render(); };
-    document.body.appendChild(banner);
+    b.querySelector('button').onclick = () => { b.remove(); window.startTimerTick?.(); window.render(); };
+    document.body.appendChild(b);
   }
 }
 </script>
