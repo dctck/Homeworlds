@@ -1635,46 +1635,44 @@ function showWin(winnerPlayer) {
     setTimeout(() => btn.textContent = 'COPY LOG', 2000);
   };
 
-  // Lobby
-  document.getElementById('wo-lobby').onclick = () => location.href = 'lobby.html';
+  // Lobby — mark exit, room deleted only when both players exit
+  document.getElementById('wo-lobby').onclick = async () => {
+    if (typeof window._markExited === 'function') await window._markExited();
+    location.href = 'lobby.html';
+  };
 
-  // Review Game — archive then redirect
+  // Review Game — archive auto-happened on game end; just get the ID
   document.getElementById('wo-review').onclick = async () => {
     const btn = document.getElementById('wo-review');
     const status = document.getElementById('wo-status');
-    btn.disabled = true; btn.textContent = 'SAVING…';
-    const gameId = await archiveGame(winnerPlayer);
+    btn.disabled = true; btn.textContent = 'LOADING…';
+    const gameId = await getReviewId(winnerPlayer);
     if (gameId) {
+      if (typeof window._markExited === 'function') await window._markExited();
       location.href = `review.html?game=${gameId}`;
     } else {
-      status.textContent = 'Could not save — check connection.';
+      status.textContent = 'Game record not ready — try again.';
       btn.disabled = false; btn.textContent = 'REVIEW GAME';
     }
   };
-
-  // Notify online module to handle star updates + room cleanup
-  window.dispatchEvent(new CustomEvent('gameOver', { detail: { winnerPlayer } }));
 }
-// Archive current game to sessionStorage (pass-and-play) or Firebase (online).
-// Returns a game ID string, or null on failure.
-async function archiveGame(winnerPlayer) {
-  const record = {
-    winner:   winnerPlayer,
-    players:  [null, PLAYER_CONFIG.names[1]||'Player 1', PLAYER_CONFIG.names[2]||'Player 2'],
-    log:      G.log || [],
-    snapshots: window._gameSnapshots || [],
-    playedAt: Date.now(),
-  };
-  // Pass-and-play: use sessionStorage
+
+// Get review game ID: local (pass-and-play) or Firebase (online)
+async function getReviewId(winnerPlayer) {
   if (!window._ONLINE?.active) {
+    const record = {
+      winner:    winnerPlayer,
+      players:   [null, PLAYER_CONFIG.names[1]||'Player 1', PLAYER_CONFIG.names[2]||'Player 2'],
+      log:       G.log || [],
+      snapshots: window._gameSnapshots || [],
+      playedAt:  Date.now(),
+    };
     const id = 'local-' + Date.now();
     try { sessionStorage.setItem('hw_review_' + id, JSON.stringify(record)); } catch(e) {}
     return id;
   }
-  // Online: delegate to the module's archiveOnline()
-  if (typeof window._archiveOnline === 'function') {
-    return await window._archiveOnline(record);
-  }
+  // Online: host auto-archived; poll for the ID
+  if (typeof window._archiveOnline === 'function') return await window._archiveOnline();
   return null;
 }
 
@@ -3856,62 +3854,77 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     onDisconnect(presRef).set({ uid: user.uid, online: false });
   }
 
-  // ── When game ends mid-turn, push OVER state immediately ─────
+  // ── When game ends: push OVER state + auto-archive (host only) ─
+  let _archived = false;
   window.addEventListener('gameEnded', async ({ detail }) => {
     if (!window._ONLINE?.active) return;
-    // Commit any pending actions and push state with phase:OVER
     if (typeof window.commitTurnLog === 'function') window.commitTurnLog();
     await saveState();
+
+    // Only host (MY_SLOT=1) archives to avoid double-write race
+    if (MY_SLOT === 1 && !_archived) {
+      _archived = true;
+      const record = {
+        winner:    detail.winner,
+        players:   [null,
+          window.PLAYER_CONFIG?.names[1] || 'Player 1',
+          window.PLAYER_CONFIG?.names[2] || 'Player 2'],
+        log:       (window.G?.log) || [],
+        snapshots: window._gameSnapshots || [],
+        playedAt:  Date.now(),
+      };
+      try {
+        const counterSnap = await get(ref(db, 'gamesPlayedCount'));
+        const nextId = ((counterSnap.val() || 0) + 1);
+        await set(ref(db, `gamesPlayed/${nextId}`), record);
+        await set(ref(db, 'gamesPlayedCount'), nextId);
+        const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
+        const room = roomSnap.val();
+        if (room) {
+          const w = detail.winner, l = 3 - w;
+          const wUid   = w === 1 ? room.player1?.uid   : room.player2?.uid;
+          const lUid   = l === 1 ? room.player1?.uid   : room.player2?.uid;
+          const wStars = w === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
+          const lStars = l === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
+          if (wUid) await update(ref(db, `players/${wUid}`), { stars: wStars + 3 });
+          if (lUid) await update(ref(db, `players/${lUid}`), { stars: Math.max(0, lStars - 1) });
+        }
+        await update(ref(db, `rooms/${ROOM_ID}`), {
+          status: 'archived',
+          archivedGameId: String(nextId),
+          winner: detail.winner,
+          winnerName: record.players[detail.winner] || `Player ${detail.winner}`,
+        });
+      } catch(e) {
+        console.error('Auto-archive failed', e);
+      }
+    }
   });
 
-  // ── Archive game to Firebase, update stars, delete room ──────
-  window._archiveOnline = async function(record) {
+  // ── "Review Game" / "Lobby" buttons call this to mark exit ────
+  // Room is only deleted once BOTH players have exited.
+  window._markExited = async function() {
+    if (!window._ONLINE?.active) return;
     try {
-      // Get next game ID
-      const counterSnap = await get(ref(db, 'gamesPlayedCount'));
-      const nextId = ((counterSnap.val() || 0) + 1);
-
-      // Save game record
-      await set(ref(db, `gamesPlayed/${nextId}`), record);
-      await set(ref(db, 'gamesPlayedCount'), nextId);
-
-      // Update star counts for both players
-      const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
-      const room = roomSnap.val();
-      if (room) {
-        const w = record.winner, l = 3 - w;
-        const wUid = w === 1 ? room.player1?.uid : room.player2?.uid;
-        const lUid = l === 1 ? room.player1?.uid : room.player2?.uid;
-        const wStars = w === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
-        const lStars = l === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
-        if (wUid) await update(ref(db, `players/${wUid}`), { stars: wStars + 3 });
-        if (lUid) await update(ref(db, `players/${lUid}`), { stars: Math.max(0, lStars - 1) });
+      await set(ref(db, `rooms/${ROOM_ID}/exitedBy/${MY_SLOT}`), true);
+      const snap = await get(ref(db, `rooms/${ROOM_ID}/exitedBy`));
+      const ex = snap.val() || {};
+      if (ex[1] && ex[2]) {
+        await set(ref(db, `rooms/${ROOM_ID}`), null);
       }
-
-      // Mark room as archived (don't delete yet — other player may still need to see win screen)
-      await update(ref(db, `rooms/${ROOM_ID}`), { status: 'archived', archivedGameId: nextId });
-
-      return String(nextId);
-    } catch(e) {
-      console.error('Archive failed', e);
-      return null;
-    }
+    } catch(e) {}
   };
 
-  // When both players have seen the game over screen, room can be deleted.
-  // We track this with rooms/{id}/seenBy/{slot} = true
-  window.addEventListener('gameOver', async ({ detail }) => {
-    if (!window._ONLINE?.active) return;
-    await set(ref(db, `rooms/${ROOM_ID}/seenBy/${MY_SLOT}`), true);
-    // Check if both players have seen it
-    onValue(ref(db, `rooms/${ROOM_ID}/seenBy`), async snap => {
-      const seen = snap.val() || {};
-      if (seen[1] && seen[2]) {
-        // Both seen — delete room
-        try { await set(ref(db, `rooms/${ROOM_ID}`), null); } catch(e) {}
-      }
-    }, { onlyOnce: false });
-  });
+  // ── "Review Game": navigate to review page (archive already done) ─
+  window._archiveOnline = async function() {
+    // Poll for archivedGameId written by host
+    for (let i = 0; i < 30; i++) {
+      const snap = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
+      if (snap.val()) return String(snap.val());
+      await new Promise(r => setTimeout(r, 300));
+    }
+    return null;
+  };
 
   // ── Save canonical G to Firebase ─────────────────────────────
   async function saveState() {

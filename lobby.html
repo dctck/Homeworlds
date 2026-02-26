@@ -389,8 +389,9 @@ function subscribeRooms(){
 function renderRooms(rooms){
   const list = document.getElementById('room-list');
   const myUid = ME?.uid;
-  let entries = Object.values(rooms)
-    .filter(r => r.status !== 'finished' && r.status !== 'deleted')
+  let entries = Object.entries(rooms)
+    .map(([id, r]) => ({ ...r, id }))           // inject id from key
+    .filter(r => r.name && r.status !== 'finished' && r.status !== 'deleted')
     .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
   if (currentFilter !== 'all') {
     if (currentFilter === 'playing') entries = entries.filter(r => r.status === 'playing');

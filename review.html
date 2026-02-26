@@ -162,6 +162,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 <script type="module">
 import { initializeApp }   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
 
 // ── Constants ────────────────────────────────────────────────
@@ -171,9 +172,9 @@ const SIZE_PIPS = ['','·','··','···'];
 const COLOR_LETTER = {red:'r',blue:'b',yellow:'y',green:'g'};
 
 // ── State ────────────────────────────────────────────────────
-let snapshots = [];   // array of G snapshots, one per committed turn
-let logEntries = [];  // G.log array from final snapshot
-let currentIdx = 0;   // which snapshot we're viewing
+let snapshots = [];
+let logEntries = [];
+let currentIdx = 0;
 let players = ['', 'Player 1', 'Player 2'];
 
 // ── Load ─────────────────────────────────────────────────────
@@ -183,20 +184,32 @@ async function load() {
 
   if (!gameId) { setLoading('No game ID provided.'); return; }
 
-  // Local (pass-and-play) game stored in sessionStorage
+  // Local (pass-and-play) — no auth needed
   if (gameId.startsWith('local-')) {
     const raw = sessionStorage.getItem('hw_review_' + gameId);
-    if (!raw) { setLoading('Game not found in local storage.'); return; }
+    if (!raw) { setLoading('Local game not found (session may have ended).'); return; }
     init(JSON.parse(raw));
     return;
   }
 
-  // Firebase game
+  // Firebase game — must wait for auth first
+  setLoading('Authenticating…');
   try {
     const fbApp = initializeApp(firebaseConfig);
     const db    = getDatabase(fbApp);
-    const snap  = await get(ref(db, `gamesPlayed/${gameId}`));
-    if (!snap.exists()) { setLoading('Game not found.'); return; }
+    const auth  = getAuth(fbApp);
+
+    await new Promise((resolve, reject) => {
+      const unsub = onAuthStateChanged(auth, user => {
+        unsub();
+        if (user) resolve(user);
+        else reject(new Error('Not signed in. Please sign in via the lobby first.'));
+      });
+    });
+
+    setLoading('Loading game…');
+    const snap = await get(ref(db, `gamesPlayed/${gameId}`));
+    if (!snap.exists()) { setLoading(`Game #${gameId} not found — it may still be saving. Try again in a moment.`); return; }
     init(snap.val());
   } catch(e) {
     setLoading('Failed to load: ' + e.message);
