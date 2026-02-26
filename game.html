@@ -1150,7 +1150,7 @@ const SIZE_PIPS = ['','·','··','···'];
 const SIZE_NAME = ['','Small','Medium','Large'];
 const COLOR_HEX = { red:'#ff3344', blue:'#2266ff', yellow:'#ffcc00', green:'#22dd77' };
 
-let uid = 0;
+var uid = 0;
 const nextId = () => ++uid;
 
 // ============================================================
@@ -3722,6 +3722,15 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window._lastOppTs = d.ts;
 
       const g = JSON.parse(d.gJson);
+
+      // Sync uid counter past all existing IDs so nextId() never collides
+      let maxId = 0;
+      g.systems.forEach(sys => {
+        maxId = Math.max(maxId, sys.id || 0);
+        sys.ships.forEach(ship => maxId = Math.max(maxId, ship.id || 0));
+      });
+      if (window.uid !== undefined) window.uid = Math.max(window.uid, maxId);
+
       g.history = null;
       g.interaction = 'IDLE';
       g.selectedShipId = null;
