@@ -3894,21 +3894,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         await set(ref(db, 'gamesPlayedCount'), nextId);
         console.log('[HW] gamesPlayed written OK');
 
-        // Update star counts
-        const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
-        const room = roomSnap.val();
-        if (room) {
-          const w = detail.winner, l = 3 - w;
-          const wUid   = w === 1 ? room.player1?.uid   : room.player2?.uid;
-          const lUid   = l === 1 ? room.player1?.uid   : room.player2?.uid;
-          const wStars = w === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
-          const lStars = l === 1 ? parseInt(room.player1?.stars||0) : parseInt(room.player2?.stars||0);
-          console.log('[HW] Updating stars — winner uid:', wUid, '+3; loser uid:', lUid, '-1');
-          if (wUid) await update(ref(db, `players/${wUid}`), { stars: wStars + 3 });
-          if (lUid) await update(ref(db, `players/${lUid}`), { stars: Math.max(0, lStars - 1) });
-        }
-
-        // Tag room so both clients can find the review
+        // Tag room FIRST so both clients can find the review even if star update fails
         await update(ref(db, `rooms/${ROOM_ID}`), {
           status: 'archived',
           archivedGameId: String(nextId),
@@ -3919,6 +3905,24 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       } catch(e) {
         console.error('[HW] Auto-archive FAILED:', e);
         _archived = false; // allow retry
+        return;
+      }
+
+      // Update THIS client's own stars only (rules only allow writing your own record)
+      // Both clients run this independently — winner gets +3, loser gets -1
+      try {
+        const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
+        const room = roomSnap.val();
+        if (room) {
+          const myUid = room[MY_SLOT === 1 ? 'player1' : 'player2']?.uid;
+          const myStars = parseInt(room[MY_SLOT === 1 ? 'player1' : 'player2']?.stars || 0);
+          const iWon = detail.winner === MY_SLOT;
+          const newStars = iWon ? myStars + 3 : Math.max(0, myStars - 1);
+          console.log('[HW] Updating my stars:', myStars, '->', newStars, '(iWon:', iWon, ')');
+          if (myUid) await update(ref(db, `players/${myUid}`), { stars: newStars });
+        }
+      } catch(e) {
+        console.warn('[HW] Star update failed (non-fatal):', e.message);
       }
     }
   });
