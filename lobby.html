@@ -356,6 +356,7 @@ document.getElementById('btn-create').onclick = async () => {
   const name   = document.getElementById('room-name').value.trim() || `${ME.name}'s Room`;
   const isPriv = document.getElementById('toggle-private').checked;
   const pw     = isPriv ? document.getElementById('room-password').value.trim() : '';
+  const isPrivFinal = isPriv && pw.length > 0;  // not private if password left blank
 
   let timeMs=0, tcTurnMs=0;
   if (selectedTc==='blitz')      timeMs = 10*60*1000;
@@ -365,8 +366,8 @@ document.getElementById('btn-create').onclick = async () => {
 
   const roomRef = push(ref(db,'rooms'));
   await set(roomRef,{
-    id:roomRef.key, name, status:'waiting', isPrivate:isPriv,
-    password: pw ? simpleHash(pw) : '',
+    id:roomRef.key, name, status:'waiting', isPrivate:isPrivFinal,
+    password: isPrivFinal ? simpleHash(pw) : '',
     hostUid:ME.uid, guestUid:null,
     settings:{tcMode:selectedTc,timeMs,tcTurnMs},
     player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0},
@@ -435,7 +436,11 @@ document.getElementById('modal-pw-eye').onclick=()=>{
   inp.type = inp.type==='password' ? 'text' : 'password';
 };
 async function doJoin(id){
-  await update(ref(db,`rooms/${id}`),{guestUid:ME.uid,status:'playing',player2:{uid:ME.uid,name:ME.name,stars:ME.stars||0}});
+  await update(ref(db,`rooms/${id}`),{
+    guestUid: ME.uid,
+    player2:  {uid:ME.uid, name:ME.name, stars:ME.stars||0}
+    // status stays 'waiting' until START is clicked in game.html
+  });
   window.location.href=`game.html?room=${id}&player=2`;
 }
 

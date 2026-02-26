@@ -1152,16 +1152,25 @@ let PLAYER_CONFIG = {
 
 // ── Online mode (injected by online.js when URL has ?room=) ──
 window.ONLINE   = {
-  mode:     false,    // true when playing online
-  myPlayer: 0,        // 1 or 2
-  roomId:   null,
-  // These are set by online.js:
-  onAction: null,     // called by game after every local action: onAction(type, params)
-  onEndTurn: null,    // called by game at end of turn
-  onWin: null,        // called by game when win detected: onWin(winner)
-  lockInput: () => window.ONLINE.mode && G && G.currentPlayer !== window.ONLINE.myPlayer,
-  sendChat: null,     // injected by online.js for sending chat over Firebase
+  mode:        false,
+  myPlayer:    0,
+  roomId:      null,
+  firstPlayer: 1,
+  onAction:    null,
+  onEndTurn:   null,
+  onWin:       null,
+  lockInput:   () => window.ONLINE.mode && G && G.currentPlayer !== window.ONLINE.myPlayer,
+  sendChat:    null,
 };
+
+/** Returns the player number "belonging to me" on this client. */
+function myPlayerNum() {
+  return (window.ONLINE.mode && window.ONLINE.myPlayer) ? window.ONLINE.myPlayer : G.currentPlayer;
+}
+/** True when it is my turn to act. */
+function isMyTurn() {
+  return !window.ONLINE.mode || G.currentPlayer === window.ONLINE.myPlayer;
+}
 
 function makeInitialState() {
   const bank = {};
@@ -1890,7 +1899,9 @@ function bfsDistances(startSys) {
 function makeTurnToken(player) {
   const canEnd = G.turnUsed || (G._pendingActions && G._pendingActions.length > 0) || G.sacrificePool.count > 0;
   const midAction = G.interaction !== 'IDLE' && G.interaction !== 'SHIP_SELECTED';
-  const disabled = midAction; // can't end turn mid-action; skip is always allowed
+  // Online: only clickable when it's my token AND my turn
+  const notMyTurn = window.ONLINE.mode && player !== window.ONLINE.myPlayer;
+  const disabled = midAction || notMyTurn;
 
   const wrap = document.createElement('div');
   wrap.className = 'turn-token-wrap';
@@ -1959,6 +1970,8 @@ function makeSetupToken(player) {
  * After sacrifice: only ships that can validly use the sacrifice color action.
  */
 function isSelectableShip(ship, sys) {
+  if (!isMyTurn()) return false;                   // never bob when it's not my turn
+  if (ship.owner !== myPlayerNum()) return false;  // never bob opponent's ships
   if (G.turnUsed && G.sacrificePool.count === 0) return false;
   if (G.sacrificePool.count === 0) return true; // normal turn — all own ships
 
@@ -2072,29 +2085,48 @@ function renderBoard() {
   };
 
   if (G.phase === 'SETUP') {
-    renderSetupPreview(G.currentPlayer === 1 ? zP1 : zP2);
+    // My setup preview always in the bottom zone (zP1)
+    const setupIsMe = !window.ONLINE.mode || G.currentPlayer === window.ONLINE.myPlayer;
+    if (setupIsMe) renderSetupPreview(zP1);
   }
 
   const hw2 = G.systems.find(s => s.isHomeworld === 2);
   const hw1 = G.systems.find(s => s.isHomeworld === 1);
 
+  // Online: my homeworld always at bottom (zP1 = bottom zone)
+  // Pass-and-play: P1=bottom, P2=top (unchanged)
+  const myNum  = window.ONLINE.mode ? window.ONLINE.myPlayer : 1;
+  const oppNum = 3 - myNum;
+  const hwMine = G.systems.find(s => s.isHomeworld === myNum);
+  const hwOpp  = G.systems.find(s => s.isHomeworld === oppNum);
+
+  // Update zone labels dynamically
+  const labelP2 = zP2.previousElementSibling;
+  const labelP1 = zP1.previousElementSibling;
+  if (labelP2 && labelP2.classList.contains('zone-label')) {
+    labelP2.textContent = `— ${PLAYER_CONFIG.names[oppNum] || `PLAYER ${oppNum}`} HOMEWORLD —`;
+  }
+  if (labelP1 && labelP1.classList.contains('zone-label')) {
+    labelP1.textContent = `— ${PLAYER_CONFIG.names[myNum] || `PLAYER ${myNum}`} HOMEWORLD —`;
+  }
+
   // Render homeworlds in their zones
-  if (hw2) {
-    zP2.appendChild(renderSystem(hw2));
-    if (G.phase === 'PLAY' && G.currentPlayer === 2) {
-      zP2.appendChild(makeTurnToken(2));
+  if (hwOpp) {
+    zP2.appendChild(renderSystem(hwOpp));
+    if (G.phase === 'PLAY' && G.currentPlayer === oppNum) {
+      zP2.appendChild(makeTurnToken(oppNum));
     }
   }
-  if (hw1) {
-    zP1.appendChild(renderSystem(hw1));
-    if (G.phase === 'PLAY' && G.currentPlayer === 1) {
-      zP1.appendChild(makeTurnToken(1));
+  if (hwMine) {
+    zP1.appendChild(renderSystem(hwMine));
+    if (G.phase === 'PLAY' && G.currentPlayer === myNum) {
+      zP1.appendChild(makeTurnToken(myNum));
     }
   }
   // During setup: show confirm token on current player's zone when setup is done
   if (G.phase === 'SETUP' && G.setupDone) {
-    const setupZone = G.currentPlayer === 1 ? zP1 : zP2;
-    setupZone.appendChild(makeSetupToken(G.currentPlayer));
+    const setupIsMe = !window.ONLINE.mode || G.currentPlayer === window.ONLINE.myPlayer;
+    if (setupIsMe) zP1.appendChild(makeSetupToken(G.currentPlayer));
   }
 
   // Mid systems: sort by BFS distance from P2, tiebreak by distance from P1 (descending)
@@ -2229,7 +2261,7 @@ function renderSystem(sys) {
   function makeShipWrap(ship) {
     const wrap = document.createElement('div');
     wrap.className = 'ship-wrap';
-    const isOwn    = ship.owner === G.currentPlayer;
+    const isOwn    = ship.owner === myPlayerNum();  // "mine" based on who I am, not whose turn
     const isSelected = G.selectedShipId === ship.id;
     const isEnemy  = !isOwn;
 
@@ -3637,15 +3669,39 @@ function renderMobileLog() {
     window.ONLINE.mode     = true;
     window.ONLINE.myPlayer = playerNum;
     window.ONLINE.roomId   = roomId;
-    // Show loading screen while online.js fetches room data
+    // Show pre-game lobby while online.js loads room
     const modal = document.getElementById('startup-modal');
     if (modal) {
       modal.innerHTML = `
-        <div style="text-align:center;color:#a8c0e0;font-family:Share Tech Mono,monospace">
-          <div style="font-family:Orbitron,sans-serif;font-size:20px;font-weight:900;color:#ddeeff;letter-spacing:4px;margin-bottom:16px">JOINING GAME</div>
-          <div style="font-size:12px;color:#4a6080;letter-spacing:2px;margin-bottom:32px">Connecting to room…</div>
-          <div style="width:40px;height:40px;border:2px solid #1c2840;border-top-color:#4488ff;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto"></div>
-          <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+        <div id="pregame-lobby" style="text-align:center;color:#a8c0e0;font-family:Share Tech Mono,monospace;min-width:320px;padding:8px">
+          <div style="font-family:Orbitron,sans-serif;font-size:18px;font-weight:900;color:#ddeeff;letter-spacing:4px;margin-bottom:6px">HOMEWORLDS DUEL</div>
+          <div id="pg-room-name" style="font-size:11px;color:#4a6080;letter-spacing:2px;margin-bottom:24px"></div>
+
+          <div style="display:flex;gap:16px;justify-content:center;margin-bottom:24px">
+            <div id="pg-slot-1" style="width:130px;padding:12px;border:1px solid #1c2840;border-radius:6px;background:rgba(255,255,255,0.02)">
+              <div style="font-size:9px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 1</div>
+              <div id="pg-name-1" style="font-size:13px;color:#4488ff;font-family:Orbitron,sans-serif;letter-spacing:1px">—</div>
+              <div id="pg-status-1" style="font-size:9px;margin-top:4px;color:#304050">waiting…</div>
+            </div>
+            <div style="display:flex;align-items:center;color:#2a3850;font-size:18px">VS</div>
+            <div id="pg-slot-2" style="width:130px;padding:12px;border:1px solid #1c2840;border-radius:6px;background:rgba(255,255,255,0.02)">
+              <div style="font-size:9px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 2</div>
+              <div id="pg-name-2" style="font-size:13px;color:#ff4455;font-family:Orbitron,sans-serif;letter-spacing:1px">—</div>
+              <div id="pg-status-2" style="font-size:9px;margin-top:4px;color:#304050">waiting…</div>
+            </div>
+          </div>
+
+          <div id="pg-msg" style="font-size:11px;color:#4a6080;letter-spacing:1px;margin-bottom:20px;min-height:16px">
+            Waiting for opponent to join…
+          </div>
+
+          <button id="pg-start-btn" style="display:none;width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:all 0.2s">
+            START GAME ›
+          </button>
+
+          <div style="margin-top:16px">
+            <a href="lobby.html" style="font-size:10px;color:#253040;text-decoration:none;letter-spacing:1px">← BACK TO LOBBY</a>
+          </div>
         </div>`;
     }
     // online.js calls window.startOnlineGame(config) when room is loaded

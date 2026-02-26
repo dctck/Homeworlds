@@ -1,160 +1,108 @@
-// ============================================================
-//  ONLINE.JS  —  Firebase sync layer for game.html
-//
-//  Loaded as <script type="module"> by game.html.
-//  Only runs when URL has ?room=ROOMID&player=1or2.
-//  Pass-and-play mode is entirely unaffected.
-//
-//  Architecture:
-//    /rooms/{roomId}/actions  ← append-only action log
-//    /rooms/{roomId}/state    ← latest committed G snapshot (end of each turn)
-//    /rooms/{roomId}/thinking ← live broadcast: what the active player is doing
-//    /rooms/{roomId}/chat     ← live chat messages
-//    /rooms/{roomId}          ← room meta: status, players, winner
-//
-//  Security model:
-//    - Every incoming action is validated by re-replaying the action log
-//      from scratch via the game's own pure state functions.
-//    - The "state" node is only for fast reconnect — it's never trusted
-//      as authoritative. The action log always wins.
-//    - A cheater who pushes a malformed action will cause the opponent's
-//      client to diverge and flag an error. Cloud Functions can add
-//      server-side canX() validation later as a drop-in upgrade.
-// ============================================================
-
-import { initializeApp }           from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getAuth, onAuthStateChanged }
-                                   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getDatabase, ref, get, set, push, update, onChildAdded, onValue, serverTimestamp, increment, onDisconnect }
-                                   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-import { firebaseConfig }          from './firebase-config.js';
-
-// ── Init Firebase ────────────────────────────────────────────
-const fbApp  = initializeApp(firebaseConfig);
-const auth   = getAuth(fbApp);
-const db     = getDatabase(fbApp);
-
-// ── URL params ───────────────────────────────────────────────
-const urlParams = new URLSearchParams(window.location.search);
-const ROOM_ID   = urlParams.get('room');
-const MY_PLAYER = parseInt(urlParams.get('player')) || 0;
-
-if (!ROOM_ID || (MY_PLAYER !== 1 && MY_PLAYER !== 2)) {
-  // Not an online game — module exits silently
-  // pass-and-play startup modal will handle everything
-} else {
-  // ── Wait for DOM + auth then boot ────────────────────────
-  document.addEventListener('DOMContentLoaded', () => {
-    onAuthStateChanged(auth, user => {
-      if (!user) { window.location.href = 'index.html'; return; }
-      boot(user);
-    });
-  });
-}
-
-// ── Action type constants ────────────────────────────────────
-const ACTION = {
-  NOTATION : 'NOTATION',   // a single notation string was appended to _pendingActions
-  END_TURN : 'END_TURN',   // player clicked End Turn; carries committed G snapshot
-  GAME_OVER: 'GAME_OVER',  // winner declared
-  CHAT     : 'CHAT',       // chat message
-};
-
-// ── Replay helpers ───────────────────────────────────────────
-// These mirror the notation keywords produced by Note.* in game.html.
-// We don't need to "replay" — instead we trust the G snapshot pushed
-// at END_TURN and just load it. We keep the action log purely for the
-// game log display and cheat-detection future use.
+// ── Helper ──────────────────────────────────────────────────
+function id(x) { return document.getElementById(x); }
 
 // ── Main boot ────────────────────────────────────────────────
 async function boot(user) {
-  // Load room meta
   const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
   if (!roomSnap.exists()) {
     alert('Room not found. Returning to lobby.');
-    window.location.href = 'lobby.html';
-    return;
+    window.location.href = 'lobby.html'; return;
   }
   const room = roomSnap.val();
-
-  // Verify this user belongs in this room
-  const myUid   = user.uid;
-  const p1Uid   = room.player1?.uid;
-  const p2Uid   = room.player2?.uid;
-  if (MY_PLAYER === 1 && p1Uid !== myUid) {
+  const myUid = user.uid;
+  if (MY_PLAYER === 1 && room.player1?.uid !== myUid) {
     alert('You are not Player 1 in this room.');
-    window.location.href = 'lobby.html';
-    return;
+    window.location.href = 'lobby.html'; return;
   }
-  if (MY_PLAYER === 2 && p2Uid !== myUid) {
+  if (MY_PLAYER === 2 && room.player2?.uid !== myUid) {
     alert('You are not Player 2 in this room.');
-    window.location.href = 'lobby.html';
-    return;
+    window.location.href = 'lobby.html'; return;
   }
 
-  // Load player profile for advanced mode setting
+  updatePregameUI(room);
+
+  // Subscribe to room — when status becomes 'playing', start the match
+  onValue(ref(db, `rooms/${ROOM_ID}`), snap => {
+    const r = snap.val();
+    if (!r) return;
+    updatePregameUI(r);
+    if (r.status === 'playing' && r.player1 && r.player2) {
+      startOnlineMatch(r, user);
+    }
+  });
+}
+
+function updatePregameUI(room) {
+  if (!id('pg-room-name')) return; // modal already gone
+  if (id('pg-room-name')) id('pg-room-name').textContent = room.name || `Room ${ROOM_ID.slice(-6)}`;
+  if (room.player1) {
+    if (id('pg-name-1'))   id('pg-name-1').textContent   = room.player1.name || 'Player 1';
+    if (id('pg-status-1')) { id('pg-status-1').textContent = '✓ JOINED'; id('pg-status-1').style.color = '#22dd77'; }
+  }
+  if (room.player2) {
+    if (id('pg-name-2'))   id('pg-name-2').textContent   = room.player2.name || 'Player 2';
+    if (id('pg-status-2')) { id('pg-status-2').textContent = '✓ JOINED'; id('pg-status-2').style.color = '#22dd77'; }
+  }
+  const bothPresent = room.player1 && room.player2;
+  const notStarted  = room.status !== 'playing';
+  const startBtn    = id('pg-start-btn');
+  const msgEl       = id('pg-msg');
+  if (bothPresent && notStarted && startBtn) {
+    startBtn.style.display = 'block';
+    if (msgEl) msgEl.textContent = 'Both players ready — click START to begin!';
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      startBtn.textContent = 'STARTING…';
+      const firstPlayer = Math.random() < 0.5 ? 1 : 2;
+      await update(ref(db, `rooms/${ROOM_ID}`), { status: 'playing', firstPlayer });
+    };
+  } else if (!bothPresent && msgEl) {
+    msgEl.textContent = MY_PLAYER === 1
+      ? 'Waiting for opponent to join…'
+      : 'You joined! Waiting for host to start.';
+  }
+}
+
+async function startOnlineMatch(room, user) {
+  if (window._matchStarted) return;
+  window._matchStarted = true;
+
+  const myUid = user.uid;
   const myProfileSnap = await get(ref(db, `players/${myUid}`));
   const myProfile = myProfileSnap.val() || {};
+  const firstPlayer = room.firstPlayer || 1;
+  window.ONLINE.firstPlayer = firstPlayer;
 
-  // ── Determine who goes first (random, decided by P1, stored in room) ──
-  let firstPlayer = room.firstPlayer || null;
-  if (!firstPlayer && MY_PLAYER === 1) {
-    // Host picks randomly and saves it — P2 will read it back
-    firstPlayer = Math.random() < 0.5 ? 1 : 2;
-    await update(ref(db, `rooms/${ROOM_ID}`), { firstPlayer });
-  } else if (!firstPlayer) {
-    // P2 joined before host wrote it — poll briefly
-    for (let i = 0; i < 20; i++) {
-      await new Promise(r => setTimeout(r, 250));
-      const snap2 = await get(ref(db, `rooms/${ROOM_ID}/firstPlayer`));
-      if (snap2.exists()) { firstPlayer = snap2.val(); break; }
-    }
-    firstPlayer = firstPlayer || 1; // fallback
-  }
-
-  // Build PLAYER_CONFIG for startOnlineGame
   const config = {
     p1Name:      room.player1?.name  || 'Player 1',
     p2Name:      room.player2?.name  || 'Player 2',
     p1Stars:     room.player1?.stars || 0,
     p2Stars:     room.player2?.stars || 0,
-    timeMs:      room.settings?.timeMs    || 0,
-    tcMode:      room.settings?.tcMode    || 'unlimited',
-    tcTurnMs:    room.settings?.tcTurnMs  || 0,
-    advancedMode: myProfile.advancedMode  || false,
-    firstPlayer,   // 1 or 2 — randomly chosen
+    timeMs:      room.settings?.timeMs   || 0,
+    tcMode:      room.settings?.tcMode   || 'unlimited',
+    tcTurnMs:    room.settings?.tcTurnMs || 0,
+    advancedMode: myProfile.advancedMode || false,
+    firstPlayer,
   };
 
-  // Wait for game.html's startOnlineGame to be ready (it's defined in the INIT block)
   await waitForFn('startOnlineGame');
   window.startOnlineGame(config);
 
-  // ── Wire ONLINE callbacks ───────────────────────────────
   window.ONLINE.onAction  = handleLocalAction;
   window.ONLINE.onEndTurn = handleLocalEndTurn;
   window.ONLINE.onWin     = handleLocalWin;
   window.ONLINE.sendChat  = sendChat;
-  window.ONLINE.firstPlayer = firstPlayer; // store for game.html logic
 
-  // ── Presence ────────────────────────────────────────────
   const presenceRef = ref(db, `rooms/${ROOM_ID}/presence/p${MY_PLAYER}`);
   await set(presenceRef, { online: true, uid: myUid, ts: Date.now() });
   onDisconnect(presenceRef).set({ online: false, uid: myUid, ts: Date.now() });
-  // Update stats online count
   update(ref(db, 'stats'), { online: increment(1) });
   onDisconnect(ref(db, 'stats')).update({ online: increment(-1) });
 
-  // ── Subscribe to opponent's END_TURN actions ────────────
   subscribeActions();
-
-  // ── Subscribe to opponent thinking ──────────────────────
   subscribeThinking();
-
-  // ── Subscribe to chat ────────────────────────────────────
   subscribeChat();
-
-  // ── Reconnect: if there's a saved state, restore it ─────
-  await maybeRestoreState();
+  await maybeRestoreState(firstPlayer);
 }
 
 // ── Wait for a window function to be defined ────────────────
@@ -171,13 +119,13 @@ function waitForFn(name, maxMs = 5000) {
 }
 
 // ── Restore state on reconnect ───────────────────────────────
-async function maybeRestoreState() {
+async function maybeRestoreState(firstPlayer) {
+  firstPlayer = firstPlayer || window.ONLINE.firstPlayer || 1;
   const stateSnap = await get(ref(db, `rooms/${ROOM_ID}/state`));
   if (!stateSnap.exists()) {
-    // Fresh game — whoever goes first (from config.firstPlayer) sets up first
-    const roomSnap2 = await get(ref(db, `rooms/${ROOM_ID}/firstPlayer`));
-    const firstPlayer = roomSnap2.val() || 1;
+    // Fresh game
     if (MY_PLAYER === firstPlayer) {
+
       window.doStartMyTurn(); // remove loading, show board, it's my setup turn
     } else {
       const firstPlayerName = firstPlayer === 1
@@ -282,15 +230,26 @@ function subscribeThinking() {
 
 function showOpponentThinkingText(data) {
   const G = window.getG();
-  if (!G || G.currentPlayer === MY_PLAYER) return; // it IS my turn, don't show
+  if (!G || G.currentPlayer === MY_PLAYER) return; // it IS my turn, don't apply
 
-  const oppName = MY_PLAYER === 1
-    ? (window.getPlayerConfig?.()?.names[2] || 'Opponent')
-    : (window.getPlayerConfig?.()?.names[1] || 'Opponent');
+  // Apply live board state so we see opponent's moves in real-time
+  if (data.gJson) {
+    try {
+      const liveG = JSON.parse(data.gJson);
+      // Preserve my timer
+      if (G.timers) liveG.timers = { ...liveG.timers, [MY_PLAYER]: G.timers[MY_PLAYER] };
+      // Keep interaction locked — this is a preview, not my turn
+      liveG.interaction = 'IDLE';
+      liveG.selectedShipId = null;
+      window.setG(liveG);
+      window.renderGame();
+    } catch(e) { /* ignore parse errors */ }
+  }
 
+  const oppName = window.getPlayerConfig?.()?.names[3 - MY_PLAYER] || 'Opponent';
   let msg = `${oppName} is thinking…`;
   if (data.interaction === 'SHIP_SELECTED') msg = `${oppName} selected a ship`;
-  if (data.interaction === 'MOVING')        msg = `${oppName} is planning a move`;
+  if (data.interaction === 'MOVING')        msg = `${oppName} is moving`;
   if (data.interaction === 'TRADING')       msg = `${oppName} is trading`;
   if (data.interaction === 'ATTACKING')     msg = `${oppName} is attacking`;
   if (data.interaction === 'BUILDING')      msg = `${oppName} is building`;
@@ -321,9 +280,9 @@ function subscribeChat() {
 let _thinkingDebounce = null;
 function handleLocalAction(type, params) {
   if (type === 'NOTATION') {
-    // Broadcast thinking state (debounced 400ms)
+    // Debounce: push full G state 300ms after last action for live board
     clearTimeout(_thinkingDebounce);
-    _thinkingDebounce = setTimeout(() => broadcastThinking(), 400);
+    _thinkingDebounce = setTimeout(() => broadcastThinking(), 300);
   }
 }
 
@@ -334,6 +293,7 @@ function broadcastThinking() {
     player:       MY_PLAYER,
     interaction:  G.interaction || 'IDLE',
     pendingCount: (G._pendingActions || []).length,
+    gJson:        JSON.stringify(G),   // full board state for live preview
     ts:           Date.now(),
   });
 }
