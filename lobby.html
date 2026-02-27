@@ -456,15 +456,23 @@ function updateMyTurnBadge(rooms) {
 }
 
 function subscribeRooms(){
+  // Use limitToLast to only download recent rooms, reducing Firebase bandwidth
+  // Import query/orderByChild/limitToLast are not imported — use basic ref but add staleness filter
   onValue(ref(db,'rooms'), snap => {
-    lastRooms = snap.val() || {};
-    // Clean up shell rooms (only presence data, no name/status) older than 10 minutes
-    Object.entries(lastRooms).forEach(([id, room]) => {
-      if (!room.name && !room.status && room.presence) {
-        const hasOldPresence = Object.values(room.presence || {}).every(p => !p.online);
-        if (hasOldPresence) {
-          set(ref(db, `rooms/${id}`), null).catch(() => {});
-        }
+    const all = snap.val() || {};
+    // Filter to rooms active in last 7 days to limit memory/rendering
+    const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+    lastRooms = {};
+    Object.entries(all).forEach(([id, room]) => {
+      const ts = room.updatedAt || room.createdAt || 0;
+      // Keep recent rooms or rooms I'm in (regardless of age)
+      const isMine = room.hostUid === ME?.uid || room.player2?.uid === ME?.uid;
+      if (ts > cutoff || isMine) {
+        lastRooms[id] = room;
+      } else if (!room.name && !room.status && room.presence) {
+        // Delete shell rooms (presence only, no actual game data) while we're at it
+        const allOffline = Object.values(room.presence || {}).every(p => !p.online);
+        if (allOffline) set(ref(db, `rooms/${id}`), null).catch(() => {});
       }
     });
     renderRooms(lastRooms);
@@ -522,7 +530,8 @@ function renderRooms(rooms){
     if (isArchived) {
       const winnerName = room.winnerName || `Player ${room.winner}`;
       statusHtml = `<span class="room-status" style="color:#4a6080;border-color:#2a3850;background:rgba(255,255,255,.03)">ENDED</span>`;
-      actionsHtml = isParticipant && room.archivedGameId
+      // Anyone can review a finished game (no need to be a participant)
+      actionsHtml = room.archivedGameId
         ? `<button class="btn-join" style="border-color:#4a6080;color:#6080a0" onclick="location.href='review.html?game=${room.archivedGameId}'">REVIEW</button>`
         : '';
       badges += `<span class="room-priv" style="color:#8090a0;border-color:#2a384040;background:transparent">🏆 ${esc(winnerName)}</span>`;

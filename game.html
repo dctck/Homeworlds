@@ -505,24 +505,22 @@ body::before {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* extra space so ring doesn't clip against zone edge */
-  padding: 12px 8px 6px;
+  padding: 12px 8px 8px;
   flex-shrink: 0;
-  /* contain the ring entirely — no layout bleed */
   overflow: visible;
-  gap: 6px;
+  gap: 14px; /* larger gap — prevents accidental token tap when aiming for reset */
 }
 /* Hold-to-reset button below the turn token */
 .hold-reset-btn {
   font-family: 'Share Tech Mono', monospace;
-  font-size: 9px; letter-spacing: 1.5px;
-  color: #304050; border: 1px solid #1c2840;
-  background: transparent; border-radius: 4px;
-  padding: 3px 10px; cursor: pointer;
+  font-size: 10px; letter-spacing: 1.5px;
+  color: #3a5060; border: 1px solid #253545;
+  background: transparent; border-radius: 5px;
+  padding: 6px 18px; cursor: pointer;
   user-select: none; -webkit-tap-highlight-color: transparent;
   transition: color .15s, border-color .15s, background .15s;
   position: relative; overflow: hidden;
-  white-space: nowrap;
+  white-space: nowrap; min-width: 80px; text-align: center;
 }
 .hold-reset-btn:hover { color: #5a7090; border-color: #2a3850; }
 .hold-reset-btn.holding {
@@ -570,15 +568,14 @@ body::before {
   transform: scale(1.1);
 }
 .turn-token:not(.disabled):hover .token-label { opacity: 1; }
-.turn-token:not(.disabled):hover .token-initials { opacity: 0; }
+.turn-token:not(.disabled):hover .token-icon { opacity: 0; }
 .turn-token:not(.disabled):active { transform: scale(0.96); }
-.token-initials {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 14px; font-weight: 900;
-  color: currentColor; line-height: 1;
+.token-icon {
+  display: flex; align-items: center; justify-content: center;
   transition: opacity 0.15s;
   position: absolute;
 }
+.token-icon svg { fill: currentColor; }
 .token-label {
   font-family: 'Orbitron', sans-serif;
   font-size: 8px; font-weight: 700;
@@ -2027,10 +2024,10 @@ function makeTurnToken(player) {
   ring.className = 'token-ring';
   token.appendChild(ring);
 
-  // Initials (shown at rest)
-  const init = document.createElement('span');
-  init.className = 'token-initials';
-  init.textContent = initials;
+  // Ship icon (shown at rest) — SVG filled with current token color
+  const init = document.createElement('div');
+  init.className = 'token-icon';
+  init.innerHTML = `<svg width="18" height="24" viewBox="0 0 28 37" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="${'M28.21 33.3809H21.3701L22 37H6L6.62988 33.3809H0L14.1055 0L28.21 33.3809ZM14.0059 19.8857C11.3909 19.8857 9.27051 22.0061 9.27051 24.6211C9.27073 27.2359 11.391 29.3555 14.0059 29.3555C16.6205 29.3553 18.74 27.2358 18.7402 24.6211C18.7402 22.0062 16.6207 19.8859 14.0059 19.8857Z'}" fill="currentColor"/></svg>`;
   token.appendChild(init);
 
   // Label (shown on hover)
@@ -2116,9 +2113,9 @@ function makeSetupToken(player) {
   ring.className = 'token-ring';
   token.appendChild(ring);
 
-  const init = document.createElement('span');
-  init.className = 'token-initials';
-  init.textContent = '✓';
+  const init = document.createElement('div');
+  init.className = 'token-icon';
+  init.innerHTML = `<svg width="18" height="24" viewBox="0 0 28 37" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M28.21 33.3809H21.3701L22 37H6L6.62988 33.3809H0L14.1055 0L28.21 33.3809ZM14.0059 19.8857C11.3909 19.8857 9.27051 22.0061 9.27051 24.6211C9.27073 27.2359 11.391 29.3555 14.0059 29.3555C16.6205 29.3553 18.74 27.2358 18.7402 24.6211C18.7402 22.0062 16.6207 19.8859 14.0059 19.8857Z" fill="currentColor"/></svg>`;
   token.appendChild(init);
 
   const lbl = document.createElement('span');
@@ -3886,12 +3883,25 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           ${both && notStarted ? 'Both players ready!' : 'Waiting for opponent to join…'}
         </div>
         ${both && notStarted ? `<button id="pg-start" style="width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:3px;cursor:pointer;border-radius:6px;margin-bottom:12px;">START GAME ›</button>` : ''}
+        ${MY_SLOT === 1 && !p2ok ? `<button id="pg-cancel" style="width:100%;padding:11px;background:rgba(180,40,40,0.08);border:1px solid rgba(180,40,40,0.4);color:#c04050;font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:6px;margin-bottom:10px;">✕ CANCEL &amp; DELETE ROOM</button>` : ''}
         <button onclick="location.href='lobby.html'" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:4px;">← BACK TO LOBBY</button>
       </div>`;
     const sb = document.getElementById('pg-start');
     if (sb) sb.onclick = async () => {
       sb.disabled = true; sb.textContent = 'STARTING…';
       await update(ref(db, `rooms/${ROOM_ID}`), { status: 'playing' });
+    };
+    const cb = document.getElementById('pg-cancel');
+    if (cb) cb.onclick = async () => {
+      if (!confirm('Delete this room? This cannot be undone.')) return;
+      cb.disabled = true; cb.textContent = 'DELETING…';
+      try {
+        await set(ref(db, `rooms/${ROOM_ID}`), null); // full delete
+        window.location.href = 'lobby.html';
+      } catch(e) {
+        cb.disabled = false; cb.textContent = '✕ CANCEL & DELETE ROOM';
+        alert('Failed to delete room: ' + e.message);
+      }
     };
   }
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -4006,7 +4016,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         window.showWin(g.winner);
       } else if (g.currentPlayer === MY_SLOT) {
         const isSetup = g.phase === 'SETUP';
-        showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Continue your turn');
+        window.render(); // it's my turn — just render, no overlay needed
       } else {
         showWaiting('Waiting for opponent…');
       }
@@ -4016,7 +4026,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window.renderPlayerCards();
       window.render();
       if (MY_SLOT === 1) {
-        showTurnBanner('YOUR TURN', 'Set up your homeworld first');
+        window.render(); // my setup turn — just render
       } else {
         showWaiting('Waiting for Player 1 to set up their homeworld…');
       }
@@ -4057,7 +4067,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       // Remove any waiting banner before showing the turn banner
       if (_waitEl) { _waitEl.remove(); _waitEl = null; }
       const isSetup = incoming.phase === 'SETUP';
-      showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Opponent finished their turn');
+      // No overlay — board is already rendered above, player can move immediately
     });
 
     // Presence
@@ -4311,17 +4321,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (lobbyBtn)   lobbyBtn.disabled   = false;
   }
 
-  function showTurnBanner(title, subtitle) {
-    if (_waitEl) { _waitEl.remove(); _waitEl = null; }
-    const b = document.createElement('div');
-    b.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px';
-    b.innerHTML = `
-      <div style="font-family:'Orbitron',sans-serif;font-size:24px;font-weight:700;color:#ddeeff;letter-spacing:4px">${title}</div>
-      <div style="font-size:12px;color:#4a6080;letter-spacing:2px">${subtitle}</div>
-      <button style="padding:12px 36px;background:transparent;border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:4px">BEGIN TURN</button>`;
-    b.querySelector('button').onclick = () => { b.remove(); window.startTimerTick?.(); window.render(); };
-    document.body.appendChild(b);
-  }
+  // showTurnBanner removed — turns start immediately without an overlay
 }
 </script>
 </body>
