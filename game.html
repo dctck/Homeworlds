@@ -3580,11 +3580,10 @@ function showForfeitDialog(player) {
   overlay.querySelector('#forfeit-confirm').onclick = async () => {
     overlay.remove();
     const winner = player === 1 ? 2 : 1;
-    showWin(winner);
-    // In online mode: save OVER state to Firebase so opponent's client triggers win too
-    if (window._ONLINE?.active && typeof saveState === 'function') {
-      try { await saveState(); } catch(e) {}
-    }
+    // triggerWin = showWin + dispatch gameEnded (archive + ELO + recentGames).
+    // showWin alone skips all of that — that was the forfeit bug.
+    console.log('[HW] Forfeit confirmed: forfeiter=', player, 'winner=', winner, '— calling triggerWin');
+    triggerWin(winner);
   };
 }
 
@@ -4056,9 +4055,14 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window.G = incoming;
 
       if (incoming.phase === 'OVER') {
+        window.G = incoming; // ensure local G is OVER before render/showWin
         window.render();
         if (!document.getElementById('win-overlay')?.classList.contains('show')) {
-          window.showWin(incoming.winner);
+          // Use triggerWin so gameEnded fires on this client too.
+          // This ensures the loser's ELO + recentGames gets written.
+          // The archive guard inside gameEnded prevents double-write to gamesPlayed.
+          console.log('[HW] Incoming OVER state — calling triggerWin to fire gameEnded for ELO update');
+          window.triggerWin(incoming.winner);
         }
         return;
       }
@@ -4099,9 +4103,11 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         // Check if already archived (other client may have beaten us)
         const existingSnap = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
         if (existingSnap.val()) {
-          console.log('[HW] Already archived as', existingSnap.val(), '— skipping');
-          return;
-        }
+          // Already archived by the other client — do NOT return here.
+          // Fall through so this client still runs its own ELO + recentGames update below.
+          console.log('[HW] Already archived as', existingSnap.val(), '— skipping archive write, continuing to ELO update');
+          // Jump to ELO section by skipping the rest of the archive block
+        } else {
 
         const record = {
           winner:    detail.winner,
@@ -4129,6 +4135,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           winnerName: record.players[detail.winner] || `Player ${detail.winner}`,
         });
         console.log('[HW] Room tagged archived, archivedGameId=', nextId);
+        } // close else (not already archived)
       } catch(e) {
         console.error('[HW] Auto-archive FAILED:', e);
         _archived = false; // allow retry
@@ -4139,10 +4146,12 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
     // ── ELO + star update: runs on EVERY client (winner & loser both update their own record)
     // We wait briefly to ensure archivedGameId is written before reading it back
+    console.log('[HW] ELO section: MY_SLOT=', MY_SLOT, 'winner=', detail.winner, '— waiting 1.2s for archivedGameId...');
     await new Promise(r => setTimeout(r, 1200));
     try {
       const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
       const room = roomSnap.val();
+      console.log('[HW] ELO section: room=', room ? 'exists' : 'MISSING', 'archivedGameId=', room?.archivedGameId);
       if (room) {
         const mySlotKey  = MY_SLOT === 1 ? 'player1' : 'player2';
         const oppSlotKey = MY_SLOT === 1 ? 'player2' : 'player1';
@@ -4150,6 +4159,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         const iWon    = detail.winner === MY_SLOT;
         const oppName = room[oppSlotKey]?.name || `Player ${3 - MY_SLOT}`;
         const gameId  = room.archivedGameId;
+        console.log('[HW] ELO section: myUid=', myUid, 'iWon=', iWon, 'gameId=', gameId);
 
         if (myUid) {
           const [mySnap, oppSnap] = await Promise.all([
@@ -4175,6 +4185,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
           // Guard: don't double-update if this game is already in recentGames
           const alreadyRecorded = gameId && (myRec.recentGames || []).some(g => String(g.gameId) === String(gameId));
+          console.log('[HW] alreadyRecorded=', alreadyRecorded, 'gameId=', gameId, 'existing recentGames count=', (myRec.recentGames||[]).length);
           if (alreadyRecorded) {
             console.log('[HW] ELO already recorded for this game, skipping');
           } else {
@@ -4188,7 +4199,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
             if (gameId) {
               const hist = myRec.recentGames || [];
               const entry = { gameId, result: iWon ? 'win' : 'loss', opponent: oppName, starDelta, eloChange, playedAt: Date.now() };
+              console.log('[HW] Writing recentGames entry for uid=', myUid, 'entry=', entry);
               await set(ref(db, `players/${myUid}/recentGames`), [entry, ...hist].slice(0, 20));
+              console.log('[HW] recentGames written OK for uid=', myUid);
             }
           }
         }
