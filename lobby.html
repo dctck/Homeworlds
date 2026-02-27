@@ -239,6 +239,7 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
     <div class="main-title"><span class="live-dot"></span>OPEN ROOMS</div>
     <div class="filter-tabs">
       <div class="ftab active" data-filter="all">ALL</div>
+      <div class="ftab" data-filter="myturn">MY TURN</div>
       <div class="ftab" data-filter="waiting">WAITING</div>
       <div class="ftab" data-filter="playing">IN PROGRESS</div>
     </div>
@@ -433,13 +434,30 @@ document.getElementById('btn-create').onclick = async () => {
     password: isPrivFinal ? simpleHash(pw) : '',
     hostUid:ME.uid, guestUid:null,
     settings:{tcMode:selectedTc,timeMs,tcTurnMs},
-    player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0},
+    player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0,elo:ME.elo||1200},
     player2:null, currentTurn:1, createdAt:Date.now(),
   });
   window.location.href = `game.html?room=${roomRef.key}&player=1`;
 };
 
 // ── Room list ────────────────────────────────────────────────
+// Update MY TURN tab badge count
+function updateMyTurnBadge(rooms) {
+  const tab = document.querySelector('[data-filter="myturn"]');
+  if (!tab || !ME) return;
+  const myUid = ME.uid;
+  let count = 0;
+  Object.values(rooms || {}).forEach(r => {
+    const isHost  = r.hostUid === myUid;
+    const isGuest = r.player2?.uid === myUid;
+    const mySlotN = isHost ? 1 : isGuest ? 2 : 0;
+    if (r.status === 'playing' && r.currentPlayer === mySlotN) count++;
+  });
+  tab.textContent = count > 0 ? `MY TURN (${count})` : 'MY TURN';
+  tab.style.color = count > 0 ? '#ffcc00' : '';
+  tab.style.borderColor = count > 0 ? '#ffcc0040' : '';
+}
+
 function subscribeRooms(){
   onValue(ref(db,'rooms'), snap => {
     lastRooms = snap.val() || {};
@@ -449,18 +467,27 @@ function subscribeRooms(){
 
 function renderRooms(rooms){
   const list = document.getElementById('room-list');
+  updateMyTurnBadge(rooms);
   const myUid = ME?.uid;
   let entries = Object.entries(rooms)
     .map(([id, r]) => ({ ...r, id }))           // inject id from key
     .filter(r => r.name && r.status !== 'finished' && r.status !== 'deleted')
     .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
   if (currentFilter !== 'all') {
-    if (currentFilter === 'playing') entries = entries.filter(r => r.status === 'playing');
+    if (currentFilter === 'playing')  entries = entries.filter(r => r.status === 'playing');
     else if (currentFilter === 'waiting') entries = entries.filter(r => r.status === 'waiting');
+    else if (currentFilter === 'myturn') {
+      entries = entries.filter(r => {
+        const isHost  = r.hostUid === myUid;
+        const isGuest = r.player2?.uid === myUid;
+        const mySlotN = isHost ? 1 : isGuest ? 2 : 0;
+        return r.status === 'playing' && r.currentPlayer === mySlotN;
+      });
+    }
   }
   if (!entries.length){
-    const icons = {all:'🌌',waiting:'🌌',playing:'⚔️'};
-    const msgs  = {all:'No active rooms.<br>Create one to challenge the galaxy.',waiting:'No open rooms yet.<br>Create one to challenge the galaxy.',playing:'No games currently in progress.'};
+    const icons = {all:'🌌',waiting:'🌌',playing:'⚔️',myturn:'⚔️'};
+    const msgs  = {all:'No active rooms.<br>Create one to challenge the galaxy.',waiting:'No open rooms yet.<br>Create one to challenge the galaxy.',playing:'No games currently in progress.',myturn:'No games are waiting for your move.'};
     list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">${icons[currentFilter]||'🌌'}</div><div class="empty-state-text">${msgs[currentFilter]||''}</div></div>`;
     return;
   }
@@ -543,7 +570,7 @@ document.getElementById('modal-pw-eye').onclick=()=>{
 async function doJoin(id){
   await update(ref(db,`rooms/${id}`),{
     guestUid: ME.uid,
-    player2:  {uid:ME.uid, name:ME.name, stars:ME.stars||0}
+    player2:  {uid:ME.uid, name:ME.name, stars:ME.stars||0, elo:ME.elo||1200}
     // status stays 'waiting' until START is clicked in game.html
   });
   window.location.href=`game.html?room=${id}&player=2`;

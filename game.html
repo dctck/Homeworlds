@@ -1585,23 +1585,26 @@ function showWin(winnerPlayer) {
   const myName     = mySlot ? PLAYER_CONFIG.names[mySlot] : winnerName;
 
   // Tier calculation
-  const oldStars  = parseInt(PLAYER_CONFIG.elos[winnerPlayer]) || 0;
-  const starGain  = 3;
-  const starLoss  = 1;
-  const newWinStars  = oldStars + starGain;
-  const oldLoseStars = parseInt(PLAYER_CONFIG.elos[loserPlayer]) || 0;
-  const newLoseStars = Math.max(0, oldLoseStars - starLoss);
-  const oldWinTier  = getTier(oldStars);
+  // ELO-based star calculation (mirrors game.html online module logic)
+  const winnerElo  = parseInt(PLAYER_CONFIG.elos[winnerPlayer]) || 1200;
+  const loserElo   = parseInt(PLAYER_CONFIG.elos[loserPlayer])  || 1200;
+  const winnerStars = parseInt(PLAYER_CONFIG.stars?.[winnerPlayer] ?? 0);
+  const loserStars  = parseInt(PLAYER_CONFIG.stars?.[loserPlayer]  ?? 0);
+  const isUpset    = winnerElo < loserElo;
+  const starGain   = isUpset ? 2 : 1;
+  const starLoss   = 1;
+  const newWinStars  = winnerStars + starGain;
+  const newLoseStars = Math.max(0, loserStars - starLoss);
+  const oldWinTier  = getTier(winnerStars);
   const newWinTier  = getTier(newWinStars);
   const tierUp      = newWinTier.name !== oldWinTier.name;
 
-  const displayPlayer = mySlot || winnerPlayer;
-  const iAm = isWinner ? 'winner' : 'loser';
-  const myOldStars = isWinner ? oldStars : oldLoseStars;
-  const myNewStars = isWinner ? newWinStars : newLoseStars;
-  const myOldTier  = getTier(myOldStars);
-  const myNewTier  = getTier(myNewStars);
-  const myTierUp   = isWinner && tierUp;
+  const iAm        = isWinner ? 'winner' : 'loser';
+  const myOldStars  = isWinner ? winnerStars : loserStars;
+  const myNewStars  = isWinner ? newWinStars : newLoseStars;
+  const myOldTier   = getTier(myOldStars);
+  const myNewTier   = getTier(myNewStars);
+  const myTierUp    = isWinner && tierUp;
 
   // Build overlay content
   const accentColor = isWinner ? '#ffcc00' : '#4a6080';
@@ -1613,18 +1616,20 @@ function showWin(winnerPlayer) {
   let tierHtml = '';
   if (mySlot) {
     // Star delta row
-    const delta = isWinner ? `+${starGain}` : `-${starLoss}`;
+    const delta = isWinner ? `+${starGain} ★` : `-${starLoss} ★`;
+    const upsetBadge = isWinner && isUpset ? '<div style="font-size:9px;letter-spacing:2px;color:#ffcc00;margin-top:2px">⚡ UPSET BONUS</div>' : '';
     const deltaColor = isWinner ? '#22dd77' : '#ff4455';
     tierHtml = `
       <div style="background:rgba(255,255,255,0.03);border:1px solid #1c2840;border-radius:8px;padding:16px 24px;min-width:260px;text-align:center;">
         <div style="font-size:11px;color:#304050;letter-spacing:2px;margin-bottom:10px;font-family:Orbitron,sans-serif;">YOUR RATING</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;">
-          <span style="font-family:Orbitron,sans-serif;font-size:22px;font-weight:700;color:${myOldTier.color}">${myOldStars}</span>
+          <span style="font-family:Orbitron,sans-serif;font-size:22px;font-weight:700;color:${myOldTier.color}">${myOldStars} ★</span>
           <span style="color:#253040;font-size:16px;">→</span>
-          <span style="font-family:Orbitron,sans-serif;font-size:26px;font-weight:900;color:${myNewTier.color}">${myNewStars}</span>
+          <span style="font-family:Orbitron,sans-serif;font-size:26px;font-weight:900;color:${myNewTier.color}">${myNewStars} ★</span>
           <span style="font-size:14px;font-weight:700;color:${deltaColor}">${delta}</span>
         </div>
-        <div style="font-size:11px;color:${myNewTier.color};letter-spacing:1px;">${myNewTier.name}</div>
+        ${upsetBadge}
+        <div style="font-size:11px;color:${myNewTier.color};letter-spacing:1px;margin-top:4px;">${myNewTier.name}</div>
         ${myTierUp ? `<div style="margin-top:10px;padding:8px 16px;background:rgba(255,204,0,0.12);border:1px solid rgba(255,204,0,0.4);border-radius:6px;font-family:Orbitron,sans-serif;font-size:11px;color:#ffcc00;letter-spacing:2px;animation:pulse-cata 1.2s ease-in-out infinite;">⬆ TIER UP: ${newWinTier.name.toUpperCase()}!</div>` : ''}
       </div>`;
   }
@@ -3298,7 +3303,8 @@ function escapeHtml(s) {
     // Clear unread indicator when opening
     if (!collapsed) {
       header.classList.remove('has-unread');
-      const dot = label.querySelector('.chat-unread-dot');
+      const lbl = document.getElementById('chat-header-label');
+      const dot = lbl?.querySelector('.chat-unread-dot');
       if (dot) dot.remove();
     }
   });
@@ -3802,7 +3808,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
     window.PLAYER_CONFIG = {
       names:    ['', room.player1?.name||'Player 1', room.player2?.name||'Player 2'],
-      elos:     ['', String(room.player1?.stars||0), String(room.player2?.stars||0)],
+      elos:     ['', String(room.player1?.elo||1200), String(room.player2?.elo||1200)],
+      stars:    [0,  room.player1?.stars||0,          room.player2?.stars||0],
       timeMs:   room.settings?.timeMs   || 0,
       tcMode:   room.settings?.tcMode   || 'unlimited',
       tcTurnMs: room.settings?.tcTurnMs || 0,
@@ -3968,39 +3975,62 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         return;
       }
 
-      // Update THIS client's own stars + record game in match history
-      // (rules only allow writing your own record)
+      // ── ELO + star update (each client writes only their own record) ──────────
       try {
         const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
         const room = roomSnap.val();
         if (room) {
-          const mySlotKey = MY_SLOT === 1 ? 'player1' : 'player2';
+          const mySlotKey  = MY_SLOT === 1 ? 'player1' : 'player2';
           const oppSlotKey = MY_SLOT === 1 ? 'player2' : 'player1';
           const myUid   = room[mySlotKey]?.uid;
-          const myStars = parseInt(room[mySlotKey]?.stars || 0);
           const iWon    = detail.winner === MY_SLOT;
-          const newStars = iWon ? myStars + 3 : Math.max(0, myStars - 1);
-          const oppName  = room[oppSlotKey]?.name || `Player ${3 - MY_SLOT}`;
-          const gameId   = room.archivedGameId;
-          console.log('[HW] Updating my stars:', myStars, '->', newStars, '(iWon:', iWon, ')');
+          const oppName = room[oppSlotKey]?.name || `Player ${3 - MY_SLOT}`;
+          const gameId  = room.archivedGameId;
+
           if (myUid) {
-            // Fetch current player record to update wins/losses + stars atomically
-            const mySnap = await get(ref(db, `players/${myUid}`));
-            const myRec  = mySnap.val() || {};
+            // Fetch both records so we can compute ELO change
+            const [mySnap, oppSnap] = await Promise.all([
+              get(ref(db, `players/${myUid}`)),
+              get(ref(db, `players/${room[oppSlotKey]?.uid}`)),
+            ]);
+            const myRec  = mySnap.val()  || {};
+            const oppRec = oppSnap.val() || {};
+
+            const myElo  = myRec.elo  || 1200;
+            const oppElo = oppRec.elo || 1200;
+
+            // Standard ELO: K=32, expected score, actual score
+            const K = 32;
+            const expected = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
+            const actual    = iWon ? 1 : 0;
+            const eloChange = Math.round(K * (actual - expected));
+            const newElo    = Math.max(100, myElo + eloChange);
+
+            // Star bonus: +1 if win against higher-ELO opponent, else +1 base win / -1 loss
+            const isUpset  = iWon && oppElo > myElo;
+            const myStars  = myRec.stars || 0;
+            const starDelta = iWon ? (isUpset ? 2 : 1) : -1;
+            const newStars  = Math.max(0, myStars + starDelta);
+
+            console.log(`[HW] ELO ${myElo}→${newElo} (${eloChange>0?'+':''}${eloChange}), stars ${myStars}→${newStars}, upset=${isUpset}`);
+
             const updatedFields = {
+              elo:    newElo,
               stars:  newStars,
-              wins:   (myRec.wins  || 0) + (iWon ? 1 : 0),
+              wins:   (myRec.wins   || 0) + (iWon ? 1 : 0),
               losses: (myRec.losses || 0) + (iWon ? 0 : 1),
             };
             await update(ref(db, `players/${myUid}`), updatedFields);
-            // Prepend game to match history (keep last 20)
+
+            // Record in match history (keep last 20)
             if (gameId) {
               const hist = myRec.recentGames || [];
               const entry = {
                 gameId,
                 result:    iWon ? 'win' : 'loss',
                 opponent:  oppName,
-                starDelta: iWon ? 3 : -1,
+                starDelta,
+                eloChange,
                 playedAt:  Date.now(),
               };
               const updated = [entry, ...hist].slice(0, 20);
@@ -4009,25 +4039,29 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           }
         }
       } catch(e) {
-        console.warn('[HW] Star update failed (non-fatal):', e.message);
+        console.warn('[HW] ELO/star update failed (non-fatal):', e.message);
       }
     }
   });
 
   // ── "Lobby" / "Review Game" buttons mark this player as exited ──
-  // Room is deleted once both slots have exited.
+  // Room is ONLY deleted once both players have exited AND archive is confirmed.
+  // This prevents forfeiting player from deleting the room before archive completes.
   window._markExited = async function() {
     if (!window._ONLINE?.active) return;
     console.log('[HW] _markExited called for slot', MY_SLOT);
     try {
       await set(ref(db, `rooms/${ROOM_ID}/exitedBy/${MY_SLOT}`), true);
-      const snap = await get(ref(db, `rooms/${ROOM_ID}/exitedBy`));
-      const ex = snap.val() || {};
-      console.log('[HW] exitedBy now:', ex);
-      if (ex[1] && ex[2]) {
-        console.log('[HW] Both exited — deleting room');
+      const snap = await get(ref(db, `rooms/${ROOM_ID}`));
+      const room = snap.val() || {};
+      const ex   = room.exitedBy || {};
+      console.log('[HW] exitedBy now:', ex, 'archivedGameId:', room.archivedGameId);
+      if (ex[1] && ex[2] && room.archivedGameId) {
+        // Both exited AND archive confirmed → safe to delete
+        console.log('[HW] Both exited + archived — deleting room');
         await set(ref(db, `rooms/${ROOM_ID}`), null);
       }
+      // If archive not done yet, room stays — it will be cleaned up by lobby's 7-day sweep
     } catch(e) { console.warn('[HW] _markExited error:', e); }
   };
 

@@ -1009,7 +1009,7 @@ body {
     <div id="bank-grid"></div>
   </div>
   <div id="bottom-area">
-    <button id="btn-back" onclick="location.href='lobby.html'">← BACK TO LOBBY</button>
+    <button id="btn-back" id="btn-back">← BACK</button>
   </div>
 </div>
 
@@ -1778,6 +1778,19 @@ function updateLogHighlight() {
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// Smart back button — go to profile if came from there, else lobby
+(function() {
+  const backBtn = document.getElementById('btn-back');
+  if (!backBtn) return;
+  const ref = document.referrer;
+  const fromProfile = ref && ref.includes('profile.html');
+  backBtn.textContent = fromProfile ? '← BACK TO PROFILE' : '← BACK TO LOBBY';
+  backBtn.onclick = () => {
+    if (fromProfile) location.href = 'profile.html';
+    else location.href = 'lobby.html';
+  };
+})();
 
 load();
 

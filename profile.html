@@ -136,14 +136,8 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
     <div class="profile-info">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
         <div class="name-display" id="display-name">—</div>
-        <button class="btn-small" id="btn-edit-name">EDIT</button>
       </div>
-      <div class="name-edit-row" id="name-edit-row">
-        <input class="form-input" id="name-input" maxlength="24" placeholder="New callsign" autocomplete="off" spellcheck="false">
-        <button class="btn-small green" id="btn-save-name">SAVE</button>
-        <button class="btn-small" id="btn-cancel-name">✕</button>
-      </div>
-      <div class="name-status" id="name-status"></div>
+      <div style="font-size:10px;color:#3a5060;letter-spacing:.5px;margin-bottom:4px;">Callsign is permanent and cannot be changed.</div>
 
       <div class="profile-email" id="profile-email"></div>
 
@@ -262,7 +256,6 @@ function renderProfile(user){
   else av.textContent=ME.name[0].toUpperCase();
 
   document.getElementById('display-name').textContent=ME.name;
-  document.getElementById('name-input').value=ME.name;
   document.getElementById('profile-email').textContent=user.email||'';
 
   // Tier
@@ -351,53 +344,7 @@ document.getElementById('avatar-file-input').onchange=async e=>{
 };
 
 // ── Name editing ──────────────────────────────────────────────
-document.getElementById('btn-edit-name').onclick=()=>{
-  document.getElementById('name-edit-row').classList.add('show');
-  document.getElementById('name-input').focus();
-};
-document.getElementById('btn-cancel-name').onclick=()=>{
-  document.getElementById('name-edit-row').classList.remove('show');
-  document.getElementById('name-status').textContent='';
-};
 
-const nameInput=document.getElementById('name-input');
-const nameStatus=document.getElementById('name-status');
-nameInput.addEventListener('input',()=>{
-  const val=nameInput.value.trim();
-  nameStatus.className='name-status';
-  nameStatus.textContent='';
-  clearTimeout(_nameCheckTimer);
-  if (val===ME.name){nameStatus.textContent='';return;}
-  if (val.length<2){nameStatus.className='name-status err';nameStatus.textContent='Min 2 characters';return;}
-  if (!/^[a-zA-Z0-9_\-]+$/.test(val)){nameStatus.className='name-status err';nameStatus.textContent='Letters, numbers, _ and - only';return;}
-  nameStatus.textContent='Checking…';
-  _nameCheckTimer=setTimeout(async()=>{
-    const snap=await get(ref(db,`usernames/${val.toLowerCase()}`));
-    if (snap.exists()&&snap.val()!==USER.uid){
-      nameStatus.className='name-status err';nameStatus.textContent='✗ Already taken';
-    } else {
-      nameStatus.className='name-status ok';nameStatus.textContent='✓ Available';
-    }
-  },500);
-});
-
-document.getElementById('btn-save-name').onclick=async()=>{
-  const newName=nameInput.value.trim();
-  if (!newName||newName.length<2){alert('Name too short.');return;}
-  if (!/^[a-zA-Z0-9_\-]+$/.test(newName)){alert('Invalid characters.');return;}
-  const oldKey=ME.name.toLowerCase(), newKey=newName.toLowerCase();
-  if (oldKey!==newKey){
-    const snap=await get(ref(db,`usernames/${newKey}`));
-    if (snap.exists()&&snap.val()!==USER.uid){alert('Username already taken.');return;}
-    await set(ref(db,`usernames/${oldKey}`),null);
-    await set(ref(db,`usernames/${newKey}`),USER.uid);
-  }
-  await update(ref(db,`players/${USER.uid}`),{name:newName});
-  ME.name=newName;
-  document.getElementById('display-name').textContent=newName;
-  document.getElementById('name-edit-row').classList.remove('show');
-  nameStatus.textContent='';
-};
 
 // ── Settings ──────────────────────────────────────────────────
 document.getElementById('toggle-advanced').onchange=async function(){
