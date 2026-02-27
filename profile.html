@@ -249,6 +249,10 @@ onAuthStateChanged(auth, async user => {
   if (!ME){window.location.href='index.html';return;}
   renderProfile(user);
   loadHistory(user.uid);
+  // Clear the "unseen result" notification now that they're viewing their profile
+  if (ME.hasUnseenResult) {
+    update(ref(db,`players/${user.uid}`),{hasUnseenResult:null}).catch(()=>{});
+  }
 });
 
 function renderProfile(user){

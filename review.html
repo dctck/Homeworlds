@@ -1668,35 +1668,61 @@ function parseNotation(str) {
   if (!str) return null;
   const t = str.trim().split(/\s+/);
   const cmd = t[0];
+
+  // Handle all notation variants the game engine actually produces:
+  //   "set HW b1 y2 ship y3 Nexus"  — homeworld setup
+  //   "hijack r2 SYS"               — attack/capture (game calls it hijack)
+  //   "skip"                        — pass/skip turn
+  //   "homeworld r1 b2 g3 HOME1"    — legacy format
+  //   "attack r2 SYS"               — legacy format
+  //   "pass"                        — legacy format
+  //   "catastrophe failed"          — ignore (log artifact only)
+
+  if (cmd === 'set' && t[1] === 'HW') {
+    // "set HW b1 y2 ship y3 Nexus"
+    //   t[0]=set t[1]=HW t[2]=star1 t[3]=star2 t[4]=ship t[5]=shipPiece t[6]=sysName
+    return { type:'homeworld', star1: parsePiece(t[2]), star2: parsePiece(t[3]),
+             ship: parsePiece(t[5]), sysName: t[6] };
+  }
+
   switch(cmd) {
     case 'homeworld':
-      // homeworld r1 b2 g3 HOME1
+      // legacy: "homeworld r1 b2 g3 HOME1"
       return { type:'homeworld', star1: parsePiece(t[1]), star2: parsePiece(t[2]),
                ship: parsePiece(t[3]), sysName: t[4] };
+
     case 'build':
-      // build g1 HOME1
       return { type:'build', ship: parsePiece(t[1]), sysName: t[2] };
+
     case 'trade':
-      // trade b2 HOME1 r
       return { type:'trade', ship: parsePiece(t[1]), sysName: t[2],
                newColor: LETTER_COLOR_MAP[t[3]] };
+
     case 'discover':
-      // discover g2 HOME1 y1 SYS-123
       return { type:'discover', ship: parsePiece(t[1]), fromName: t[2],
                star: parsePiece(t[3]), newName: t[4] };
+
     case 'move':
-      // move r3 HOME1 SYS-123
       return { type:'move', ship: parsePiece(t[1]), fromName: t[2], toName: t[3] };
+
+    case 'hijack':   // game's term for attack/capture
     case 'attack':
-      // attack b2 SYS-123
       return { type:'attack', ship: parsePiece(t[1]), sysName: t[2] };
+
     case 'sacrifice':
       return { type:'sacrifice', ship: parsePiece(t[1]), sysName: t[2] };
+
     case 'catastrophe':
+      // "catastrophe failed" is just a log note — skip it
+      if (t[1] === 'failed') return { type:'skip' };
       return { type:'catastrophe', sysName: t[1], color: LETTER_COLOR_MAP[t[2]] };
+
+    case 'skip':     // game's term for pass
     case 'pass':
-      return { type:'pass' };
+      return { type:'skip' };
+
     default:
+      console.warn('[Replay] Unknown notation:', str);
       return null;
   }
 }
@@ -1846,7 +1872,9 @@ function applyParsed(st, action, player) {
       break;
     }
 
-    case 'pass': break; // no state change
+    case 'pass':
+    case 'skip':
+      break; // no state change
 
     default: break;
   }
@@ -1984,8 +2012,16 @@ function setLoading(msg) {
 function init(record) {
   // Support both new format {players:{1:{name},2:{name}}} and old {players:['',name1,name2]}
   if (Array.isArray(record.players)) {
-    players = record.players;
+    // Players array may contain objects {name, uid, eloAtGame} or plain strings
+    // Normalize to plain strings for display
+    players = record.players.map((p, i) => {
+      if (!p) return i === 0 ? null : `Player ${i}`;
+      if (typeof p === 'string') return p;
+      if (typeof p === 'object') return p.name || `Player ${i}`;
+      return `Player ${i}`;
+    });
   } else if (record.players && typeof record.players === 'object') {
+    // Object keyed by "1"/"2"
     players = ['', record.players[1]?.name || 'Player 1', record.players[2]?.name || 'Player 2'];
   } else {
     players = ['','Player 1','Player 2'];
@@ -2019,9 +2055,9 @@ function init(record) {
     ps.appendChild(d);
   });
 
-  const turnCount = logEntries.filter(e => !e.actions.some(a => a.startsWith('set HW') || a.startsWith('h '))).length;
+  const totalMoves = logRows.length;
   document.getElementById('review-sub').textContent =
-    `${players[1]||'P1'} vs ${players[2]||'P2'} · ${turnCount} turns`;
+    `${players[1]||'P1'} vs ${players[2]||'P2'} · ${totalMoves} moves`;
 
   // Render log panel (clickable)
   const logContainer = document.getElementById('log-entries');

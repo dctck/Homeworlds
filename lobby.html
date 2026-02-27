@@ -38,7 +38,9 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 .logo{font-family:'Orbitron',sans-serif;font-weight:900;font-size:13px;letter-spacing:3px;color:var(--bright);text-decoration:none}
 .logo span{color:var(--p1)}
 .hdr-right{display:flex;align-items:center;gap:8px}
-.player-chip{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:20px}
+.player-chip{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:20px;position:relative}
+.result-dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#ff3344;border:2px solid var(--bg);display:none;animation:pulse-dot 1.4s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 0 rgba(255,51,68,.6)}50%{box-shadow:0 0 0 5px rgba(255,51,68,0)}}
 .avatar{width:28px;height:28px;border-radius:50%;background:rgba(68,136,255,.2);border:1px solid var(--p1);display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;color:var(--p1);overflow:hidden;flex-shrink:0}
 .avatar img{width:100%;height:100%;object-fit:cover}
 .pname{font-size:11px;color:var(--bright);letter-spacing:1px}
@@ -155,6 +157,7 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
         <div class="pname" id="hdr-name">—</div>
         <div class="ptier" id="hdr-tier"></div>
       </div>
+      <div class="result-dot" id="result-dot" title="You have a new game result!"></div>
     </div>
   </div>
 </header>
@@ -319,6 +322,18 @@ onAuthStateChanged(auth, async user => {
   else av.textContent = ME.name[0].toUpperCase();
 
   document.getElementById('room-name').value = `${ME.name}'s Room`;
+
+  // Show red dot if player has a game result they haven't seen yet
+  if (ME.hasUnseenResult) {
+    const dot = document.getElementById('result-dot');
+    if (dot) {
+      dot.style.display = 'block';
+      dot.title = 'New game result — click to view on profile';
+    }
+    // Also pulse the chip border
+    const chip = document.getElementById('player-chip');
+    if (chip) chip.style.borderColor = 'rgba(255,51,68,0.5)';
+  }
 
   // Reconcile any missed game results from rooms that ended while this player was away.
   // For each room this player was in that is now 'archived' but their recentGames doesn't

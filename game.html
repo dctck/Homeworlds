@@ -2717,7 +2717,11 @@ function renderSidebar() {
 
   // Show/hide draw button based on phase
   const _drawBtn = document.getElementById('btn-draw');
-  if (_drawBtn) _drawBtn.style.display = (G.phase === 'PLAY') ? '' : 'none';
+  if (_drawBtn) {
+    const show = (G.phase === 'PLAY');
+    _drawBtn.style.display = show ? 'block' : 'none';
+    console.log('[Draw] renderSidebar phase=' + G.phase + ' display=' + _drawBtn.style.display);
+  }
 
   // ---- SETUP PHASE ----
   if (G.phase === 'SETUP') {
@@ -4023,7 +4027,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const lobbyBtn = document.getElementById('btn-lobby');
     if (lobbyBtn) lobbyBtn.style.display = '';
     const drawBtnOnline = document.getElementById('btn-draw');
-    if (drawBtnOnline) drawBtnOnline.style.display = '';
+    if (drawBtnOnline) { drawBtnOnline.style.display = 'block'; console.log('[Draw] _started: set to block'); }
 
     // Fix gear icon: always on opponent's card.
     // HTML has gear only on pcard-2. If I'm P2, move it to pcard-1.
