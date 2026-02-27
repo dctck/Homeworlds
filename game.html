@@ -2715,6 +2715,10 @@ function renderSidebar() {
 
   if (resetBtn) resetBtn.disabled = !(G.history || (G._pendingActions && G._pendingActions.length > 0));
 
+  // Show/hide draw button based on phase
+  const _drawBtn = document.getElementById('btn-draw');
+  if (_drawBtn) _drawBtn.style.display = (G.phase === 'PLAY') ? '' : 'none';
+
   // ---- SETUP PHASE ----
   if (G.phase === 'SETUP') {
     document.getElementById('catastrophe-panel').innerHTML = '';
@@ -4133,7 +4137,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       syncUid(incoming);
       incoming.history = null; incoming.interaction = 'IDLE';
       incoming.selectedShipId = null;
-      if (incoming._snapshots) { window._gameSnapshots = incoming._snapshots; delete incoming._snapshots; }
+      // _snapshots no longer transmitted over wire — review uses deterministic replay
       incoming._pendingActions = [];
       window.G = incoming;
 
@@ -4188,27 +4192,15 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           // Fall through so this client still runs its own ELO + recentGames update below.
         } else {
 
-        const record = {
-          winner:    detail.winner,
-          players:   [null,
-            window.PLAYER_CONFIG?.names[1] || 'Player 1',
-            window.PLAYER_CONFIG?.names[2] || 'Player 2'],
-          log:       (window.G?.log) || [],
-          snapshots: window._gameSnapshots || [],
-          playedAt:  Date.now(),
-        };
-
-        const counterSnap = await get(ref(db, 'gamesPlayedCount'));
-        const nextId = ((counterSnap.val() || 0) + 1);
-        await set(ref(db, `gamesPlayed/${nextId}`), record);
-        await set(ref(db, 'gamesPlayedCount'), nextId);
-
-        // Tag room FIRST so both clients can find the review even if star update fails
+        // Client just marks status=archived; Cloud Function handles the rest:
+        // - archives game to gamesPlayed with flat moves array (from game log)
+        // - calculates ELO + stars for both players server-side
+        // - writes archivedGameId back to room
+        // See functions/index.js: onRoomStatusChange
         await update(ref(db, `rooms/${ROOM_ID}`), {
-          status: 'archived',
-          archivedGameId: String(nextId),
-          winner: detail.winner,
-          winnerName: record.players[detail.winner] || `Player ${detail.winner}`,
+          status:     'archived',
+          winner:     detail.winner,
+          winnerName: window.PLAYER_CONFIG?.names[detail.winner] || `Player ${detail.winner}`,
         });
         } // close else (not already archived)
       } catch(e) {
@@ -4218,73 +4210,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
     }  // end if (!_archived)
 
-    // ── ELO + star update: runs on EVERY client (winner & loser both update their own record)
-    // We wait briefly to ensure archivedGameId is written before reading it back
-    await new Promise(r => setTimeout(r, 1200));
-    try {
-      const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
-      const room = roomSnap.val();
-      if (room) {
-        const mySlotKey  = MY_SLOT === 1 ? 'player1' : 'player2';
-        const oppSlotKey = MY_SLOT === 1 ? 'player2' : 'player1';
-        const myUid   = room[mySlotKey]?.uid;
-        const iWon    = detail.winner === MY_SLOT;
-        const oppName = room[oppSlotKey]?.name || `Player ${3 - MY_SLOT}`;
-        const gameId  = room.archivedGameId;
-
-        if (myUid) {
-          const [mySnap, oppSnap] = await Promise.all([
-            get(ref(db, `players/${myUid}`)),
-            get(ref(db, `players/${room[oppSlotKey]?.uid || 'none'}`)),
-          ]);
-          const myRec  = mySnap.val()  || {};
-          const oppRec = oppSnap?.val() || {};
-
-          const myElo  = myRec.elo  || 1200;
-          const oppElo = oppRec.elo || 1200;
-
-          // Guard: don't double-update if already in recentGames
-          const alreadyRecorded = gameId && (myRec.recentGames || []).some(g => String(g.gameId) === String(gameId));
-          if (alreadyRecorded) {
-            // already written — skip
-          } else if (isDraw) {
-            // Draw: no ELO or star change; just increment draws + record game
-            await update(ref(db, `players/${myUid}`), {
-              draws: (myRec.draws || 0) + 1,
-            });
-            if (gameId) {
-              const hist = myRec.recentGames || [];
-              const entry = { gameId, result: 'draw', opponent: oppName, starDelta: 0, eloChange: 0, playedAt: Date.now() };
-              await set(ref(db, `players/${myUid}/recentGames`), [entry, ...hist].slice(0, 20));
-            }
-          } else {
-            const K = 32;
-            const expected  = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
-            const actual    = iWon ? 1 : 0;
-            const eloChange = Math.round(K * (actual - expected));
-            const newElo    = Math.max(100, myElo + eloChange);
-
-            const isUpset   = iWon && oppElo > myElo;
-            const myStars   = myRec.stars || 0;
-            const starDelta = iWon ? (isUpset ? 2 : 1) : -1;
-            const newStars  = Math.max(0, myStars + starDelta);
-
-            await update(ref(db, `players/${myUid}`), {
-              elo:    newElo,
-              stars:  newStars,
-              wins:   (myRec.wins   || 0) + (iWon ? 1 : 0),
-              losses: (myRec.losses || 0) + (iWon ? 0 : 1),
-            });
-            if (gameId) {
-              const hist = myRec.recentGames || [];
-              const entry = { gameId, result: iWon ? 'win' : 'loss', opponent: oppName, starDelta, eloChange, playedAt: Date.now() };
-              await set(ref(db, `players/${myUid}/recentGames`), [entry, ...hist].slice(0, 20));
-            }
-          }
-        }
-      }
-    } catch(e) {
-    }
+    // ELO/stats handled by Cloud Function (functions/index.js)
   });
 
   // ── "Lobby" / "Review Game" buttons mark this player as exited ──
@@ -4307,7 +4233,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
   // ── "Review Game" navigates to review page (archive already done) ─
   window._archiveOnline = async function() {
-    for (let i = 0; i < 40; i++) {
+    // Poll until Cloud Function writes archivedGameId (usually <3s after status:archived)
+    // 60 × 500ms = 30s max wait
+    for (let i = 0; i < 60; i++) {
       const snap = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
       const val = snap.val();
       if (val) return String(val);
@@ -4321,7 +4249,6 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const g = JSON.parse(JSON.stringify(window.G));
     g.history = null; g.interaction = 'IDLE';
     g.selectedShipId = null; g._pendingActions = [];
-    if (window._gameSnapshots?.length) g._snapshots = window._gameSnapshots;
     const ts = Date.now();
     await set(ref(db, `rooms/${ROOM_ID}/game`), {
       gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts,

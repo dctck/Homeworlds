@@ -1627,6 +1627,317 @@ function highlightLog(str) {
 }
 
 // ── State ────────────────────────────────────────────────────
+
+// ════════════════════════════════════════════════════════════
+//  DETERMINISTIC REPLAY ENGINE
+//
+//  Rebuilds board snapshots from a flat moves array
+//  (the same notation strings logged during play).
+//  This eliminates the need to store snapshots in Firebase,
+//  reducing archive size from ~100KB to ~2KB per game.
+// ════════════════════════════════════════════════════════════
+
+const LETTER_COLOR_MAP = { r:'red', b:'blue', y:'yellow', g:'green' };
+const COLOR_LETTER_MAP2 = { red:'r', blue:'b', yellow:'y', green:'g' };
+
+// ── Make a fresh initial state ───────────────────────────────
+function makeInitialState() {
+  const bank = {};
+  COLORS.forEach(c => { bank[c] = {1:3, 2:3, 3:3}; });
+  return {
+    phase: 'SETUP',
+    currentPlayer: 1,
+    setupStep: 0, setupDone: false, setupCache: { stars: [] },
+    bank, systems: [],
+    interaction: 'IDLE', selectedShipId: null, movingFromSysId: null,
+    sacrificePool: { color: null, count: 0 },
+    turnUsed: false,
+    history: null,
+    log: [], _pendingActions: [], currentTurn: 1,
+  };
+}
+
+// ── Piece notation parser ────────────────────────────────────
+function parsePiece(tok) {
+  if (!tok) return null;
+  return { color: LETTER_COLOR_MAP[tok[0]], size: parseInt(tok[1]) };
+}
+
+// Parse a notation string → action descriptor
+function parseNotation(str) {
+  if (!str) return null;
+  const t = str.trim().split(/\s+/);
+  const cmd = t[0];
+  switch(cmd) {
+    case 'homeworld':
+      // homeworld r1 b2 g3 HOME1
+      return { type:'homeworld', star1: parsePiece(t[1]), star2: parsePiece(t[2]),
+               ship: parsePiece(t[3]), sysName: t[4] };
+    case 'build':
+      // build g1 HOME1
+      return { type:'build', ship: parsePiece(t[1]), sysName: t[2] };
+    case 'trade':
+      // trade b2 HOME1 r
+      return { type:'trade', ship: parsePiece(t[1]), sysName: t[2],
+               newColor: LETTER_COLOR_MAP[t[3]] };
+    case 'discover':
+      // discover g2 HOME1 y1 SYS-123
+      return { type:'discover', ship: parsePiece(t[1]), fromName: t[2],
+               star: parsePiece(t[3]), newName: t[4] };
+    case 'move':
+      // move r3 HOME1 SYS-123
+      return { type:'move', ship: parsePiece(t[1]), fromName: t[2], toName: t[3] };
+    case 'attack':
+      // attack b2 SYS-123
+      return { type:'attack', ship: parsePiece(t[1]), sysName: t[2] };
+    case 'sacrifice':
+      return { type:'sacrifice', ship: parsePiece(t[1]), sysName: t[2] };
+    case 'catastrophe':
+      return { type:'catastrophe', sysName: t[1], color: LETTER_COLOR_MAP[t[2]] };
+    case 'pass':
+      return { type:'pass' };
+    default:
+      return null;
+  }
+}
+
+// ── State helpers ────────────────────────────────────────────
+let _replayUid = 0;
+function nextReplayId() { return ++_replayUid; }
+
+function findSysByName(st, name) {
+  return st.systems.find(s => s.name === name) || null;
+}
+function findShipInSys(sys, color, size, owner) {
+  return sys.ships.find(s => s.color === color && s.size === size &&
+    (owner === undefined || s.owner === owner)) || null;
+}
+function findEnemyShipInSys(sys, color, size, ownerNot) {
+  return sys.ships.find(s => s.color === color && s.size === size && s.owner !== ownerNot) || null;
+}
+function cleanSystemsR(st) {
+  st.systems = st.systems.filter(sys => {
+    if (sys.isHomeworld) return true;
+    if (sys.ships.length === 0) {
+      sys.stars.forEach(s => st.bank[s.color][s.size]++);
+      return false;
+    }
+    return true;
+  });
+}
+function systemSizesR(sys) {
+  return new Set(sys.stars.map(s => s.size));
+}
+
+// ── Apply a single parsed action to state ───────────────────
+function applyParsed(st, action, player) {
+  // Operate on a shallow-enough clone
+  const s = JSON.parse(JSON.stringify(st));
+
+  switch(action.type) {
+
+    case 'homeworld': {
+      const { star1, star2, ship, sysName } = action;
+      s.bank[star1.color][star1.size]--;
+      s.bank[star2.color][star2.size]--;
+      s.bank[ship.color][ship.size]--;
+      const newShip = { id: nextReplayId(), color: ship.color, size: ship.size, owner: player };
+      s.systems.push({
+        id: nextReplayId(), name: sysName, isHomeworld: player,
+        stars: [{ color: star1.color, size: star1.size },
+                { color: star2.color, size: star2.size }],
+        ships: [newShip],
+      });
+      break;
+    }
+
+    case 'build': {
+      const { ship, sysName } = action;
+      const sys = findSysByName(s, sysName); if (!sys) break;
+      const sz  = [1,2,3].find(n => s.bank[ship.color][n] > 0);
+      if (!sz) break;
+      s.bank[ship.color][sz]--;
+      sys.ships.push({ id: nextReplayId(), color: ship.color, size: sz, owner: player });
+      break;
+    }
+
+    case 'trade': {
+      const { ship: sp, sysName, newColor } = action;
+      const sys = findSysByName(s, sysName); if (!sys) break;
+      const found = findShipInSys(sys, sp.color, sp.size, player);
+      if (!found) break;
+      s.bank[found.color][found.size]++;
+      s.bank[newColor][found.size]--;
+      found.color = newColor;
+      break;
+    }
+
+    case 'discover': {
+      const { ship: sp, fromName, star, newName } = action;
+      const fromSys = findSysByName(s, fromName); if (!fromSys) break;
+      const shipObj = findShipInSys(fromSys, sp.color, sp.size, player);
+      if (!shipObj) break;
+      s.bank[star.color][star.size]--;
+      const newSys = {
+        id: nextReplayId(), name: newName, isHomeworld: null,
+        stars: [{ color: star.color, size: star.size }],
+        ships: [],
+      };
+      fromSys.ships = fromSys.ships.filter(sh => sh.id !== shipObj.id);
+      newSys.ships.push(shipObj);
+      s.systems.push(newSys);
+      cleanSystemsR(s);
+      break;
+    }
+
+    case 'move': {
+      const { ship: sp, fromName, toName } = action;
+      const fromSys = findSysByName(s, fromName); if (!fromSys) break;
+      const toSys   = findSysByName(s, toName);   if (!toSys) break;
+      const shipObj = findShipInSys(fromSys, sp.color, sp.size, player);
+      if (!shipObj) break;
+      fromSys.ships = fromSys.ships.filter(sh => sh.id !== shipObj.id);
+      toSys.ships.push(shipObj);
+      cleanSystemsR(s);
+      break;
+    }
+
+    case 'attack': {
+      const { ship: sp, sysName } = action;
+      const sys = findSysByName(s, sysName); if (!sys) break;
+      const target = findEnemyShipInSys(sys, sp.color, sp.size, player);
+      if (!target) break;
+      target.owner = player;
+      break;
+    }
+
+    case 'sacrifice': {
+      const { ship: sp, sysName } = action;
+      const sys = findSysByName(s, sysName); if (!sys) break;
+      const shipObj = findShipInSys(sys, sp.color, sp.size, player);
+      if (!shipObj) break;
+      s.bank[shipObj.color][shipObj.size]++;
+      sys.ships = sys.ships.filter(sh => sh.id !== shipObj.id);
+      cleanSystemsR(s);
+      break;
+    }
+
+    case 'catastrophe': {
+      const { sysName, color } = action;
+      const sys = findSysByName(s, sysName); if (!sys) break;
+      sys.stars.filter(st => st.color === color).forEach(st => s.bank[st.color][st.size]++);
+      sys.ships.filter(sh => sh.color === color).forEach(sh => s.bank[sh.color][sh.size]++);
+      sys.stars = sys.stars.filter(st => st.color !== color);
+      sys.ships = sys.ships.filter(sh => sh.color !== color);
+      if (!sys.isHomeworld) {
+        if (sys.ships.length === 0) {
+          sys.stars.forEach(st => s.bank[st.color][st.size]++);
+          sys.stars = [];
+          s.systems = s.systems.filter(sx => sx.id !== sys.id);
+        } else if (sys.stars.length === 0) {
+          sys.ships.forEach(sh => s.bank[sh.color][sh.size]++);
+          sys.ships = [];
+          s.systems = s.systems.filter(sx => sx.id !== sys.id);
+        }
+      } else if (sys.stars.length === 0) {
+        sys.ships.forEach(sh => s.bank[sh.color][sh.size]++);
+        sys.ships = [];
+      }
+      break;
+    }
+
+    case 'pass': break; // no state change
+
+    default: break;
+  }
+
+  return s;
+}
+
+// ── Build snapshots from moves array ────────────────────────
+//  Entry point: call with the record loaded from Firebase.
+//  Returns { snapshots, logRows } for the navigation system.
+function buildFromRecord(record) {
+  // Support both old format (record.log + record.snapshots)
+  // and new format (record.moves flat array).
+  // Old format: record.log = [{turn, player, actions:[str]}]
+  // New format: record.moves = [{turn, player, action:str}]
+
+  let flatMoves = [];
+
+  if (record.moves && record.moves.length > 0) {
+    // New format
+    flatMoves = record.moves;
+  } else if (record.log && record.log.length > 0) {
+    // Old format: flatten log to moves
+    record.log.forEach(entry => {
+      (entry.actions || []).forEach(action => {
+        flatMoves.push({ turn: entry.turn, player: entry.player, action });
+      });
+    });
+  } else {
+    return { snapshots: [], logRows: [] };
+  }
+
+  _replayUid = 0;
+  let st = makeInitialState();
+  const snaps = [];
+  const rows  = [];
+
+  // Setup phase: first two entries are homeworld placements
+  // currentPlayer alternates after each homeworld action
+  let setupDone = 0; // counts homeworld entries processed
+
+  flatMoves.forEach((mv, i) => {
+    const parsed = parseNotation(mv.action);
+    if (!parsed) return;
+
+    const player = mv.player;
+
+    // Apply the action
+    st = applyParsed(st, parsed, player);
+
+    // After homeworld: flip phase/player
+    if (parsed.type === 'homeworld') {
+      st.currentTurn++;
+      setupDone++;
+      if (setupDone === 1) {
+        st.currentPlayer = 2;
+      } else if (setupDone === 2) {
+        st.phase = 'PLAY';
+        st.currentPlayer = 1;
+      }
+    }
+
+    // Take a snapshot after every action
+    const snap = JSON.parse(JSON.stringify(st));
+    snap.interaction = 'IDLE'; snap.selectedShipId = null;
+    snaps.push(snap);
+
+    const pc = player === 1 ? 'ml-p1' : 'ml-p2';
+    rows.push({
+      snapIdx: snaps.length - 1,
+      html: `<span class="mini-log-prefix"><span class="ml-turn">${mv.turn}.</span><span class="${pc}">P${player}</span>\xa0</span>` +
+            `<span class="mini-log-body">${highlightLog(mv.action)}</span>`
+    });
+  });
+
+  // Final snapshot reflects end-of-game state
+  if (record.winner !== undefined) {
+    const last = snaps[snaps.length - 1];
+    if (last) {
+      last.phase = 'OVER';
+      last.winner = record.winner;
+    }
+  }
+
+  return { snapshots: snaps, logRows: rows };
+}
+
+// ════════════════════════════════════════════════════════════
+//  END REPLAY ENGINE
+// ════════════════════════════════════════════════════════════
+
 let snapshots  = [];
 let logEntries = [];
 let logRows    = []; // { snapIdx, html } per action line
@@ -1671,26 +1982,25 @@ function setLoading(msg) {
 }
 
 function init(record) {
-  players    = record.players || ['','Player 1','Player 2'];
-  winner     = record.winner;
-  snapshots  = record.snapshots || [];
-  logEntries = record.log || [];
+  // Support both new format {players:{1:{name},2:{name}}} and old {players:['',name1,name2]}
+  if (Array.isArray(record.players)) {
+    players = record.players;
+  } else if (record.players && typeof record.players === 'object') {
+    players = ['', record.players[1]?.name || 'Player 1', record.players[2]?.name || 'Player 2'];
+  } else {
+    players = ['','Player 1','Player 2'];
+  }
+  winner = record.winner;
 
-  if (!snapshots.length) { setLoading('No snapshot data in this game record.'); return; }
+  // ── Build snapshots via deterministic replay ──────────────
+  // Works with both old (record.log + record.snapshots) and
+  // new (record.moves) formats. Snapshots are never stored in
+  // Firebase anymore — rebuilt client-side from the move log.
+  const built = buildFromRecord(record);
+  snapshots = built.snapshots;
+  logRows   = built.logRows;
 
-  // Build flat log rows mapping each action to a snapshot index
-  let si = 0;
-  logEntries.forEach(entry => {
-    entry.actions.forEach(a => {
-      const pc = entry.player === 1 ? 'ml-p1' : 'ml-p2';
-      logRows.push({
-        snapIdx: Math.min(si, snapshots.length - 1),
-        html: `<span class="mini-log-prefix"><span class="ml-turn">${entry.turn}.</span><span class="${pc}">P${entry.player}</span>&nbsp;</span>` +
-              `<span class="mini-log-body">${highlightLog(a)}</span>`
-      });
-    });
-    si++;
-  });
+  if (!snapshots.length) { setLoading('No move data in this game record.'); return; }
 
   // Player cards
   const ps = document.getElementById('players-section');

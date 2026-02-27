@@ -328,13 +328,15 @@ document.getElementById('avatar-file-input').onchange=async e=>{
     // Resize to max 200x200 via canvas
     const img=new Image();
     img.onload=async()=>{
+      // Compress to 128×128 square JPEG — always <100KB
+      const SIZE=128;
       const canvas=document.createElement('canvas');
-      const max=200;
-      const scale=Math.min(max/img.width,max/img.height,1);
-      canvas.width=img.width*scale;
-      canvas.height=img.height*scale;
-      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      const b64=canvas.toDataURL('image/jpeg',.8);
+      canvas.width=SIZE; canvas.height=SIZE;
+      // Center-crop to square, then scale to 128
+      const minDim=Math.min(img.width,img.height);
+      const sx=(img.width-minDim)/2, sy=(img.height-minDim)/2;
+      canvas.getContext('2d').drawImage(img,sx,sy,minDim,minDim,0,0,SIZE,SIZE);
+      const b64=canvas.toDataURL('image/jpeg',.85);
       try{
         await update(ref(db,`players/${USER.uid}`),{avatarBase64:b64});
         ME.avatarBase64=b64;
