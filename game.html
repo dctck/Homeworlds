@@ -502,13 +502,38 @@ body::before {
    ================================================================ */
 .turn-token-wrap {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   /* extra space so ring doesn't clip against zone edge */
-  padding: 12px 8px;
+  padding: 12px 8px 6px;
   flex-shrink: 0;
   /* contain the ring entirely — no layout bleed */
   overflow: visible;
+  gap: 6px;
+}
+/* Hold-to-reset button below the turn token */
+.hold-reset-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px; letter-spacing: 1.5px;
+  color: #304050; border: 1px solid #1c2840;
+  background: transparent; border-radius: 4px;
+  padding: 3px 10px; cursor: pointer;
+  user-select: none; -webkit-tap-highlight-color: transparent;
+  transition: color .15s, border-color .15s, background .15s;
+  position: relative; overflow: hidden;
+  white-space: nowrap;
+}
+.hold-reset-btn:hover { color: #5a7090; border-color: #2a3850; }
+.hold-reset-btn.holding {
+  color: #ff6644; border-color: #ff4422;
+  background: rgba(255,80,40,0.08);
+}
+.hold-reset-fill {
+  position: absolute; top: 0; left: 0; height: 100%;
+  background: rgba(255,80,40,0.18);
+  width: 0%; transition: none;
+  pointer-events: none;
 }
 .turn-token {
   width: 60px; height: 60px;
@@ -687,6 +712,7 @@ body::before {
    MOBILE NAV BAR — hidden on desktop
    ============================================================ */
 #mobile-nav { display: none; }
+#mobile-nav-pill { display: none; }
 
 /* ============================================================
    MOBILE LOG/CHAT TABS — hidden on desktop
@@ -720,25 +746,47 @@ body::before {
 
   /* ══ ORDER: 0=nav 1=profiles 2=stash 3=board 4=sidebar 5=btns 6=logchat ══ */
 
-  /* 0 · Nav bar */
+  /* 0 · Nav bar — lobby-style header */
   #mobile-nav {
     order: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
-    background: var(--panel);
+    padding: 0 16px;
+    height: 48px;
+    background: rgba(6,9,18,0.95);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     position: relative;
     z-index: 10;
+    backdrop-filter: blur(10px);
   }
   #mobile-nav-logo {
-    display: flex; align-items: center; gap: 10px;
     font-family: 'Orbitron', sans-serif; font-weight: 900;
-    font-size: var(--fs-md); letter-spacing: 3px; color: var(--bright);
+    font-size: 13px; letter-spacing: 3px; color: var(--bright);
     text-decoration: none;
   }
+  #mobile-nav-logo span { color: #2266ff; }
+  #mobile-nav-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 10px 4px 4px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  #mobile-nav-pill:hover { border-color: #3a5080; }
+  #mobile-nav-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(68,136,255,.2); border: 1px solid #2266ff;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Orbitron',sans-serif; font-size: 10px; font-weight: 700;
+    color: #4488ff; overflow: hidden; flex-shrink: 0;
+  }
+  #mobile-nav-avatar img { width:100%; height:100%; object-fit:cover; }
+  #mobile-nav-name { font-size: 11px; color: var(--bright); letter-spacing: 1px; }
+  #mobile-nav-tier { font-size: 9px; letter-spacing: 1px; }
   #mobile-nav-menu {
     background: none; border: none; cursor: pointer;
     color: #5a7090; font-size: 24px; line-height: 1;
@@ -887,29 +935,14 @@ body::before {
 
 <!-- MOBILE NAV BAR (hidden on desktop) -->
 <nav id="mobile-nav">
-  <a id="mobile-nav-logo" href="#">
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-      <!-- Rocket body -->
-      <ellipse cx="14" cy="12" rx="4.5" ry="8" fill="#2266ff" opacity="0.9"/>
-      <!-- Nose cone -->
-      <polygon points="14,2 10.5,8 17.5,8" fill="#88bbff"/>
-      <!-- Left fin -->
-      <polygon points="9.5,16 6,22 11,19" fill="#1a55cc"/>
-      <!-- Right fin -->
-      <polygon points="18.5,16 22,22 17,19" fill="#1a55cc"/>
-      <!-- Engine glow -->
-      <ellipse cx="14" cy="21" rx="2.8" ry="1.4" fill="#ffcc00" opacity="0.85"/>
-      <ellipse cx="14" cy="23" rx="1.8" ry="2.5" fill="#ff6600" opacity="0.6"/>
-      <!-- Porthole -->
-      <circle cx="14" cy="12" r="2" fill="#a8d0ff" opacity="0.7"/>
-      <!-- Stars -->
-      <circle cx="5" cy="6" r="0.8" fill="white" opacity="0.6"/>
-      <circle cx="22" cy="4" r="0.6" fill="white" opacity="0.5"/>
-      <circle cx="24" cy="14" r="0.7" fill="white" opacity="0.4"/>
-      <circle cx="3" cy="17" r="0.5" fill="white" opacity="0.5"/>
-    </svg>
-    HOMEWORLDS
-  </a>
+  <a id="mobile-nav-logo" href="lobby.html">HOME<span>W</span>ORLDS</a>
+  <div id="mobile-nav-pill" onclick="location.href='profile.html'">
+    <div id="mobile-nav-avatar"></div>
+    <div>
+      <div id="mobile-nav-name">—</div>
+      <div id="mobile-nav-tier"></div>
+    </div>
+  </div>
   <button id="mobile-nav-menu" onclick="toggleMobileMenu()" title="Menu">☰</button>
 </nav>
 
@@ -964,7 +997,7 @@ body::before {
     <button class="ctrl-btn" id="btn-forfeit" title="Forfeit game">⚑ Forfeit</button>
     <button class="ctrl-btn" id="btn-lobby" style="display:none" onclick="location.href='lobby.html'" title="Back to Lobby">⬡ Lobby</button>
   </div>
-  <button class="ctrl-btn" id="btn-reset" title="Reset this turn (undo all actions taken this turn)">↺ Reset Turn</button>
+  <button class="ctrl-btn" id="btn-reset" style="display:none">↺ Reset Turn</button>
 </div>
 
 <!-- BANK (direct body child for responsive ordering) -->
@@ -1137,9 +1170,12 @@ body::before {
 
     <input type="checkbox" id="setup-advanced" style="display:none">
 
-    <button id="btn-start-game" style="width:100%;padding:14px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:all 0.2s;">
-      LAUNCH GAME ›
-    </button>
+    <div style="display:flex;gap:10px;margin-top:0;">
+      <a href="lobby.html" style="flex-shrink:0;padding:14px 18px;background:transparent;border:1px solid #1c2840;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:6px;text-decoration:none;display:flex;align-items:center;transition:all 0.2s;" onmouseenter="this.style.color='#88aacc';this.style.borderColor='#3a5080'" onmouseleave="this.style.color='#4a6080';this.style.borderColor='#1c2840'">← LOBBY</a>
+      <button id="btn-start-game" style="flex:1;padding:14px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:all 0.2s;">
+        LAUNCH GAME ›
+      </button>
+    </div>
   </div>
 </div>
 
@@ -2013,6 +2049,67 @@ function makeTurnToken(player) {
 
   if (!disabled) attachTurnTokenListeners(token);
   wrap.appendChild(token);
+
+  // Hold-to-reset button: only show when current player has actions to undo (not opponent's token)
+  const isMyTurn = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
+  const canReset = G.phase === 'PLAY' && isMyTurn && (G.history || (G._pendingActions?.length > 0));
+  if (canReset) {
+    const resetBtnEl = document.createElement('button');
+    resetBtnEl.className = 'hold-reset-btn';
+    resetBtnEl.textContent = 'RESET';
+    const fillEl = document.createElement('div');
+    fillEl.className = 'hold-reset-fill';
+    resetBtnEl.appendChild(fillEl);
+
+    let _rTimer = null, _rStart = null;
+    const HOLD_MS = 1000;
+    function startHold(e) {
+      e.preventDefault();
+      resetBtnEl.classList.add('holding');
+      resetBtnEl.childNodes[0].textContent = 'HOLD';
+      _rStart = Date.now();
+      let raf;
+      function tick() {
+        const elapsed = Date.now() - _rStart;
+        const pct = Math.min(100, (elapsed / HOLD_MS) * 100);
+        fillEl.style.width = pct + '%';
+        if (elapsed >= HOLD_MS) {
+          cancelAnimationFrame(raf);
+          doReset();
+        } else {
+          raf = requestAnimationFrame(tick);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+      _rTimer = () => cancelAnimationFrame(raf);
+    }
+    function cancelHold() {
+      if (_rTimer) { _rTimer(); _rTimer = null; }
+      resetBtnEl.classList.remove('holding');
+      resetBtnEl.childNodes[0].textContent = 'RESET';
+      fillEl.style.width = '0%';
+    }
+    function doReset() {
+      cancelHold();
+      if (G.history) {
+        G = JSON.parse(G.history);
+      } else if (G._pendingActions?.length > 0) {
+        G._pendingActions = [];
+        G.turnUsed = false;
+        G.sacrificePool = { color: null, count: 0 };
+      }
+      G.selectedShipId = null; G.movingFromSysId = null; G.interaction = 'IDLE';
+      render();
+    }
+    resetBtnEl.addEventListener('mousedown', startHold);
+    resetBtnEl.addEventListener('touchstart', startHold, { passive: false });
+    resetBtnEl.addEventListener('mouseup', cancelHold);
+    resetBtnEl.addEventListener('mouseleave', cancelHold);
+    resetBtnEl.addEventListener('touchend', cancelHold);
+    resetBtnEl.addEventListener('touchcancel', cancelHold);
+    wrap.appendChild(resetBtnEl);
+  }
+
   return wrap;
 }
 
@@ -2594,7 +2691,10 @@ function renderSidebar() {
   }
 
   // ---- PLAY PHASE ----
-  titleEl.textContent = `PLAYER ${G.currentPlayer}'S TURN`;
+  const isMyActiveTurn = !window._ONLINE?.active || G.currentPlayer === (window._ONLINE?.mySlot || G.currentPlayer);
+  titleEl.textContent = isMyActiveTurn
+    ? `PLAYER ${G.currentPlayer}'S TURN`
+    : `WAITING FOR OPPONENT…`;
 
   // Catastrophe alerts — always check, shown at top of action panel
   renderCatastrophePanel();
@@ -3239,29 +3339,52 @@ function showPassBanner(title, subtitle) {
 let _chatMessages = [];
 
 function initChat() {
-  _chatMessages = [{ system: true, text: 'Chat is only visible during this game session.' }];
+  _chatMessages = [{ system: true, text: 'Chat is only visible during this game.' }];
   renderChat();
 }
 
-function addChatMsg(player, text) {
+// Called internally when a new message arrives (local or from Firebase)
+window._receiveChatMsg = function _receiveChatMsg(player, text, fromSelf) {
   if (!text.trim()) return;
   _chatMessages.push({ player, text: text.trim() });
   renderChat();
-  // Flash header if chat is collapsed (i.e. message is from the other player and pane is hidden)
-  const body   = document.getElementById('chat-body');
-  const header = document.getElementById('chat-header');
-  const label  = document.getElementById('chat-header-label');
-  if (body && header && body.classList.contains('collapsed')) {
-    // Add unread dot if not already there
-    if (!label.querySelector('.chat-unread-dot')) {
-      const dot = document.createElement('span');
-      dot.className = 'chat-unread-dot';
-      label.appendChild(dot);
+  // Flash header if not from self and chat is collapsed
+  if (!fromSelf) {
+    const body   = document.getElementById('chat-body');
+    const header = document.getElementById('chat-header');
+    const label  = document.getElementById('chat-header-label');
+    if (body && header && body.classList.contains('collapsed')) {
+      if (!label.querySelector('.chat-unread-dot')) {
+        const dot = document.createElement('span');
+        dot.className = 'chat-unread-dot';
+        label.appendChild(dot);
+      }
+      header.classList.remove('has-unread');
+      void header.offsetWidth;
+      header.classList.add('has-unread');
     }
-    // Restart flash animation by removing/re-adding class
-    header.classList.remove('has-unread');
-    void header.offsetWidth; // reflow to restart animation
-    header.classList.add('has-unread');
+  }
+}
+
+// Public: send a chat message (handles both local and online)
+function addChatMsg(playerSlot, text) {
+  if (!text.trim()) return;
+  if (window._ONLINE?.active && window._chatRef) {
+    // Online: push to Firebase; our own onChildAdded will echo it back
+    const { push: fbPush, ref: fbRef } = window._chatFirebaseFns || {};
+    if (fbPush && window._chatRef) {
+      fbPush(window._chatRef, {
+        player: playerSlot,
+        text:   text.trim(),
+        ts:     Date.now(),
+      }).catch(e => console.warn('[chat] push failed:', e));
+    } else {
+      // Fallback: show locally if Firebase fns not wired yet
+      _receiveChatMsg(playerSlot, text, true);
+    }
+  } else {
+    // Local pass-and-play: just update locally
+    _receiveChatMsg(playerSlot, text, true);
   }
 }
 
@@ -3304,7 +3427,9 @@ function escapeHtml(s) {
     if (!G || G.phase === 'SETUP') return;
     const txt = input.value.trim();
     if (!txt) return;
-    addChatMsg(G.currentPlayer, txt);
+    // Use MY_SLOT in online mode (correct author), or G.currentPlayer in local
+    const author = window._ONLINE?.mySlot || G.currentPlayer;
+    addChatMsg(author, txt);
     input.value = '';
   }
 
@@ -3318,7 +3443,8 @@ function escapeHtml(s) {
     if (!G || G.phase === 'SETUP') return;
     const txt = inputM.value.trim();
     if (!txt) return;
-    addChatMsg(G.currentPlayer, txt);
+    const author = window._ONLINE?.mySlot || G.currentPlayer;
+    addChatMsg(author, txt);
     inputM.value = '';
   }
   if (sendBtnM) sendBtnM.addEventListener('click', sendMsgM);
@@ -3361,7 +3487,32 @@ function formatTimer(ms) {
 }
 
 
+function populateMobileNavPill() {
+  // In online mode: fill pill from PLAYER_CONFIG (my slot)
+  const mySlot = window._ONLINE?.mySlot || 0;
+  const name = mySlot ? (window.PLAYER_CONFIG?.names[mySlot] || '') : '';
+  const nameEl = document.getElementById('mobile-nav-name');
+  const tierEl = document.getElementById('mobile-nav-tier');
+  const avatarEl = document.getElementById('mobile-nav-avatar');
+  if (!nameEl) return;
+  if (name) {
+    nameEl.textContent = name;
+    if (avatarEl) avatarEl.textContent = name.slice(0,2).toUpperCase();
+    // In online mode, try to get tier from room data
+    const stars = window.PLAYER_CONFIG?.stars?.[mySlot] || 0;
+    if (tierEl && typeof getTier === 'function') {
+      const t = getTier(stars);
+      tierEl.textContent = t.name.toUpperCase();
+      tierEl.style.color = t.color;
+    }
+  } else {
+    nameEl.textContent = 'LOCAL';
+    if (avatarEl) avatarEl.textContent = '⚡';
+  }
+}
+
 function renderPlayerCards() {
+  populateMobileNavPill();
   [1, 2].forEach(p => {
     const nameEl   = document.getElementById(`pcard-name-${p}`);
     const eloEl    = document.getElementById(`pcard-elo-${p}`);
@@ -3371,7 +3522,7 @@ function renderPlayerCards() {
 
     if (nameEl) nameEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
     if (eloEl) {
-      const t = getTier(PLAYER_CONFIG.elos[p]);
+      const t = getTier(PLAYER_CONFIG.stars?.[p] ?? 0);
       eloEl.textContent = t.name.toUpperCase();
       eloEl.style.color = t.color;
     }
@@ -3648,7 +3799,7 @@ function renderMobileProfiles() {
     const avatarEl= document.getElementById(`pcard-avatar-${p}m`);
     if (!nameEl) return;
     nameEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
-    const mt = getTier(PLAYER_CONFIG.elos[p]);
+    const mt = getTier(PLAYER_CONFIG.stars?.[p] ?? 0);
     eloEl.textContent = mt.name.toUpperCase();
     eloEl.style.color = mt.color;
     const isUnlimited = !PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs;
@@ -3698,7 +3849,7 @@ import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getAuth, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getDatabase, ref, get, set, update, onValue, onDisconnect }
+import { getDatabase, ref, get, set, update, push, onValue, onChildAdded, onDisconnect }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { firebaseConfig } from './firebase-config.js';
 
@@ -3834,6 +3985,26 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
     if (typeof window.initChat === 'function') window.initChat();
 
+    // ── Wire Firebase chat ─────────────────────────────────────
+    const chatRef = ref(db, `rooms/${ROOM_ID}/chat`);
+    window._chatRef = chatRef;
+    window._chatFirebaseFns = { push, ref };
+    let _chatLoaded = false;
+    onChildAdded(chatRef, snap => {
+      const msg = snap.val();
+      if (!msg || !msg.text) return;
+      // Skip messages we sent ourselves (already shown locally via echo)
+      // We identify our messages by player slot
+      const fromSelf = msg.player === MY_SLOT;
+      // During initial load, skip all history (avoid flooding chat on rejoin)
+      if (!_chatLoaded) return;
+      if (typeof window._receiveChatMsg === 'function') {
+        window._receiveChatMsg(msg.player, msg.text, fromSelf);
+      }
+    });
+    // Mark loaded after a brief delay so existing messages are skipped
+    setTimeout(() => { _chatLoaded = true; }, 1200);
+
     // ── Restore existing game state from Firebase (handles rejoin) ──
     const gameSnap = await get(ref(db, `rooms/${ROOM_ID}/game`));
 
@@ -3902,6 +4073,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       }
 
       window.render();
+      // Remove any waiting banner before showing the turn banner
+      if (_waitEl) { _waitEl.remove(); _waitEl = null; }
       const isSetup = incoming.phase === 'SETUP';
       showTurnBanner('YOUR TURN', isSetup ? 'Set up your homeworld' : 'Opponent finished their turn');
     });
@@ -4133,19 +4306,24 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   let _waitEl = null;
   function showWaiting(msg) {
     if (_waitEl) _waitEl.remove();
-    _waitEl = document.createElement('div');
-    _waitEl.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;';
     if (!document.getElementById('_spincss')) {
       const s = document.createElement('style');
       s.id = '_spincss';
-      s.textContent = '@keyframes _spin{to{transform:rotate(360deg)}}';
+      s.textContent = '@keyframes _spin{to{transform:rotate(360deg)}} @keyframes _waitfade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}';
       document.head.appendChild(s);
     }
+    // Non-blocking: thin banner at top, game remains interactive for arrows/chat
+    _waitEl = document.createElement('div');
+    _waitEl.style.cssText = 'position:fixed;top:0;left:0;right:0;height:36px;background:rgba(6,9,18,0.94);border-bottom:1px solid #1c2840;z-index:90;display:flex;align-items:center;justify-content:center;gap:12px;animation:_waitfade 0.3s ease;pointer-events:none;';
     _waitEl.innerHTML = `
-      <div style="width:40px;height:40px;border:2px solid #1c2840;border-top-color:#2266ff;border-radius:50%;animation:_spin 0.8s linear infinite"></div>
-      <div style="font-family:Orbitron,sans-serif;font-size:13px;color:#4a6080;letter-spacing:2px">${msg}</div>
-      <a href="lobby.html" style="font-size:10px;color:#304050;letter-spacing:1px;border:1px solid #1c2840;padding:8px 20px;border-radius:4px;text-decoration:none;">← LOBBY</a>`;
+      <div style="width:16px;height:16px;border:2px solid #1c2840;border-top-color:#2266ff;border-radius:50%;animation:_spin 0.9s linear infinite;flex-shrink:0"></div>
+      <span style="font-family:Orbitron,sans-serif;font-size:10px;color:#3a5878;letter-spacing:2px">${msg}</span>`;
     document.body.appendChild(_waitEl);
+    // Ensure forfeit/lobby buttons stay active during opponent's turn
+    const forfeitBtn = document.getElementById('btn-forfeit');
+    const lobbyBtn   = document.getElementById('btn-lobby');
+    if (forfeitBtn) forfeitBtn.disabled = false;
+    if (lobbyBtn)   lobbyBtn.disabled   = false;
   }
 
   function showTurnBanner(title, subtitle) {
