@@ -1555,8 +1555,14 @@ function checkWin() {
   return false;
 }
 function triggerWin(winner) {
-  showWin(winner);
-  // Let online module push OVER state immediately (don't wait for End Turn)
+  showWin(winner);  // sets G.phase='OVER', G.winner=winner before anything else
+  // Online: persist the OVER state synchronously right now.
+  // The gameEnded event below is async — if this client navigates away or
+  // disconnects before the listener fires, the win would never be written.
+  // Calling saveState() here guarantees the opponent sees it.
+  if (window._ONLINE?.active && typeof window.saveState === 'function') {
+    window.saveState().catch(() => {});
+  }
   window.dispatchEvent(new CustomEvent('gameEnded', { detail: { winner } }));
 }
 function triggerDraw() {
@@ -4109,6 +4115,22 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       syncUid(g);
       g.history = null; g.interaction = 'IDLE';
       g.selectedShipId = null; g._pendingActions = [];
+
+      // ── Timer correction: account for time elapsed since last save ──
+      // saved.ts = Date.now() at the moment saveState() was called.
+      // g.timers[g.currentPlayer] = how much time that player had then.
+      // Subtract elapsed time so the clock is accurate after a rejoin/refresh.
+      if (g.phase === 'PLAY' && g.timers && saved.ts) {
+        const elapsed = Date.now() - saved.ts;
+        const p = g.currentPlayer;
+        g.timers[p] = Math.max(0, g.timers[p] - elapsed);
+        if (g.timers[p] <= 0) {
+          // Time ran out while offline — show win after render
+          g.phase  = 'OVER';
+          g.winner = p === 1 ? 2 : 1;
+        }
+      }
+
       window.G = g;
       window.renderPlayerCards();
       window.render();
@@ -4152,8 +4174,17 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       syncUid(incoming);
       incoming.history = null; incoming.interaction = 'IDLE';
       incoming.selectedShipId = null;
-      // _snapshots no longer transmitted over wire — review uses deterministic replay
       incoming._pendingActions = [];
+
+      // ── Timer correction: d.ts is when opponent's saveState() was called.
+      // The game state encodes G.timers[currentPlayer] at that moment.
+      // By the time we receive it, some ms have passed — subtract them.
+      if (incoming.phase === 'PLAY' && incoming.timers && d.ts) {
+        const elapsed = Date.now() - d.ts;
+        const p = incoming.currentPlayer;
+        incoming.timers[p] = Math.max(0, incoming.timers[p] - elapsed);
+      }
+
       window.G = incoming;
 
       if (incoming.phase === 'OVER') {
