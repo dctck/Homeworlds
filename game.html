@@ -161,6 +161,7 @@ body::before {
   border-right: 1px solid var(--border);
 }
 .bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#btn-lobby-row { display: none; margin-top: 2px; }
 #btn-forfeit { color: #5a3040; border-color: #3a1a22; }
 #btn-forfeit:hover:not(:disabled) { color: #cc3344; border-color: #cc3344; background: rgba(200,50,60,0.1); }
 #btn-draw { color: #2a5060; border-color: #1c3844; display: none; }
@@ -987,8 +988,10 @@ body::before {
   <button class="ctrl-btn" id="btn-end"><span class="btn-label">Skip Turn ›</span><div class="hold-fill"></div></button>
   <div class="bottom-row">
     <button class="ctrl-btn" id="btn-forfeit" title="Forfeit game">⚑ Forfeit</button>
-    <button class="ctrl-btn" id="btn-draw" title="Propose a draw">≈ Draw</button>
-    <button class="ctrl-btn" id="btn-lobby" style="display:none" onclick="location.href='lobby.html'" title="Back to Lobby">⬡ Lobby</button>
+    <button class="ctrl-btn" id="btn-draw" title="Propose a draw" style="display:none">≈ Draw</button>
+  </div>
+  <div id="btn-lobby-row">
+    <button class="ctrl-btn" id="btn-lobby" onclick="location.href='lobby.html'" title="Back to Lobby" style="width:100%">⬡ Lobby</button>
   </div>
   <button class="ctrl-btn" id="btn-reset" style="display:none">↺ Reset Turn</button>
 </div>
@@ -1195,7 +1198,7 @@ var G = null;
 var PLAYER_CONFIG = {
   names:   ['', 'Player 1', 'Player 2'],
   elos:    ['', '1200', '1200'],
-  avatars: ['', '', ''],   // base64 or url per player
+  avatars: ['', '', ''],
   timeMs:  0,
   advancedMode: false,
 };
@@ -2256,15 +2259,11 @@ function onPowerClick(color, sys) {
     }
     startAttack(ship, sys);
   } else if (color === 'green') {
-    const ownColors = [...new Set(sys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))];
-    const buildable = ownColors.filter(col => [1,2,3].some(sz => G.bank[col][sz] > 0));
-    if (!buildable.length) { setGuide('⚠ Bank empty for all your ship colors here.'); return; }
-    // Auto-execute if only one buildable color
-    if (buildable.length === 1) {
-      doBuild(sys, buildable[0]);
-    } else {
-      startBuild(ship, sys);
-    }
+    // Build the SELECTED ship's own color directly — no color picker
+    const targetColor = ship.color;
+    const smallestSz  = [1,2,3].find(sz => G.bank[targetColor][sz] > 0);
+    if (!smallestSz) { setGuide(`⚠ Bank has no ${targetColor} pieces left.`); return; }
+    doBuild(sys, targetColor);
   }
 }
 
@@ -2718,12 +2717,12 @@ function renderSidebar() {
 
   // Show/hide draw button based on phase
   const _drawBtn = document.getElementById('btn-draw');
-  if (_drawBtn) _drawBtn.style.display = (G.phase === 'PLAY') ? '' : 'none';
+  if (_drawBtn) { const _sd = G.phase==='PLAY' && !!(window._ONLINE?.active); _drawBtn.style.display = _sd?'block':'none'; }
 
   // ---- SETUP PHASE ----
   if (G.phase === 'SETUP') {
     document.getElementById('catastrophe-panel').innerHTML = '';
-    const _setupIsMe = !window._ONLINE?.active || G.currentPlayer === (window._ONLINE?.mySlot);
+    const _setupIsMe = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
     const _setupName = _setupIsMe ? 'YOU' : (PLAYER_CONFIG.names[G.currentPlayer] || 'OPPONENT').toUpperCase();
     titleEl.textContent = `${_setupName} — SETUP`;
 
@@ -2738,11 +2737,11 @@ function renderSidebar() {
       actionBtns.appendChild(resetBtn);
     } else {
       const stepLabels = [
-        'Choose your 1st homeworld star from the STASH.',
-        'Choose your 2nd homeworld star from the STASH.',
-        'Choose your starting large ship from the STASH.'
+        'Click any star in the STASH to choose your 1st homeworld star.',
+        'Click any star in the STASH to choose your 2nd homeworld star.',
+        'Click a Large (size 3) ship in the STASH to choose your starting ship.'
       ];
-      guideEl.textContent = _setupIsMe ? stepLabels[G.setupStep] : `${PLAYER_CONFIG.names[G.currentPlayer] || 'Opponent'} is setting up their homeworld…`;
+      guideEl.textContent = stepLabels[G.setupStep];
 
       if (G.setupCache.stars.length > 0) {
         const resetBtn = document.createElement('button');
@@ -2761,8 +2760,7 @@ function renderSidebar() {
   if (isMyActiveTurn) {
     titleEl.textContent = 'YOUR TURN';
   } else {
-    const oppName = PLAYER_CONFIG.names[G.currentPlayer] || 'Opponent';
-    titleEl.textContent = `${oppName.toUpperCase()}'S TURN`;
+    titleEl.textContent = `${(PLAYER_CONFIG.names[G.currentPlayer]||'OPPONENT').toUpperCase()}'S TURN`;
   }
 
   // Catastrophe alerts — always check, shown at top of action panel
@@ -2771,7 +2769,10 @@ function renderSidebar() {
   // Sacrifice pool counter
   if (G.sacrificePool.count > 0) {
     sacCounter.style.display = 'block';
-    sacCounter.textContent = `SACRIFICE: ${G.sacrificePool.count} ${G.sacrificePool.color.toUpperCase()} action${G.sacrificePool.count !== 1 ? 's' : ''} left`;
+    const _sacColor = G.sacrificePool.color;
+    const _sacPower = {red:'Hijack',blue:'Trade',yellow:'Move',green:'Build'}[_sacColor] || _sacColor;
+    const _sacHex   = {red:'#ff5566',blue:'#4488ff',yellow:'#ffcc00',green:'#22dd77'}[_sacColor] || '#aaa';
+    sacCounter.innerHTML = `<span style="color:${_sacHex};font-weight:bold">${G.sacrificePool.count} ${_sacPower}</span> action${G.sacrificePool.count !== 1 ? 's' : ''} left`;
   }
   if (PLAYER_CONFIG.advancedMode) {
     const advBadge = document.createElement('div');
@@ -3068,16 +3069,15 @@ function onShipClick(shipId) {
     }
 
     if (sc === 'green' && clickedSys) {
-      // Build: auto-execute if only one buildable color, else go to BUILDING
-      const ownColors = [...new Set(clickedSys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))];
-      const buildable = ownColors.filter(col => [1,2,3].some(sz => G.bank[col][sz] > 0));
-      if (buildable.length === 0) { setGuide('⚠ Bank empty for all your ship colors here.'); G.selectedShipId = null; return; }
-      if (buildable.length === 1) {
-        doBuild(clickedSys, buildable[0]);
-      } else {
-        G.interaction = 'BUILDING';
-        render();
+      // Build: use the CLICKED ship's color directly (no picker needed)
+      const targetColor = ship.color;
+      const smallestSz  = [1,2,3].find(sz => G.bank[targetColor][sz] > 0);
+      if (!smallestSz) {
+        setGuide(`⚠ Bank has no ${targetColor} pieces left.`);
+        G.selectedShipId = null;
+        return;
       }
+      doBuild(clickedSys, targetColor);
       return;
     }
 
@@ -3195,15 +3195,14 @@ function startAttack(ship, sys) {
 }
 
 function startBuild(ship, sys) {
-  // Colors you can build = colors of your own ships in this system
-  const ownColors = [...new Set(sys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))];
-  const buildable = ownColors.filter(c => [1,2,3].some(sz => G.bank[c][sz] > 0));
-  if (buildable.length === 0) {
-    setGuide('⚠ Cannot build: bank is empty for all colors of your ships in this system.');
+  // Build the selected ship's OWN color directly
+  const targetColor = ship.color;
+  const smallestSz  = [1,2,3].find(sz => G.bank[targetColor][sz] > 0);
+  if (!smallestSz) {
+    setGuide(`⚠ Cannot build: bank has no ${targetColor} pieces left.`);
     return;
   }
-  G.interaction = 'BUILDING';
-  render();
+  doBuild(sys, targetColor);
 }
 
 // ---- EXECUTE ACTIONS ----
@@ -3649,13 +3648,9 @@ function renderPlayerCards() {
         avatarEl.textContent = initials;
       }
     }
-
-    // Update zone homeworld labels with player's actual name
+    // Update zone homeworld label with real username
     const zoneLabel = document.getElementById(`zone-label-${p}`);
-    if (zoneLabel) {
-      const uname = PLAYER_CONFIG.names[p] || `Player ${p}`;
-      zoneLabel.textContent = `— ${uname.toUpperCase()} HOMEWORLD —`;
-    }
+    if (zoneLabel) zoneLabel.textContent = `— ${(PLAYER_CONFIG.names[p]||`Player ${p}`).toUpperCase()} HOMEWORLD —`;
   });
   renderMobileProfiles();
 }
@@ -4040,10 +4035,10 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (modal) modal.remove();
 
     // Show lobby + draw buttons
-    const lobbyBtn = document.getElementById('btn-lobby');
-    if (lobbyBtn) lobbyBtn.style.display = '';
+    const lobbyBtnRow = document.getElementById('btn-lobby-row');
+    if (lobbyBtnRow) lobbyBtnRow.style.display = 'block';
     const drawBtnOnline = document.getElementById('btn-draw');
-    if (drawBtnOnline) drawBtnOnline.style.display = '';
+    if (drawBtnOnline) drawBtnOnline.style.display = 'block';
 
     // Fix gear icon: always on opponent's card.
     // HTML has gear only on pcard-2. If I'm P2, move it to pcard-1.
@@ -4330,10 +4325,11 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   // ── UI helpers ───────────────────────────────────────────────
   // ── Draw offer signaling via Firebase ───────────────────────
   let _drawOfferSent = false;
+  let _drawUsedByMe  = false;
   window._sendDrawOffer = async function() {
     const drawBtn = document.getElementById('btn-draw');
-    if (_drawOfferSent) return; // already offered
-    _drawOfferSent = true;
+    if (_drawOfferSent || _drawUsedByMe) return;
+    _drawOfferSent = true; _drawUsedByMe = true;
     if (drawBtn) { drawBtn.textContent = '≈ Offered…'; drawBtn.classList.add('pending'); drawBtn.disabled = true; }
     await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), { from: MY_SLOT, ts: Date.now() });
   };
@@ -4382,7 +4378,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (snap.val() === null && _drawOfferSent) {
       _drawOfferSent = false;
       const drawBtn = document.getElementById('btn-draw');
-      if (drawBtn) { drawBtn.textContent = '≈ Draw'; drawBtn.classList.remove('pending'); drawBtn.disabled = false; }
+      if (drawBtn) { drawBtn.textContent = '≈ Draw Used'; drawBtn.classList.remove('pending'); drawBtn.disabled = true; drawBtn.style.opacity = '0.3'; }
     }
   });
 
@@ -4404,10 +4400,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     document.body.appendChild(_waitEl);
     // Ensure forfeit/lobby buttons stay active during opponent's turn
     const forfeitBtn = document.getElementById('btn-forfeit');
-    const lobbyBtn   = document.getElementById('btn-lobby');
     const drawBtnEl  = document.getElementById('btn-draw');
     if (forfeitBtn) forfeitBtn.disabled = false;
-    if (lobbyBtn)   lobbyBtn.disabled   = false;
     if (drawBtnEl)  drawBtnEl.disabled  = false;
   }
 
