@@ -163,6 +163,9 @@ body::before {
 .bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 #btn-forfeit { color: #5a3040; border-color: #3a1a22; }
 #btn-forfeit:hover:not(:disabled) { color: #cc3344; border-color: #cc3344; background: rgba(200,50,60,0.1); }
+#btn-draw { color: #2a5060; border-color: #1c3844; display: none; }
+#btn-draw:hover:not(:disabled) { color: #44aabb; border-color: #44aabb; background: rgba(68,170,187,0.08); }
+#btn-draw.pending { color: #44aabb; border-color: #44aabb; animation: pulse-cata 1.2s ease-in-out infinite; }
 #btn-reset { color: #3a5060; border-color: #1c2840; font-size: 11px; }
 #btn-reset:hover:not(:disabled) { color: #88bbcc; border-color: #3a5080; }
 .ctrl-btn {
@@ -984,6 +987,7 @@ body::before {
   <button class="ctrl-btn" id="btn-end"><span class="btn-label">Skip Turn ›</span><div class="hold-fill"></div></button>
   <div class="bottom-row">
     <button class="ctrl-btn" id="btn-forfeit" title="Forfeit game">⚑ Forfeit</button>
+    <button class="ctrl-btn" id="btn-draw" title="Propose a draw">≈ Draw</button>
     <button class="ctrl-btn" id="btn-lobby" style="display:none" onclick="location.href='lobby.html'" title="Back to Lobby">⬡ Lobby</button>
   </div>
   <button class="ctrl-btn" id="btn-reset" style="display:none">↺ Reset Turn</button>
@@ -1551,6 +1555,11 @@ function triggerWin(winner) {
   // Let online module push OVER state immediately (don't wait for End Turn)
   window.dispatchEvent(new CustomEvent('gameEnded', { detail: { winner } }));
 }
+function triggerDraw() {
+  showDraw();
+  // winner:0 signals a draw to the online module
+  window.dispatchEvent(new CustomEvent('gameEnded', { detail: { winner: 0 } }));
+}
 // Build compact log text for clipboard
 function buildLogText(winnerPlayer) {
   const winnerName = PLAYER_CONFIG.names[winnerPlayer] || `Player ${winnerPlayer}`;
@@ -1688,6 +1697,55 @@ function showWin(winnerPlayer) {
     const status = document.getElementById('wo-status');
     btn.disabled = true; btn.textContent = 'LOADING…';
     const gameId = await getReviewId(winnerPlayer);
+    if (gameId) {
+      if (typeof window._markExited === 'function') await window._markExited();
+      location.href = `review.html?game=${gameId}`;
+    } else {
+      status.textContent = 'Game record not ready — try again.';
+      btn.disabled = false; btn.textContent = 'REVIEW GAME';
+    }
+  };
+}
+
+// ── Strategic Draw overlay ─────────────────────────────────
+function showDraw() {
+  stopTimerTick();
+  _chatMessages = [];
+  G.phase = 'OVER';
+  G.winner = 0; // 0 = draw
+
+  const overlay = document.getElementById('win-overlay');
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+
+  const mySlot = window._ONLINE?.mySlot || null;
+  const n1 = PLAYER_CONFIG.names[1] || 'Player 1';
+  const n2 = PLAYER_CONFIG.names[2] || 'Player 2';
+
+  overlay.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:20px;padding:32px;max-width:440px;text-align:center;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:clamp(22px,4vw,34px);font-weight:900;color:#88bbcc;letter-spacing:4px;text-shadow:0 0 40px rgba(136,187,204,0.5);">STRATEGIC DRAW</div>
+      <div style="font-size:13px;color:#6080a0;letter-spacing:2px;">Neither commander blinked</div>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid #1c2840;border-radius:8px;padding:14px 24px;min-width:240px;text-align:center;">
+        <div style="font-size:9px;color:#304050;letter-spacing:2px;margin-bottom:8px;font-family:Orbitron,sans-serif;">NO RATING CHANGE</div>
+        <div style="font-size:12px;color:#6080a0;letter-spacing:1px;">${n1} · ${n2}</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:4px;">
+        <button id="wd-lobby" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">LOBBY</button>
+        <button id="wd-review" style="padding:10px 22px;background:rgba(34,102,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">REVIEW GAME</button>
+      </div>
+      <div id="wd-status" style="font-size:10px;color:#304050;letter-spacing:1px;min-height:16px;"></div>
+    </div>`;
+
+  document.getElementById('wd-lobby').onclick = async () => {
+    if (typeof window._markExited === 'function') await window._markExited();
+    location.href = 'lobby.html';
+  };
+  document.getElementById('wd-review').onclick = async () => {
+    const btn = document.getElementById('wd-review');
+    const status = document.getElementById('wd-status');
+    btn.disabled = true; btn.textContent = 'LOADING…';
+    const gameId = await getReviewId(0);
     if (gameId) {
       if (typeof window._markExited === 'function') await window._markExited();
       location.href = `review.html?game=${gameId}`;
@@ -2308,7 +2366,19 @@ function renderBoard() {
   [...layers.keys()].sort((a, b) => a - b).forEach(d => {
     const row = document.createElement('div');
     row.className = 'dist-row';
-    layers.get(d).forEach(s => row.appendChild(renderSystem(s)));
+    // Within each distance layer: P2-discovered → left; P1-discovered → right
+    const layerSystems = [...layers.get(d)];
+    layerSystems.sort((a, b) => {
+      const dA = a.discoveredBy || 0; // 0 = untagged (homeworld/legacy)
+      const dB = b.discoveredBy || 0;
+      // P2 (top) first = leftmost; P1 (bottom) last = rightmost
+      if (dA === 2 && dB !== 2) return -1;
+      if (dB === 2 && dA !== 2) return 1;
+      if (dA === 1 && dB !== 1) return 1;
+      if (dB === 1 && dA !== 1) return -1;
+      return 0;
+    });
+    layerSystems.forEach(s => row.appendChild(renderSystem(s)));
     zMid.appendChild(row);
   });
 
@@ -3181,6 +3251,7 @@ function doDiscover(starColor, starSize) {
     id: nextId(),
     name: newName,
     isHomeworld: null,
+    discoveredBy: G.currentPlayer,  // used for row placement
     stars: [{ color: starColor, size: starSize }],
     ships: []
   };
@@ -3218,7 +3289,18 @@ function doSacrifice(ship, sys) {
 // ============================================================
 document.getElementById('btn-forfeit').onclick = () => {
   if (!G || G.phase !== 'PLAY') return;
-  showForfeitDialog(G.currentPlayer);
+  const forfeiter = window._ONLINE?.active ? window._ONLINE.mySlot : G.currentPlayer;
+  showForfeitDialog(forfeiter);
+};
+document.getElementById('btn-draw').onclick = () => {
+  if (!G || G.phase !== 'PLAY') return;
+  if (window._ONLINE?.active) {
+    // Online: send draw offer via Firebase (handled in online module)
+    if (typeof window._sendDrawOffer === 'function') window._sendDrawOffer();
+  } else {
+    // Pass-and-play: both players present — confirm once
+    if (confirm('Both players agree to a draw?')) triggerDraw();
+  }
 };
 document.getElementById('btn-reset').onclick = () => {
   if (G.phase === 'SETUP') {
@@ -3582,7 +3664,6 @@ function showForfeitDialog(player) {
     const winner = player === 1 ? 2 : 1;
     // triggerWin = showWin + dispatch gameEnded (archive + ELO + recentGames).
     // showWin alone skips all of that — that was the forfeit bug.
-    console.log('[HW] Forfeit confirmed: forfeiter=', player, 'winner=', winner, '— calling triggerWin');
     triggerWin(winner);
   };
 }
@@ -3934,9 +4015,11 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const modal = document.getElementById('startup-modal');
     if (modal) modal.remove();
 
-    // Show lobby button
+    // Show lobby + draw buttons
     const lobbyBtn = document.getElementById('btn-lobby');
     if (lobbyBtn) lobbyBtn.style.display = '';
+    const drawBtnOnline = document.getElementById('btn-draw');
+    if (drawBtnOnline) drawBtnOnline.style.display = '';
 
     // Fix gear icon: always on opponent's card.
     // HTML has gear only on pcard-2. If I'm P2, move it to pcard-1.
@@ -4055,14 +4138,15 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window.G = incoming;
 
       if (incoming.phase === 'OVER') {
-        window.G = incoming; // ensure local G is OVER before render/showWin
+        window.G = incoming;
         window.render();
-        if (!document.getElementById('win-overlay')?.classList.contains('show')) {
-          // Use triggerWin so gameEnded fires on this client too.
-          // This ensures the loser's ELO + recentGames gets written.
-          // The archive guard inside gameEnded prevents double-write to gamesPlayed.
-          console.log('[HW] Incoming OVER state — calling triggerWin to fire gameEnded for ELO update');
-          window.triggerWin(incoming.winner);
+        const alreadyShown = document.getElementById('win-overlay')?.classList.contains('show');
+        if (!alreadyShown) {
+          if (incoming.winner === 0) {
+            window.triggerDraw(); // draw: no ELO change
+          } else {
+            window.triggerWin(incoming.winner);
+          }
         }
         return;
       }
@@ -4084,7 +4168,6 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   let _archived = false;
   window.addEventListener('gameEnded', async ({ detail }) => {
     if (!window._ONLINE?.active) return;
-    console.log('[HW] gameEnded fired, winner=', detail.winner, 'MY_SLOT=', MY_SLOT, '_archived=', _archived);
     // Only commit if there are actual pending actions (winner's side).
     // The loser's side has G._pendingActions=[] (cleared when incoming state loaded),
     // so calling commitTurnLog() there would push an empty snapshot without a log entry.
@@ -4092,21 +4175,17 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window.commitTurnLog();
     }
     await saveState();
-    console.log('[HW] saveState done');
 
     // Anyone whose client sees the game end can archive.
     // Guard: check if already archived in Firebase first (prevents double-write if both clients race)
     if (!_archived) {
       _archived = true;
-      console.log('[HW] Attempting to archive game...');
       try {
         // Check if already archived (other client may have beaten us)
         const existingSnap = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
         if (existingSnap.val()) {
           // Already archived by the other client — do NOT return here.
           // Fall through so this client still runs its own ELO + recentGames update below.
-          console.log('[HW] Already archived as', existingSnap.val(), '— skipping archive write, continuing to ELO update');
-          // Jump to ELO section by skipping the rest of the archive block
         } else {
 
         const record = {
@@ -4118,14 +4197,11 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           snapshots: window._gameSnapshots || [],
           playedAt:  Date.now(),
         };
-        console.log('[HW] record built, snapshots:', record.snapshots.length, 'log entries:', record.log.length);
 
         const counterSnap = await get(ref(db, 'gamesPlayedCount'));
         const nextId = ((counterSnap.val() || 0) + 1);
-        console.log('[HW] Writing to gamesPlayed/', nextId);
         await set(ref(db, `gamesPlayed/${nextId}`), record);
         await set(ref(db, 'gamesPlayedCount'), nextId);
-        console.log('[HW] gamesPlayed written OK');
 
         // Tag room FIRST so both clients can find the review even if star update fails
         await update(ref(db, `rooms/${ROOM_ID}`), {
@@ -4134,11 +4210,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           winner: detail.winner,
           winnerName: record.players[detail.winner] || `Player ${detail.winner}`,
         });
-        console.log('[HW] Room tagged archived, archivedGameId=', nextId);
         } // close else (not already archived)
       } catch(e) {
-        console.error('[HW] Auto-archive FAILED:', e);
-        _archived = false; // allow retry
+            _archived = false; // allow retry
         return;
       }
 
@@ -4146,12 +4220,10 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
     // ── ELO + star update: runs on EVERY client (winner & loser both update their own record)
     // We wait briefly to ensure archivedGameId is written before reading it back
-    console.log('[HW] ELO section: MY_SLOT=', MY_SLOT, 'winner=', detail.winner, '— waiting 1.2s for archivedGameId...');
     await new Promise(r => setTimeout(r, 1200));
     try {
       const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
       const room = roomSnap.val();
-      console.log('[HW] ELO section: room=', room ? 'exists' : 'MISSING', 'archivedGameId=', room?.archivedGameId);
       if (room) {
         const mySlotKey  = MY_SLOT === 1 ? 'player1' : 'player2';
         const oppSlotKey = MY_SLOT === 1 ? 'player2' : 'player1';
@@ -4159,7 +4231,6 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         const iWon    = detail.winner === MY_SLOT;
         const oppName = room[oppSlotKey]?.name || `Player ${3 - MY_SLOT}`;
         const gameId  = room.archivedGameId;
-        console.log('[HW] ELO section: myUid=', myUid, 'iWon=', iWon, 'gameId=', gameId);
 
         if (myUid) {
           const [mySnap, oppSnap] = await Promise.all([
@@ -4172,24 +4243,32 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           const myElo  = myRec.elo  || 1200;
           const oppElo = oppRec.elo || 1200;
 
-          const K = 32;
-          const expected  = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
-          const actual    = iWon ? 1 : 0;
-          const eloChange = Math.round(K * (actual - expected));
-          const newElo    = Math.max(100, myElo + eloChange);
-
-          const isUpset   = iWon && oppElo > myElo;
-          const myStars   = myRec.stars || 0;
-          const starDelta = iWon ? (isUpset ? 2 : 1) : -1;
-          const newStars  = Math.max(0, myStars + starDelta);
-
-          // Guard: don't double-update if this game is already in recentGames
+          // Guard: don't double-update if already in recentGames
           const alreadyRecorded = gameId && (myRec.recentGames || []).some(g => String(g.gameId) === String(gameId));
-          console.log('[HW] alreadyRecorded=', alreadyRecorded, 'gameId=', gameId, 'existing recentGames count=', (myRec.recentGames||[]).length);
           if (alreadyRecorded) {
-            console.log('[HW] ELO already recorded for this game, skipping');
+            // already written — skip
+          } else if (isDraw) {
+            // Draw: no ELO or star change; just increment draws + record game
+            await update(ref(db, `players/${myUid}`), {
+              draws: (myRec.draws || 0) + 1,
+            });
+            if (gameId) {
+              const hist = myRec.recentGames || [];
+              const entry = { gameId, result: 'draw', opponent: oppName, starDelta: 0, eloChange: 0, playedAt: Date.now() };
+              await set(ref(db, `players/${myUid}/recentGames`), [entry, ...hist].slice(0, 20));
+            }
           } else {
-            console.log(`[HW] ELO ${myElo}→${newElo} (${eloChange>0?'+':''}${eloChange}), stars ${myStars}→${newStars}`);
+            const K = 32;
+            const expected  = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
+            const actual    = iWon ? 1 : 0;
+            const eloChange = Math.round(K * (actual - expected));
+            const newElo    = Math.max(100, myElo + eloChange);
+
+            const isUpset   = iWon && oppElo > myElo;
+            const myStars   = myRec.stars || 0;
+            const starDelta = iWon ? (isUpset ? 2 : 1) : -1;
+            const newStars  = Math.max(0, myStars + starDelta);
+
             await update(ref(db, `players/${myUid}`), {
               elo:    newElo,
               stars:  newStars,
@@ -4199,15 +4278,12 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
             if (gameId) {
               const hist = myRec.recentGames || [];
               const entry = { gameId, result: iWon ? 'win' : 'loss', opponent: oppName, starDelta, eloChange, playedAt: Date.now() };
-              console.log('[HW] Writing recentGames entry for uid=', myUid, 'entry=', entry);
               await set(ref(db, `players/${myUid}/recentGames`), [entry, ...hist].slice(0, 20));
-              console.log('[HW] recentGames written OK for uid=', myUid);
             }
           }
         }
       }
     } catch(e) {
-      console.warn('[HW] ELO/star update failed (non-fatal):', e.message);
     }
   });
 
@@ -4216,16 +4292,13 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   // This prevents forfeiting player from deleting the room before archive completes.
   window._markExited = async function() {
     if (!window._ONLINE?.active) return;
-    console.log('[HW] _markExited called for slot', MY_SLOT);
     try {
       await set(ref(db, `rooms/${ROOM_ID}/exitedBy/${MY_SLOT}`), true);
       const snap = await get(ref(db, `rooms/${ROOM_ID}`));
       const room = snap.val() || {};
       const ex   = room.exitedBy || {};
-      console.log('[HW] exitedBy now:', ex, 'archivedGameId:', room.archivedGameId);
       if (ex[1] && ex[2] && room.archivedGameId) {
         // Both exited AND archive confirmed → safe to delete
-        console.log('[HW] Both exited + archived — deleting room');
         await set(ref(db, `rooms/${ROOM_ID}`), null);
       }
       // If archive not done yet, room stays — it will be cleaned up by lobby's 7-day sweep
@@ -4234,15 +4307,12 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
   // ── "Review Game" navigates to review page (archive already done) ─
   window._archiveOnline = async function() {
-    console.log('[HW] _archiveOnline: polling for archivedGameId...');
     for (let i = 0; i < 40; i++) {
       const snap = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
       const val = snap.val();
-      console.log(`[HW] poll ${i+1}/40: archivedGameId =`, val);
       if (val) return String(val);
       await new Promise(r => setTimeout(r, 500));
     }
-    console.warn('[HW] _archiveOnline: timed out waiting for archivedGameId');
     return null;
   };
 
@@ -4311,6 +4381,64 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   };
 
   // ── UI helpers ───────────────────────────────────────────────
+  // ── Draw offer signaling via Firebase ───────────────────────
+  let _drawOfferSent = false;
+  window._sendDrawOffer = async function() {
+    const drawBtn = document.getElementById('btn-draw');
+    if (_drawOfferSent) return; // already offered
+    _drawOfferSent = true;
+    if (drawBtn) { drawBtn.textContent = '≈ Offered…'; drawBtn.classList.add('pending'); drawBtn.disabled = true; }
+    await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), { from: MY_SLOT, ts: Date.now() });
+  };
+
+  // Listen for draw offer changes on this room
+  onValue(ref(db, `rooms/${ROOM_ID}/drawOffer`), snap => {
+    const offer = snap.val();
+    if (!offer) return;
+    if (offer.from === MY_SLOT) return; // I sent this — ignore echo
+    // Opponent offered a draw — show dialog
+    if (document.getElementById('_drawDialog')) return; // already showing
+    const dlg = document.createElement('div');
+    dlg.id = '_drawDialog';
+    dlg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:80;display:flex;align-items:center;justify-content:center;';
+    dlg.innerHTML = `
+      <div style="background:#0c1120;border:1px solid #2a3850;border-radius:10px;padding:28px;width:320px;text-align:center;font-family:Share Tech Mono,monospace;">
+        <div style="font-family:Orbitron,sans-serif;font-size:13px;color:#88bbcc;letter-spacing:3px;margin-bottom:10px;">DRAW OFFERED</div>
+        <div style="font-size:12px;color:#6080a0;margin-bottom:20px;line-height:1.6;">Your opponent proposes a Strategic Draw.<br>Accept?</div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button id="_drawAccept" style="padding:9px 22px;background:rgba(68,170,187,0.12);border:1px solid #44aabb;color:#44aabb;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;">ACCEPT</button>
+          <button id="_drawDecline" style="padding:9px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;">DECLINE</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+
+    document.getElementById('_drawAccept').onclick = async () => {
+      dlg.remove();
+      // Signal accepted — write OVER state with winner:0 so both clients see it
+      window.G.phase = 'OVER';
+      window.G.winner = 0;
+      await window.saveState();
+      window.triggerDraw();
+      // Clear offer
+      await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), null);
+    };
+    document.getElementById('_drawDecline').onclick = async () => {
+      dlg.remove();
+      // Clear the offer so proposer can try again later
+      await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), null);
+      // Re-enable draw button for proposer (they'll see the offer cleared)
+    };
+  });
+
+  // If draw offer is cleared (declined), re-enable the draw button for proposer
+  onValue(ref(db, `rooms/${ROOM_ID}/drawOffer`), snap => {
+    if (snap.val() === null && _drawOfferSent) {
+      _drawOfferSent = false;
+      const drawBtn = document.getElementById('btn-draw');
+      if (drawBtn) { drawBtn.textContent = '≈ Draw'; drawBtn.classList.remove('pending'); drawBtn.disabled = false; }
+    }
+  });
+
   let _waitEl = null;
   function showWaiting(msg) {
     if (_waitEl) _waitEl.remove();
@@ -4330,8 +4458,10 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     // Ensure forfeit/lobby buttons stay active during opponent's turn
     const forfeitBtn = document.getElementById('btn-forfeit');
     const lobbyBtn   = document.getElementById('btn-lobby');
+    const drawBtnEl  = document.getElementById('btn-draw');
     if (forfeitBtn) forfeitBtn.disabled = false;
     if (lobbyBtn)   lobbyBtn.disabled   = false;
+    if (drawBtnEl)  drawBtnEl.disabled  = false;
   }
 
   // showTurnBanner removed — turns start immediately without an overlay

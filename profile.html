@@ -64,12 +64,12 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 .btn-small.danger:hover{background:rgba(255,68,85,.18)}
 
 /* ── Stats grid ── */
-.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
 @media(max-width:500px){.stats-grid{grid-template-columns:1fr 1fr}}
 .stat-card{background:rgba(12,17,32,.85);border:1px solid var(--border);border-radius:8px;padding:18px;text-align:center}
 .stat-n{font-family:'Orbitron',sans-serif;font-size:26px;font-weight:900;color:var(--bright);display:block;margin-bottom:4px}
 .stat-l{font-size:10px;letter-spacing:2px;color:#4a6080}
-.stat-card.wins .stat-n{color:var(--green)}.stat-card.losses .stat-n{color:var(--p2)}
+.stat-card.wins .stat-n{color:var(--green)}.stat-card.losses .stat-n{color:var(--p2)}.stat-card.draws .stat-n{color:#88bbcc}
 
 /* ── Section ── */
 .section{background:rgba(12,17,32,.85);border:1px solid var(--border);border-radius:10px;padding:22px;margin-bottom:16px}
@@ -103,7 +103,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 .match-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(28,40,64,.4);font-size:11px;gap:8px;flex-wrap:wrap}
 .match-row:last-child{border-bottom:none}
 .match-result{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;min-width:36px}
-.match-result.win{color:var(--green)}.match-result.loss{color:var(--p2)}
+.match-result.win{color:var(--green)}.match-result.loss{color:var(--p2)}.match-result.draw{color:#88bbcc}
 .match-opp{color:var(--text);flex:1}
 .match-stars{font-size:10px;min-width:28px;text-align:right}
 .match-date{color:#2a3850;font-size:10px;min-width:64px;text-align:right}
@@ -170,6 +170,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
     <div class="stat-card"><span class="stat-n" id="stat-total">—</span><span class="stat-l">GAMES PLAYED</span></div>
     <div class="stat-card wins"><span class="stat-n" id="stat-wins">—</span><span class="stat-l">VICTORIES</span></div>
     <div class="stat-card losses"><span class="stat-n" id="stat-losses">—</span><span class="stat-l">DEFEATS</span></div>
+    <div class="stat-card draws"><span class="stat-n" id="stat-draws">—</span><span class="stat-l">DRAWS</span></div>
   </div>
 
   <!-- SETTINGS -->
@@ -282,10 +283,11 @@ function renderProfile(user){
   document.getElementById('star-pill-total').style.cssText=`background:${t.bg};border:1px solid ${t.color}30;display:inline-flex;align-items:center;gap:5px;font-size:11px;letter-spacing:.5px;padding:4px 10px;border-radius:3px`;
 
   // Stats
-  const total=(ME.wins||0)+(ME.losses||0);
+  const total=(ME.wins||0)+(ME.losses||0)+(ME.draws||0);
   document.getElementById('stat-total').textContent=total;
   document.getElementById('stat-wins').textContent=ME.wins||0;
   document.getElementById('stat-losses').textContent=ME.losses||0;
+  document.getElementById('stat-draws').textContent=ME.draws||0;
 
   // Toggle
   document.getElementById('toggle-advanced').checked=!!ME.advancedMode;
@@ -366,8 +368,9 @@ async function loadHistory(uid){
     matches.forEach(m => {
       const row = document.createElement('div');
       row.className = 'match-row';
-      const delta = m.starDelta > 0 ? `+${m.starDelta}★` : `${m.starDelta}★`;
-      const deltaColor = m.starDelta > 0 ? 'var(--green)' : '#884444';
+      const isDraw = m.result === 'draw';
+      const delta = isDraw ? '—' : (m.starDelta > 0 ? `+${m.starDelta}★` : `${m.starDelta}★`);
+      const deltaColor = isDraw ? '#4a6080' : (m.starDelta > 0 ? 'var(--green)' : '#884444');
       const date = new Date(m.playedAt).toLocaleDateString();
       row.innerHTML = `
         <span class="match-result ${m.result}">${m.result.toUpperCase()}</span>
