@@ -446,7 +446,7 @@ document.getElementById('btn-create').onclick = async () => {
     password: isPrivFinal ? simpleHash(pw) : '',
     hostUid:ME.uid, guestUid:null,
     settings:{tcMode:selectedTc,timeMs,tcTurnMs},
-    player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0,elo:ME.elo||1200},
+    player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0,elo:ME.elo||1200,avatarBase64:ME.avatarBase64||'',avatarUrl:ME.avatarUrl||''},
     player2:null, currentTurn:1, createdAt:Date.now(),
   });
   window.location.href = `game.html?room=${roomRef.key}&player=1`;
@@ -600,7 +600,7 @@ document.getElementById('modal-pw-eye').onclick=()=>{
 async function doJoin(id){
   await update(ref(db,`rooms/${id}`),{
     guestUid: ME.uid,
-    player2:  {uid:ME.uid, name:ME.name, stars:ME.stars||0, elo:ME.elo||1200}
+    player2:  {uid:ME.uid, name:ME.name, stars:ME.stars||0, elo:ME.elo||1200, avatarBase64:ME.avatarBase64||'', avatarUrl:ME.avatarUrl||''}
     // status stays 'waiting' until START is clicked in game.html
   });
   window.location.href=`game.html?room=${id}&player=2`;

@@ -908,7 +908,7 @@ body {
   font-size: var(--fs-md); font-weight: 700; letter-spacing: 2px;
   color: var(--bright); margin-bottom: 4px;
 }
-#review-sub { font-size: var(--fs-xs); color: #7090b0; line-height: 1.5; }
+#review-sub { display: none; }
 #nav-section {
   padding: 12px;
   border-bottom: 1px solid var(--border);
@@ -916,8 +916,8 @@ body {
 }
 #turn-indicator {
   font-family: 'Orbitron', sans-serif;
-  font-size: var(--fs-xs); letter-spacing: 2px;
-  color: #4a6080; text-align: center; margin-bottom: 10px;
+  font-size: 11px; letter-spacing: 2px; color: var(--bright);
+  text-align: center; padding: 8px 0 6px;
 }
 #nav-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
 .nav-btn {
@@ -966,6 +966,8 @@ body {
   padding-left: 8px;
 }
 .mini-log-line.active .ml-turn { color: #ffcc00; }
+.mini-log-line .ml-turn-cont { color: #1a2535; margin-right: 4px; }
+.log-result { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1.5px; }
 /* Loading overlay */
 #loading {
   position: fixed; inset: 0; background: rgba(6,9,18,.96); z-index: 200;
@@ -991,7 +993,7 @@ body {
 <div id="sidebar">
   <div id="review-top">
     <div id="review-title">⬡ REVIEW MODE</div>
-    <div id="review-sub">Loading…</div>
+    <!-- review-sub removed: info shown in player cards -->
   </div>
   <div id="nav-section">
     <div id="turn-indicator">— / —</div>
@@ -1894,10 +1896,8 @@ function buildFromRecord(record) {
   let flatMoves = [];
 
   if (record.moves && record.moves.length > 0) {
-    // New format
     flatMoves = record.moves;
   } else if (record.log && record.log.length > 0) {
-    // Old format: flatten log to moves
     record.log.forEach(entry => {
       (entry.actions || []).forEach(action => {
         flatMoves.push({ turn: entry.turn, player: entry.player, action });
@@ -1906,6 +1906,16 @@ function buildFromRecord(record) {
   } else {
     return { snapshots: [], logRows: [] };
   }
+
+  // Extract homeworld initials from setup moves (e.g. "Nexus"→"N", "Vertex"→"V")
+  hwLabels = ['', 'P1', 'P2'];
+  flatMoves.forEach(mv => {
+    const t = (mv.action || '').trim().split(/\s+/);
+    let hwName = null;
+    if (t[0] === 'set' && t[1] === 'HW' && t[6]) hwName = t[6];       // "set HW b1 y2 ship g3 Nexus"
+    else if (t[0] === 'homeworld' && t[4])         hwName = t[4];       // legacy "homeworld r1 b2 g3 HOME1"
+    if (hwName) hwLabels[mv.player] = hwName[0].toUpperCase();
+  });
 
   _replayUid = 0;
   let st = makeInitialState();
@@ -1943,9 +1953,19 @@ function buildFromRecord(record) {
     snaps.push(snap);
 
     const pc = player === 1 ? 'ml-p1' : 'ml-p2';
+    // FIX 3: Only show turn number on the first action of each turn
+    const prevRow = rows[rows.length - 1];
+    const sameT = prevRow && prevRow.turn === mv.turn;
+    const turnLabel = sameT
+      ? `<span class="ml-turn ml-turn-cont">·</span>`
+      : `<span class="ml-turn">${mv.turn}.</span>`;
+    // FIX 5: Use homeworld initial instead of P1/P2
+    const pLabel = hwLabels[player] || `P${player}`;
     rows.push({
       snapIdx: snaps.length - 1,
-      html: `<span class="mini-log-prefix"><span class="ml-turn">${mv.turn}.</span><span class="${pc}">P${player}</span>\xa0</span>` +
+      turn: mv.turn,
+      player,
+      html: `<span class="mini-log-prefix">${turnLabel}<span class="${pc}">${pLabel}</span>\xa0</span>` +
             `<span class="mini-log-body">${highlightLog(mv.action)}</span>`
     });
   });
@@ -1953,10 +1973,27 @@ function buildFromRecord(record) {
   // Final snapshot reflects end-of-game state
   if (record.winner !== undefined) {
     const last = snaps[snaps.length - 1];
-    if (last) {
-      last.phase = 'OVER';
-      last.winner = record.winner;
-    }
+    if (last) { last.phase = 'OVER'; last.winner = record.winner; }
+  }
+
+  // FIX 4: Append result summary at end of log
+  const isDraw = record.isDraw || record.winner === 0;
+  const w = record.winner;
+  let resultHtml = '';
+  if (isDraw) {
+    resultHtml = `<span style="color:#7090b0;letter-spacing:1px">⊘ DRAW</span>`;
+  } else if (w === 1 || w === 2) {
+    const winLabel = hwLabels[w] || `P${w}`;
+    const winColor = w === 1 ? '#4477dd' : '#cc4455';
+    const how = record.forfeitedBy ? ' (forfeit)' : '';
+    resultHtml = `<span style="color:${winColor};font-weight:bold">★ ${winLabel} WINS${how}</span>`;
+  }
+  if (resultHtml) {
+    rows.push({
+      snapIdx: snaps.length - 1, turn: null, player: null, isResult: true,
+      html: `<span class="mini-log-prefix"><span class="ml-turn">—</span></span>` +
+            `<span class="mini-log-body log-result">${resultHtml}</span>`
+    });
   }
 
   return { snapshots: snaps, logRows: rows };
@@ -1968,11 +2005,12 @@ function buildFromRecord(record) {
 
 let snapshots  = [];
 let logEntries = [];
-let logRows    = []; // { snapIdx, html } per action line
+let logRows    = []; // { snapIdx, turn, player, html, isResult? } per action line
 let currentIdx = 0;
 let currentLogRow = -1; // which log row was most recently navigated to
 let winner     = null;
 let players    = ['','Player 1','Player 2'];
+let hwLabels   = ['','P1','P2']; // homeworld initials e.g. ['','N','V']
 
 // ── Load ─────────────────────────────────────────────────────
 async function load() {
@@ -2038,26 +2076,30 @@ function init(record) {
 
   if (!snapshots.length) { setLoading('No move data in this game record.'); return; }
 
-  // Player cards
+  // Player cards — include avatar image if stored in record.players
+  const rawPlayers = Array.isArray(record.players) ? record.players : ['', null, null];
   const ps = document.getElementById('players-section');
   [1, 2].forEach(p => {
     const isW = p === winner;
-    const initial = (players[p] || 'P')[0].toUpperCase();
+    const name = players[p] || `Player ${p}`;
+    const raw  = rawPlayers[p];
+    const avatarSrc = (typeof raw === 'object' && raw) ? (raw.avatarBase64 || raw.avatarUrl || '') : '';
+    const initial = name[0].toUpperCase();
+    const avatarInner = avatarSrc
+      ? `<img src="${avatarSrc}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : initial;
     const d = document.createElement('div');
     d.className = 'rv-player' + (isW ? ' winner' : '');
     d.innerHTML = `
-      <div class="rv-avatar p${p}">${initial}</div>
+      <div class="rv-avatar p${p}">${avatarInner}</div>
       <div>
-        <div class="rv-info-name">${esc(players[p] || `Player ${p}`)} </div>
+        <div class="rv-info-name">${esc(name)}</div>
         <div class="rv-info-result">${isW ? '🏆 Winner' : 'Defeated'}</div>
       </div>
       ${isW ? '<div class="rv-crown">⭐</div>' : ''}`;
     ps.appendChild(d);
   });
-
-  const totalMoves = logRows.length;
-  document.getElementById('review-sub').textContent =
-    `${players[1]||'P1'} vs ${players[2]||'P2'} · ${totalMoves} moves`;
+  // review-sub removed
 
   // Render log panel (clickable)
   const logContainer = document.getElementById('log-entries');
@@ -2066,8 +2108,10 @@ function init(record) {
   ).join('');
   logContainer.querySelectorAll('.mini-log-line').forEach(el => {
     el.onclick = () => {
+      const row = logRows[+el.dataset.i];
+      if (!row || row.isResult) return; // result line is display-only
       currentLogRow = +el.dataset.i;
-      goTo(logRows[+el.dataset.i].snapIdx);
+      goTo(row.snapIdx);
     };
   });
 
@@ -2120,10 +2164,14 @@ function updateNav() {
   document.getElementById('nav-prev').disabled  = currentIdx === 0;
   document.getElementById('nav-next').disabled  = currentIdx >= n - 1;
   document.getElementById('nav-last').disabled  = currentIdx >= n - 1;
-  const movedP = G.currentPlayer === 1 ? 2 : 1;
-  document.getElementById('turn-indicator').textContent =
-    `TURN ${currentIdx + 1} / ${n}  ·  P${movedP} moved`;
-  document.getElementById('log-turn-count').textContent = `T${currentIdx + 1}`;
+  // Show whose move this was via color
+  const row = logRows[currentLogRow >= 0 ? currentLogRow : logRows.findIndex(r => r.snapIdx === currentIdx)];
+  const moverP = row?.player || (G.currentPlayer === 1 ? 2 : 1);
+  const moverColor = moverP === 1 ? '#4477dd' : '#cc4455';
+  const moverLabel = hwLabels[moverP] || `P${moverP}`;
+  const ti = document.getElementById('turn-indicator');
+  ti.innerHTML = `<span style="color:${moverColor};font-weight:bold">${moverLabel}</span>&nbsp;MOVE ${currentIdx + 1} / ${n}`;
+  document.getElementById('log-turn-count').textContent = `${currentIdx + 1}/${n}`;
 }
 
 function updateLogHighlight() {

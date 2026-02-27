@@ -1028,14 +1028,14 @@ body::before {
     </defs>
   </svg>
   <div class="zone-hw-area">
-    <div class="zone-label" style="text-align:center">— PLAYER 2 HOMEWORLD —</div>
+    <div class="zone-label" id="zone-label-2" style="text-align:center">— PLAYER 2 HOMEWORLD —</div>
     <div id="zone-p2"></div>
   </div>
   <div id="zone-mid">
     <!-- mid systems sorted by proximity to P2 (top) → P1 (bottom) -->
   </div>
   <div class="zone-hw-area">
-    <div class="zone-label" style="text-align:center">— PLAYER 1 HOMEWORLD —</div>
+    <div class="zone-label" id="zone-label-1" style="text-align:center">— PLAYER 1 HOMEWORLD —</div>
     <div id="zone-p1"></div>
   </div>
 </div>
@@ -1193,10 +1193,11 @@ var G = null;
 
 // Player config — set from startup modal
 var PLAYER_CONFIG = {
-  names: ['', 'Player 1', 'Player 2'],
-  elos:  ['', '1200', '1200'],
-  timeMs: 0,   // 0 = unlimited; otherwise ms per player
-  advancedMode: false, // true = hide action buttons; shortcut-only play
+  names:   ['', 'Player 1', 'Player 2'],
+  elos:    ['', '1200', '1200'],
+  avatars: ['', '', ''],   // base64 or url per player
+  timeMs:  0,
+  advancedMode: false,
 };
 
 // ── Tier system ─────────────────────────────────────────────
@@ -2717,16 +2718,14 @@ function renderSidebar() {
 
   // Show/hide draw button based on phase
   const _drawBtn = document.getElementById('btn-draw');
-  if (_drawBtn) {
-    const show = (G.phase === 'PLAY');
-    _drawBtn.style.display = show ? 'block' : 'none';
-    console.log('[Draw] renderSidebar phase=' + G.phase + ' display=' + _drawBtn.style.display);
-  }
+  if (_drawBtn) _drawBtn.style.display = (G.phase === 'PLAY') ? '' : 'none';
 
   // ---- SETUP PHASE ----
   if (G.phase === 'SETUP') {
     document.getElementById('catastrophe-panel').innerHTML = '';
-    titleEl.textContent = `PLAYER ${G.currentPlayer} — SETUP`;
+    const _setupIsMe = !window._ONLINE?.active || G.currentPlayer === (window._ONLINE?.mySlot);
+    const _setupName = _setupIsMe ? 'YOU' : (PLAYER_CONFIG.names[G.currentPlayer] || 'OPPONENT').toUpperCase();
+    titleEl.textContent = `${_setupName} — SETUP`;
 
     if (G.setupDone) {
       guideEl.textContent = G.currentPlayer === 1
@@ -2739,11 +2738,11 @@ function renderSidebar() {
       actionBtns.appendChild(resetBtn);
     } else {
       const stepLabels = [
-        'Click any star in the STASH to choose your 1st homeworld star.',
-        'Click any star in the STASH to choose your 2nd homeworld star.',
-        'Click a Large (size 3) ship in the STASH to choose your starting ship.'
+        'Choose your 1st homeworld star from the STASH.',
+        'Choose your 2nd homeworld star from the STASH.',
+        'Choose your starting large ship from the STASH.'
       ];
-      guideEl.textContent = stepLabels[G.setupStep];
+      guideEl.textContent = _setupIsMe ? stepLabels[G.setupStep] : `${PLAYER_CONFIG.names[G.currentPlayer] || 'Opponent'} is setting up their homeworld…`;
 
       if (G.setupCache.stars.length > 0) {
         const resetBtn = document.createElement('button');
@@ -2759,9 +2758,12 @@ function renderSidebar() {
 
   // ---- PLAY PHASE ----
   const isMyActiveTurn = !window._ONLINE?.active || G.currentPlayer === (window._ONLINE?.mySlot || G.currentPlayer);
-  titleEl.textContent = isMyActiveTurn
-    ? `PLAYER ${G.currentPlayer}'S TURN`
-    : `WAITING FOR OPPONENT…`;
+  if (isMyActiveTurn) {
+    titleEl.textContent = 'YOUR TURN';
+  } else {
+    const oppName = PLAYER_CONFIG.names[G.currentPlayer] || 'Opponent';
+    titleEl.textContent = `${oppName.toUpperCase()}'S TURN`;
+  }
 
   // Catastrophe alerts — always check, shown at top of action panel
   renderCatastrophePanel();
@@ -3639,8 +3641,20 @@ function renderPlayerCards() {
 
     if (avatarEl) {
       const name = PLAYER_CONFIG.names[p] || `P${p}`;
-      const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-      avatarEl.textContent = initials;
+      const av   = PLAYER_CONFIG.avatars?.[p] || '';
+      if (av) {
+        avatarEl.innerHTML = `<img src="${av}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+      } else {
+        const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+        avatarEl.textContent = initials;
+      }
+    }
+
+    // Update zone homeworld labels with player's actual name
+    const zoneLabel = document.getElementById(`zone-label-${p}`);
+    if (zoneLabel) {
+      const uname = PLAYER_CONFIG.names[p] || `Player ${p}`;
+      zoneLabel.textContent = `— ${uname.toUpperCase()} HOMEWORLD —`;
     }
   });
   renderMobileProfiles();
@@ -4013,6 +4027,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       names:    ['', room.player1?.name||'Player 1', room.player2?.name||'Player 2'],
       elos:     ['', String(room.player1?.elo||1200), String(room.player2?.elo||1200)],
       stars:    [0,  room.player1?.stars||0,          room.player2?.stars||0],
+      avatars:  ['', room.player1?.avatarBase64||room.player1?.avatarUrl||'',
+                     room.player2?.avatarBase64||room.player2?.avatarUrl||''],
       timeMs:   room.settings?.timeMs   || 0,
       tcMode:   room.settings?.tcMode   || 'unlimited',
       tcTurnMs: room.settings?.tcTurnMs || 0,
@@ -4027,7 +4043,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const lobbyBtn = document.getElementById('btn-lobby');
     if (lobbyBtn) lobbyBtn.style.display = '';
     const drawBtnOnline = document.getElementById('btn-draw');
-    if (drawBtnOnline) { drawBtnOnline.style.display = 'block'; console.log('[Draw] _started: set to block'); }
+    if (drawBtnOnline) drawBtnOnline.style.display = '';
 
     // Fix gear icon: always on opponent's card.
     // HTML has gear only on pcard-2. If I'm P2, move it to pcard-1.
