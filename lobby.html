@@ -37,7 +37,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 header{grid-area:hdr;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--border)}
 .logo{font-family:'Orbitron',sans-serif;font-weight:900;font-size:13px;letter-spacing:3px;color:var(--bright);text-decoration:none}
 .logo span{color:var(--p1)}
-.hdr-right{display:flex;align-items:center;gap:14px}
+.hdr-right{display:flex;align-items:center;gap:8px}
 .player-chip{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:20px}
 .avatar{width:28px;height:28px;border-radius:50%;background:rgba(68,136,255,.2);border:1px solid var(--p1);display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;color:var(--p1);overflow:hidden;flex-shrink:0}
 .avatar img{width:100%;height:100%;object-fit:cover}
@@ -147,17 +147,15 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 
 <!-- HEADER -->
 <header>
-  <a href="index.html" class="logo">HOME<span>W</span>ORLDS DUEL</a>
+  <a href="lobby.html" class="logo">HOME<span>W</span>ORLDS DUEL</a>
   <div class="hdr-right">
-    <div class="player-chip" id="player-chip">
+    <div class="player-chip" id="player-chip" onclick="location.href='profile.html'" style="cursor:pointer;transition:border-color .2s" onmouseenter="this.style.borderColor='#3a5080'" onmouseleave="this.style.borderColor=''">
       <div class="avatar" id="hdr-avatar"></div>
       <div>
         <div class="pname" id="hdr-name">—</div>
         <div class="ptier" id="hdr-tier"></div>
       </div>
     </div>
-    <a href="profile.html" class="nav-link">PROFILE</a>
-    <a href="#" class="nav-link" id="btn-signout">SIGN OUT</a>
   </div>
 </header>
 
@@ -385,7 +383,6 @@ async function reconcileMissedResults(uid) {
   console.log('[Lobby] Reconciled', newEntries.length, 'missed result(s) for', uid);
 }
 
-document.getElementById('btn-signout').onclick = async e => { e.preventDefault(); await signOut(auth); window.location.href='index.html'; };
 
 // ── Private toggle ───────────────────────────────────────────
 document.getElementById('toggle-private').onchange = function() {
@@ -461,6 +458,15 @@ function updateMyTurnBadge(rooms) {
 function subscribeRooms(){
   onValue(ref(db,'rooms'), snap => {
     lastRooms = snap.val() || {};
+    // Clean up shell rooms (only presence data, no name/status) older than 10 minutes
+    Object.entries(lastRooms).forEach(([id, room]) => {
+      if (!room.name && !room.status && room.presence) {
+        const hasOldPresence = Object.values(room.presence || {}).every(p => !p.online);
+        if (hasOldPresence) {
+          set(ref(db, `rooms/${id}`), null).catch(() => {});
+        }
+      }
+    });
     renderRooms(lastRooms);
   });
 }
@@ -471,7 +477,7 @@ function renderRooms(rooms){
   const myUid = ME?.uid;
   let entries = Object.entries(rooms)
     .map(([id, r]) => ({ ...r, id }))           // inject id from key
-    .filter(r => r.name && r.status !== 'finished' && r.status !== 'deleted')
+    .filter(r => r.name && r.status && r.status !== 'finished' && r.status !== 'deleted')
     .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
   if (currentFilter !== 'all') {
     if (currentFilter === 'playing')  entries = entries.filter(r => r.status === 'playing');

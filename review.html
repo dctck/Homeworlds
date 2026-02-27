@@ -1631,6 +1631,7 @@ let snapshots  = [];
 let logEntries = [];
 let logRows    = []; // { snapIdx, html } per action line
 let currentIdx = 0;
+let currentLogRow = -1; // which log row was most recently navigated to
 let winner     = null;
 let players    = ['','Player 1','Player 2'];
 
@@ -1708,8 +1709,9 @@ function init(record) {
     ps.appendChild(d);
   });
 
+  const turnCount = logEntries.filter(e => !e.actions.some(a => a.startsWith('set HW') || a.startsWith('h '))).length;
   document.getElementById('review-sub').textContent =
-    `${players[1]||'P1'} vs ${players[2]||'P2'} · ${snapshots.length} turns`;
+    `${players[1]||'P1'} vs ${players[2]||'P2'} · ${turnCount} turns`;
 
   // Render log panel (clickable)
   const logContainer = document.getElementById('log-entries');
@@ -1717,22 +1719,34 @@ function init(record) {
     `<div class="mini-log-line" data-i="${i}">${r.html}</div>`
   ).join('');
   logContainer.querySelectorAll('.mini-log-line').forEach(el => {
-    el.onclick = () => goTo(logRows[+el.dataset.i].snapIdx);
+    el.onclick = () => {
+      currentLogRow = +el.dataset.i;
+      goTo(logRows[+el.dataset.i].snapIdx);
+    };
   });
 
   // Nav buttons
-  document.getElementById('nav-first').onclick = () => goTo(0);
-  document.getElementById('nav-prev').onclick  = () => goTo(Math.max(0, currentIdx - 1));
-  document.getElementById('nav-next').onclick  = () => goTo(Math.min(snapshots.length - 1, currentIdx + 1));
-  document.getElementById('nav-last').onclick  = () => goTo(snapshots.length - 1);
+  function navToSnap(idx) {
+    currentLogRow = logRows.findIndex(r => r.snapIdx === idx);
+    goTo(idx);
+  }
+  function navDelta(delta) {
+    const newIdx = Math.max(0, Math.min(snapshots.length - 1, currentIdx + delta));
+    navToSnap(newIdx);
+  }
+  document.getElementById('nav-first').onclick = () => navToSnap(0);
+  document.getElementById('nav-prev').onclick  = () => navDelta(-1);
+  document.getElementById('nav-next').onclick  = () => navDelta(1);
+  document.getElementById('nav-last').onclick  = () => navToSnap(snapshots.length - 1);
   document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goTo(Math.max(0, currentIdx - 1));
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(Math.min(snapshots.length - 1, currentIdx + 1));
-    if (e.key === 'Home') goTo(0);
-    if (e.key === 'End')  goTo(snapshots.length - 1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   navDelta(-1);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') navDelta(1);
+    if (e.key === 'Home') navToSnap(0);
+    if (e.key === 'End')  navToSnap(snapshots.length - 1);
   });
 
   document.getElementById('loading').style.display = 'none';
+  currentLogRow = logRows.length - 1;
   goTo(snapshots.length - 1);
 }
 
@@ -1769,7 +1783,9 @@ function updateNav() {
 function updateLogHighlight() {
   const container = document.getElementById('log-entries');
   container.querySelectorAll('.mini-log-line').forEach(el => {
-    const active = logRows[+el.dataset.i]?.snapIdx === currentIdx;
+    const i = +el.dataset.i;
+    // Highlight only the single row that corresponds to the current navigation point
+    const active = (currentLogRow >= 0) ? i === currentLogRow : logRows[i]?.snapIdx === currentIdx && i === logRows.findIndex(r => r.snapIdx === currentIdx);
     el.classList.toggle('active', active);
     if (active) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });

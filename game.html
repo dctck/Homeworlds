@@ -1110,16 +1110,14 @@ body::before {
         <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:#4488ff;margin-bottom:8px;text-transform:uppercase;">Player 1 (Nexus)</div>
         <input id="setup-name-1" type="text" placeholder="Username" maxlength="16" value="Player 1"
           style="width:100%;padding:8px 10px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;margin-bottom:8px;outline:none;box-sizing:border-box">
-        <input id="setup-elo-1" type="number" placeholder="Rating (e.g. 1200)" value="1200" min="100" max="3000"
-          style="width:100%;padding:8px 10px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;box-sizing:border-box">
+        <input id="setup-elo-1" type="number" value="1200" style="display:none">
       </div>
       <!-- P2 -->
       <div>
         <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:#ff4455;margin-bottom:8px;text-transform:uppercase;">Player 2 (Vertex)</div>
         <input id="setup-name-2" type="text" placeholder="Username" maxlength="16" value="Player 2"
           style="width:100%;padding:8px 10px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;margin-bottom:8px;outline:none;box-sizing:border-box">
-        <input id="setup-elo-2" type="number" placeholder="Rating (e.g. 1200)" value="1200" min="100" max="3000"
-          style="width:100%;padding:8px 10px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;box-sizing:border-box">
+        <input id="setup-elo-2" type="number" value="1200" style="display:none">
       </div>
     </div>
 
@@ -1137,14 +1135,7 @@ body::before {
       <div id="tc-inputs" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
     </div>
 
-    <!-- Advanced Mode -->
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px;background:rgba(255,255,255,0.02);border:1px solid #1c2840;border-radius:6px;">
-      <input type="checkbox" id="setup-advanced" style="width:16px;height:16px;accent-color:#4488ff;cursor:pointer;flex-shrink:0;">
-      <div>
-        <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;color:#6a8aaa;margin-bottom:2px;">ADVANCED MODE</div>
-        <div style="font-size:11px;color:#3a5060;line-height:1.4;">Hide action buttons — interact by clicking colored stars &amp; ships directly.</div>
-      </div>
-    </div>
+    <input type="checkbox" id="setup-advanced" style="display:none">
 
     <button id="btn-start-game" style="width:100%;padding:14px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:all 0.2s;">
       LAUNCH GAME ›
@@ -3926,7 +3917,12 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   window.addEventListener('gameEnded', async ({ detail }) => {
     if (!window._ONLINE?.active) return;
     console.log('[HW] gameEnded fired, winner=', detail.winner, 'MY_SLOT=', MY_SLOT, '_archived=', _archived);
-    if (typeof window.commitTurnLog === 'function') window.commitTurnLog();
+    // Only commit if there are actual pending actions (winner's side).
+    // The loser's side has G._pendingActions=[] (cleared when incoming state loaded),
+    // so calling commitTurnLog() there would push an empty snapshot without a log entry.
+    if (typeof window.commitTurnLog === 'function' && (window.G?._pendingActions?.length > 0 || window.G?.turnUsed)) {
+      window.commitTurnLog();
+    }
     await saveState();
     console.log('[HW] saveState done');
 
@@ -3975,72 +3971,66 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         return;
       }
 
-      // ── ELO + star update (each client writes only their own record) ──────────
-      try {
-        const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
-        const room = roomSnap.val();
-        if (room) {
-          const mySlotKey  = MY_SLOT === 1 ? 'player1' : 'player2';
-          const oppSlotKey = MY_SLOT === 1 ? 'player2' : 'player1';
-          const myUid   = room[mySlotKey]?.uid;
-          const iWon    = detail.winner === MY_SLOT;
-          const oppName = room[oppSlotKey]?.name || `Player ${3 - MY_SLOT}`;
-          const gameId  = room.archivedGameId;
+    }  // end if (!_archived)
 
-          if (myUid) {
-            // Fetch both records so we can compute ELO change
-            const [mySnap, oppSnap] = await Promise.all([
-              get(ref(db, `players/${myUid}`)),
-              get(ref(db, `players/${room[oppSlotKey]?.uid}`)),
-            ]);
-            const myRec  = mySnap.val()  || {};
-            const oppRec = oppSnap.val() || {};
+    // ── ELO + star update: runs on EVERY client (winner & loser both update their own record)
+    // We wait briefly to ensure archivedGameId is written before reading it back
+    await new Promise(r => setTimeout(r, 1200));
+    try {
+      const roomSnap = await get(ref(db, `rooms/${ROOM_ID}`));
+      const room = roomSnap.val();
+      if (room) {
+        const mySlotKey  = MY_SLOT === 1 ? 'player1' : 'player2';
+        const oppSlotKey = MY_SLOT === 1 ? 'player2' : 'player1';
+        const myUid   = room[mySlotKey]?.uid;
+        const iWon    = detail.winner === MY_SLOT;
+        const oppName = room[oppSlotKey]?.name || `Player ${3 - MY_SLOT}`;
+        const gameId  = room.archivedGameId;
 
-            const myElo  = myRec.elo  || 1200;
-            const oppElo = oppRec.elo || 1200;
+        if (myUid) {
+          const [mySnap, oppSnap] = await Promise.all([
+            get(ref(db, `players/${myUid}`)),
+            get(ref(db, `players/${room[oppSlotKey]?.uid || 'none'}`)),
+          ]);
+          const myRec  = mySnap.val()  || {};
+          const oppRec = oppSnap?.val() || {};
 
-            // Standard ELO: K=32, expected score, actual score
-            const K = 32;
-            const expected = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
-            const actual    = iWon ? 1 : 0;
-            const eloChange = Math.round(K * (actual - expected));
-            const newElo    = Math.max(100, myElo + eloChange);
+          const myElo  = myRec.elo  || 1200;
+          const oppElo = oppRec.elo || 1200;
 
-            // Star bonus: +1 if win against higher-ELO opponent, else +1 base win / -1 loss
-            const isUpset  = iWon && oppElo > myElo;
-            const myStars  = myRec.stars || 0;
-            const starDelta = iWon ? (isUpset ? 2 : 1) : -1;
-            const newStars  = Math.max(0, myStars + starDelta);
+          const K = 32;
+          const expected  = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
+          const actual    = iWon ? 1 : 0;
+          const eloChange = Math.round(K * (actual - expected));
+          const newElo    = Math.max(100, myElo + eloChange);
 
-            console.log(`[HW] ELO ${myElo}→${newElo} (${eloChange>0?'+':''}${eloChange}), stars ${myStars}→${newStars}, upset=${isUpset}`);
+          const isUpset   = iWon && oppElo > myElo;
+          const myStars   = myRec.stars || 0;
+          const starDelta = iWon ? (isUpset ? 2 : 1) : -1;
+          const newStars  = Math.max(0, myStars + starDelta);
 
-            const updatedFields = {
+          // Guard: don't double-update if this game is already in recentGames
+          const alreadyRecorded = gameId && (myRec.recentGames || []).some(g => String(g.gameId) === String(gameId));
+          if (alreadyRecorded) {
+            console.log('[HW] ELO already recorded for this game, skipping');
+          } else {
+            console.log(`[HW] ELO ${myElo}→${newElo} (${eloChange>0?'+':''}${eloChange}), stars ${myStars}→${newStars}`);
+            await update(ref(db, `players/${myUid}`), {
               elo:    newElo,
               stars:  newStars,
               wins:   (myRec.wins   || 0) + (iWon ? 1 : 0),
               losses: (myRec.losses || 0) + (iWon ? 0 : 1),
-            };
-            await update(ref(db, `players/${myUid}`), updatedFields);
-
-            // Record in match history (keep last 20)
+            });
             if (gameId) {
               const hist = myRec.recentGames || [];
-              const entry = {
-                gameId,
-                result:    iWon ? 'win' : 'loss',
-                opponent:  oppName,
-                starDelta,
-                eloChange,
-                playedAt:  Date.now(),
-              };
-              const updated = [entry, ...hist].slice(0, 20);
-              await set(ref(db, `players/${myUid}/recentGames`), updated);
+              const entry = { gameId, result: iWon ? 'win' : 'loss', opponent: oppName, starDelta, eloChange, playedAt: Date.now() };
+              await set(ref(db, `players/${myUid}/recentGames`), [entry, ...hist].slice(0, 20));
             }
           }
         }
-      } catch(e) {
-        console.warn('[HW] ELO/star update failed (non-fatal):', e.message);
       }
+    } catch(e) {
+      console.warn('[HW] ELO/star update failed (non-fatal):', e.message);
     }
   });
 
