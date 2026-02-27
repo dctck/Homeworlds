@@ -787,11 +787,7 @@ body::before {
   #mobile-nav-avatar img { width:100%; height:100%; object-fit:cover; }
   #mobile-nav-name { font-size: 11px; color: var(--bright); letter-spacing: 1px; }
   #mobile-nav-tier { font-size: 9px; letter-spacing: 1px; }
-  #mobile-nav-menu {
-    background: none; border: none; cursor: pointer;
-    color: #5a7090; font-size: 24px; line-height: 1;
-    padding: 4px 8px; border-radius: 4px;
-  }
+  /* hamburger removed — pill is right side of nav */
 
   /* 1 · Profiles — vertical stack (like desktop) */
   #mobile-profiles {
@@ -943,13 +939,9 @@ body::before {
       <div id="mobile-nav-tier"></div>
     </div>
   </div>
-  <button id="mobile-nav-menu" onclick="toggleMobileMenu()" title="Menu">☰</button>
 </nav>
 
-<!-- MOBILE MENU DROPDOWN (hidden by default) -->
-<div id="mobile-menu-dropdown" style="display:none;position:fixed;top:53px;right:0;left:0;background:#0c1120;border-bottom:1px solid #1c2840;z-index:50;padding:8px 0;">
-  <div id="mobile-menu-inner" style="display:flex;flex-direction:column;gap:0;"></div>
-</div>
+
 
 <!-- MOBILE PLAYER PROFILES (hidden on desktop) -->
 <div id="mobile-profiles">
@@ -3424,7 +3416,7 @@ function escapeHtml(s) {
   });
 
   function sendMsg() {
-    if (!G || G.phase === 'SETUP') return;
+    if (!G) return;
     const txt = input.value.trim();
     if (!txt) return;
     // Use MY_SLOT in online mode (correct author), or G.currentPlayer in local
@@ -3440,7 +3432,7 @@ function escapeHtml(s) {
   const sendBtnM = document.getElementById('chat-send-m');
   const inputM   = document.getElementById('chat-input-m');
   function sendMsgM() {
-    if (!G || G.phase === 'SETUP') return;
+    if (!G) return;
     const txt = inputM.value.trim();
     if (!txt) return;
     const author = window._ONLINE?.mySlot || G.currentPlayer;
@@ -3741,36 +3733,7 @@ function showReportDialog(player) {
 //  MOBILE — Nav, Tab switching, Profile sync
 // ============================================================
 
-function toggleMobileMenu() {
-  const dd = document.getElementById('mobile-menu-dropdown');
-  const inner = document.getElementById('mobile-menu-inner');
-  const isOpen = dd.style.display !== 'none';
-  if (!isOpen) {
-    // Build menu items
-    inner.innerHTML = '';
-    const items = [
-      { label: '⚑ Forfeit', action: () => { dd.style.display='none'; if(G&&G.phase==='PLAY') showForfeitDialog(G.currentPlayer); } },
-      { label: '⚙ Settings', action: () => { dd.style.display='none'; } },
-      { label: '↺ New Game', action: () => location.reload() },
-    ];
-    items.forEach(item => {
-      const btn = document.createElement('button');
-      btn.style.cssText = 'display:block;width:100%;padding:14px 20px;background:none;border:none;border-bottom:1px solid #1c2840;color:#a8c0e0;font-family:Share Tech Mono,monospace;font-size:16px;text-align:left;cursor:pointer;transition:background 0.15s;';
-      btn.textContent = item.label;
-      btn.onclick = item.action;
-      btn.onmouseenter = () => btn.style.background = 'rgba(255,255,255,0.05)';
-      btn.onmouseleave = () => btn.style.background = 'none';
-      inner.appendChild(btn);
-    });
-  }
-  dd.style.display = isOpen ? 'none' : 'block';
-}
-// Close menu on outside click
-document.addEventListener('click', e => {
-  const dd = document.getElementById('mobile-menu-dropdown');
-  const btn = document.getElementById('mobile-nav-menu');
-  if (dd && !dd.contains(e.target) && e.target !== btn) dd.style.display = 'none';
-});
+// hamburger menu removed
 
 function switchMobileTab(tab) {
   const logTab  = document.getElementById('mobile-tab-log');
@@ -3989,21 +3952,39 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const chatRef = ref(db, `rooms/${ROOM_ID}/chat`);
     window._chatRef = chatRef;
     window._chatFirebaseFns = { push, ref };
-    let _chatLoaded = false;
+    const _seenChatKeys = new Set();
+    let _chatListenLive = false;
+
+    // 1. Load existing chat history synchronously with get()
+    try {
+      const chatHistSnap = await get(chatRef);
+      if (chatHistSnap.exists()) {
+        const msgs = chatHistSnap.val();
+        Object.entries(msgs)
+          .sort(([,a],[,b]) => (a.ts||0) - (b.ts||0))
+          .forEach(([key, msg]) => {
+            _seenChatKeys.add(key);
+            if (msg.text && typeof window._receiveChatMsg === 'function') {
+              // Load history silently (fromSelf=true suppresses unread flash)
+              window._receiveChatMsg(msg.player, msg.text, true);
+            }
+          });
+      }
+    } catch(e) { console.warn('[chat] history load failed:', e); }
+    _chatListenLive = true;
+
+    // 2. Listen for new messages only — skip anything we already loaded
     onChildAdded(chatRef, snap => {
+      if (!_chatListenLive) return;
+      if (_seenChatKeys.has(snap.key)) return; // already shown from history
+      _seenChatKeys.add(snap.key);
       const msg = snap.val();
       if (!msg || !msg.text) return;
-      // Skip messages we sent ourselves (already shown locally via echo)
-      // We identify our messages by player slot
       const fromSelf = msg.player === MY_SLOT;
-      // During initial load, skip all history (avoid flooding chat on rejoin)
-      if (!_chatLoaded) return;
       if (typeof window._receiveChatMsg === 'function') {
         window._receiveChatMsg(msg.player, msg.text, fromSelf);
       }
     });
-    // Mark loaded after a brief delay so existing messages are skipped
-    setTimeout(() => { _chatLoaded = true; }, 1200);
 
     // ── Restore existing game state from Firebase (handles rejoin) ──
     const gameSnap = await get(ref(db, `rooms/${ROOM_ID}/game`));
@@ -4269,12 +4250,16 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   window.showPassBanner = function(title, subtitle) {
     if (!window._ONLINE?.active) { _origBanner(title, subtitle); return; }
     // Opponent's number appears in title → my turn just ended
-    if (title.includes(`PLAYER ${OPP_SLOT}`)) {
-      saveState();
+    if (title.includes(`PLAYER ${OPP_SLOT}`) || title.includes('PLAYER ' + OPP_SLOT)) {
+      // CRITICAL: render() MUST be called first so the board updates for the
+      // current player (turn token moves, profile highlight switches) before
+      // the waiting banner appears on top.
+      window.render();
+      window.saveState();
       showWaiting('Waiting for opponent…');
       return;
     }
-    // My number in title (only happens in pass-and-play flow) — suppress
+    // My number in title (e.g. pass-and-play) — suppress for online
   };
 
   // ── Lock input when it's not my turn ─────────────────────────

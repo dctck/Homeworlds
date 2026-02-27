@@ -156,13 +156,12 @@ footer em{color:#354050;font-style:normal}
 <!-- NAV -->
 <nav>
   <a href="lobby.html" class="nav-logo" style="text-decoration:none;cursor:pointer">HOME<span>W</span>ORLDS DUEL</a>
-  <div class="nav-btns" id="nav-btns">
-    <a href="lobby.html" class="btn btn-primary" id="btn-lobby" style="display:none">ENTER LOBBY</a>
-    <div class="nav-user" id="nav-user" style="display:none">
-      <div class="nav-avatar" id="nav-avatar"></div>
-      <span class="nav-name"  id="nav-name"></span>
-      <button class="btn" id="btn-signout" style="padding:6px 14px;font-size:10px">SIGN OUT</button>
-    </div>
+  <!-- hidden elements kept so JS refs don't throw -->
+  <a href="lobby.html" id="btn-lobby" style="display:none"></a>
+  <div id="nav-user" style="display:none">
+    <div id="nav-avatar"></div>
+    <span id="nav-name"></span>
+    <button id="btn-signout"></button>
   </div>
 </nav>
 
@@ -313,16 +312,8 @@ onAuthStateChanged(auth, async user => {
 });
 
 function showLoggedIn(user, p) {
-  document.getElementById('login-card').style.display    = 'none';
-  document.getElementById('hero-loggedin').style.display = 'block';
-  document.getElementById('nav-user').style.display      = 'flex';
-  document.getElementById('btn-lobby').style.display     = 'inline-flex';
-  document.getElementById('hero-name').textContent       = p.name;
-  document.getElementById('nav-name').textContent        = p.name;
-  const av = document.getElementById('nav-avatar');
-  const avatar = p.avatarBase64 || p.avatarUrl || '';
-  if (avatar) av.innerHTML = `<img src="${avatar}" alt="">`;
-  else av.textContent = p.name[0].toUpperCase();
+  // Already signed in — go straight to lobby
+  window.location.href = 'lobby.html';
 }
 
 function showLoggedOut() {

@@ -381,7 +381,6 @@ async function loadHistory(uid){
 
 // ── Sign out ──────────────────────────────────────────────────
 async function doSignOut(){await signOut(auth);window.location.href='index.html';}
-document.getElementById('btn-signout').onclick =e=>{e.preventDefault();doSignOut()};
 document.getElementById('btn-signout2').onclick=doSignOut;
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
