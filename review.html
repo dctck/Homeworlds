@@ -1763,6 +1763,14 @@ function parseNotation(str) {
     case 'pass':
       return { type:'skip' };
 
+    // Non-game-state notations — log annotations only, no board change needed
+    case 'draw':
+      // "draw offered by {name}" or "draw accepted by {name}"
+      return { type: 'annotation', text: str };
+    case 'forfeit':
+      // "forfeit {playerName}"
+      return { type: 'annotation', text: str };
+
     default:
       console.warn('[Replay] Unknown notation:', str);
       return null;
@@ -1968,7 +1976,7 @@ function buildFromRecord(record) {
 
   flatMoves.forEach((mv, i) => {
     const parsed = parseNotation(mv.action);
-    if (!parsed) return;
+    if (!parsed || parsed.type === 'annotation') return; // annotations don't change board state
 
     const player = mv.player;
 

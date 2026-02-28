@@ -2057,7 +2057,8 @@ function renderBank() {
 
       // Clickable during certain states
       let clickable = false;
-      if (G.phase === 'SETUP' && !G.setupDone) {
+      const _isMySetupTurn = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
+      if (G.phase === 'SETUP' && !G.setupDone && _isMySetupTurn) {
         if ((G.setupStep === 0 || G.setupStep === 1) && count > 0) {
           clickable = true;  // Any size star for homeworld
         } else if (G.setupStep === 2 && sz === 3 && count > 0) {
@@ -2790,7 +2791,7 @@ function renderSidebar() {
   if (G.phase === 'SETUP') {
     document.getElementById('catastrophe-panel').innerHTML = '';
     const _setupIsMe = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
-    const _setupName = _setupIsMe ? 'YOU' : (PLAYER_CONFIG.names[G.currentPlayer] || 'OPPONENT').toUpperCase();
+    const _setupName = _setupIsMe ? 'YOUR TURN' : (PLAYER_CONFIG.names[G.currentPlayer] || 'OPPONENT').toUpperCase();
     titleEl.textContent = `${_setupName} — SETUP`;
 
     if (G.setupDone) {
@@ -4078,6 +4079,21 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   });
 
   // ── Pre-game lobby wait ──────────────────────────────────────
+  // Tracks the host's "who goes first" selection across re-renders
+  let _firstMoverPref = 'challenger'; // default: challenger (joiner) goes first
+
+  function _fmtSettings(s) {
+    if (!s) return 'Unlimited · Standard';
+    const parts = [];
+    if (s.tcMode === 'blitz')          parts.push('Blitz (10 min)');
+    else if (s.tcMode === 'sudden')    parts.push(`Sudden Death (${Math.round((s.timeMs||0)/60000)} min)`);
+    else if (s.tcMode === 'turn')      parts.push(`Turn Timer (${Math.round((s.tcTurnMs||0)/1000)}s)`);
+    else if (s.tcMode === 'tournament') parts.push('Tournament (12 h)');
+    else                               parts.push('Unlimited');
+    parts.push(s.advancedMode ? 'Advanced' : 'Standard');
+    return parts.join(' · ');
+  }
+
   function showLobbyWait(room) {
     if (_started) return;
     const modal = document.getElementById('startup-modal');
@@ -4086,34 +4102,68 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const p1n = room.player1?.name || '—', p2n = room.player2?.name || '—';
     const p1ok = !!room.player1,  p2ok = !!room.player2;
     const both = p1ok && p2ok, notStarted = room.status !== 'playing';
+    const settingsStr = _fmtSettings(room.settings);
+
+    // First-mover selector (host only, shown when both are ready)
+    const fmSelector = (MY_SLOT === 1 && both && notStarted) ? `
+      <div style="margin-bottom:16px;text-align:left">
+        <div style="font-size:10px;color:#304050;letter-spacing:2px;margin-bottom:6px">WHO GOES FIRST</div>
+        <div style="display:flex;gap:8px">
+          <button id="pg-fm-challenger" style="flex:1;padding:8px 4px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;border-radius:4px;cursor:pointer;border:1px solid ${_firstMoverPref==='challenger'?'#44aabb':'#1c2840'};background:${_firstMoverPref==='challenger'?'rgba(68,170,187,0.12)':'transparent'};color:${_firstMoverPref==='challenger'?'#44aabb':'#4a6080'};">
+            Challenger First
+          </button>
+          <button id="pg-fm-random" style="flex:1;padding:8px 4px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;border-radius:4px;cursor:pointer;border:1px solid ${_firstMoverPref==='random'?'#44aabb':'#1c2840'};background:${_firstMoverPref==='random'?'rgba(68,170,187,0.12)':'transparent'};color:${_firstMoverPref==='random'?'#44aabb':'#4a6080'};">
+            ⚄ Random
+          </button>
+        </div>
+        <div style="font-size:10px;color:#2a3850;margin-top:5px;line-height:1.5">
+          ${_firstMoverPref==='challenger' ? `<b style="color:#44aabb">${esc(p2n)}</b> (the joiner) sets up and moves first.` : 'Decided randomly when you click Start.'}
+        </div>
+      </div>` : '';
+
     modal.innerHTML = `
       <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:32px;width:420px;max-width:95vw;text-align:center;font-family:Share Tech Mono,monospace;color:#a8c0e0;">
         <div style="font-family:Orbitron,sans-serif;font-size:18px;font-weight:900;color:#ddeeff;letter-spacing:4px;margin-bottom:4px">HOMEWORLDS DUEL</div>
-        <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:24px">${esc(room.name||ROOM_ID.slice(-6).toUpperCase())}</div>
-        <div style="display:flex;gap:16px;justify-content:center;margin-bottom:24px">
+        <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:6px">${esc(room.name||ROOM_ID.slice(-6).toUpperCase())}</div>
+        <div style="font-size:11px;color:#2a4055;letter-spacing:1px;margin-bottom:20px">${esc(settingsStr)}</div>
+        <div style="display:flex;gap:16px;justify-content:center;margin-bottom:20px">
           <div style="width:130px;padding:14px;border:1px solid ${p1ok?'#2266ff':'#1c2840'};border-radius:6px;background:rgba(255,255,255,0.02)">
-            <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 1</div>
+            <div style="font-size:11px;color:#304050;letter-spacing:2px;margin-bottom:4px">CREATOR</div>
             <div style="font-size:14px;color:#4488ff;font-family:Orbitron,sans-serif">${esc(p1n)}</div>
-            <div style="font-size:12px;margin-top:4px;color:${p1ok?'#22dd77':'#304050'}">${p1ok?'✓ READY':'waiting…'}</div>
+            <div style="font-size:11px;margin-top:4px;color:${p1ok?'#22dd77':'#304050'}">${p1ok?'✓ READY':'waiting…'}</div>
           </div>
           <div style="display:flex;align-items:center;color:#2a3850;font-size:18px">VS</div>
           <div style="width:130px;padding:14px;border:1px solid ${p2ok?'#ff4455':'#1c2840'};border-radius:6px;background:rgba(255,255,255,0.02)">
-            <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 2</div>
+            <div style="font-size:11px;color:#304050;letter-spacing:2px;margin-bottom:4px">CHALLENGER</div>
             <div style="font-size:14px;color:#ff4455;font-family:Orbitron,sans-serif">${esc(p2n)}</div>
-            <div style="font-size:12px;margin-top:4px;color:${p2ok?'#22dd77':'#304050'}">${p2ok?'✓ READY':'waiting…'}</div>
+            <div style="font-size:11px;margin-top:4px;color:${p2ok?'#22dd77':'#304050'}">${p2ok?'✓ READY':'waiting…'}</div>
           </div>
         </div>
-        <div style="font-size:12px;color:#4a6080;letter-spacing:1px;margin-bottom:20px;min-height:16px">
+        <div style="font-size:12px;color:#4a6080;letter-spacing:1px;margin-bottom:16px;min-height:16px">
           ${both && notStarted ? 'Both players ready!' : 'Waiting for opponent to join…'}
         </div>
+        ${fmSelector}
         ${both && notStarted ? `<button id="pg-start" style="width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;margin-bottom:12px;">START GAME ›</button>` : ''}
         ${MY_SLOT === 1 && !p2ok ? `<button id="pg-cancel" style="width:100%;padding:11px;background:rgba(180,40,40,0.08);border:1px solid rgba(180,40,40,0.4);color:#c04050;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;margin-bottom:10px;">✕ CANCEL &amp; DELETE ROOM</button>` : ''}
         <button onclick="location.href='lobby.html'" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">← BACK TO LOBBY</button>
       </div>`;
+
+    // First-mover toggle buttons
+    const fmC = document.getElementById('pg-fm-challenger');
+    const fmR = document.getElementById('pg-fm-random');
+    if (fmC) fmC.onclick = () => { _firstMoverPref = 'challenger'; showLobbyWait(room); };
+    if (fmR) fmR.onclick = () => { _firstMoverPref = 'random';     showLobbyWait(room); };
+
     const sb = document.getElementById('pg-start');
     if (sb) sb.onclick = async () => {
       sb.disabled = true; sb.textContent = 'STARTING…';
-      await update(ref(db, `rooms/${ROOM_ID}`), { status: 'playing' });
+      // Resolve who goes first
+      const firstMover = _firstMoverPref === 'random'
+        ? (Math.random() < 0.5 ? 1 : 2)
+        : 2; // 'challenger' → player 2 (joiner) goes first
+      // Write status + firstMover into room settings
+      const updatedSettings = Object.assign({}, room.settings || {}, { firstMover });
+      await update(ref(db, `rooms/${ROOM_ID}`), { status: 'playing', settings: updatedSettings });
     };
     const cb = document.getElementById('pg-cancel');
     if (cb) cb.onclick = async () => {
@@ -4287,15 +4337,50 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       }
     } else {
       // Fresh game — no state saved yet
+      // Determine who goes first from room settings (set by host when clicking Start)
+      const firstMover = room.settings?.firstMover ?? 2; // default: 2 = challenger first
+      const firstMoverName = firstMover === 1
+        ? (room.player1?.name || 'Creator')
+        : (room.player2?.name || 'Challenger');
+
+      // Show "who goes first" animation briefly before launching
+      await new Promise(resolve => {
+        const modal = document.getElementById('startup-modal');
+        if (modal) {
+          const goesFirstColor = firstMover === 1 ? '#4488ff' : '#ff4455';
+          const goesFirstRole  = firstMover === 1 ? 'CREATOR' : 'CHALLENGER';
+          modal.innerHTML = `
+            <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:48px 32px;width:420px;max-width:95vw;text-align:center;font-family:Share Tech Mono,monospace;color:#a8c0e0;">
+              <div style="font-family:Orbitron,sans-serif;font-size:13px;color:#304050;letter-spacing:4px;margin-bottom:28px">GAME STARTING</div>
+              <div style="font-size:11px;color:#304050;letter-spacing:3px;margin-bottom:10px">FIRST TO MOVE</div>
+              <div id="_fm_name" style="font-family:Orbitron,sans-serif;font-size:22px;font-weight:900;color:${goesFirstColor};letter-spacing:3px;opacity:0;transform:scale(0.85);transition:opacity 0.4s ease,transform 0.4s ease">${esc(firstMoverName)}</div>
+              <div style="font-size:11px;color:#2a4055;letter-spacing:2px;margin-top:6px">${goesFirstRole}</div>
+              <div style="margin-top:28px;height:2px;background:#1c2840;border-radius:1px;overflow:hidden">
+                <div id="_fm_bar" style="height:100%;width:0%;background:${goesFirstColor};transition:width 1.6s linear"></div>
+              </div>
+            </div>`;
+          // Trigger animation after paint
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            const nm = document.getElementById('_fm_name');
+            const bar = document.getElementById('_fm_bar');
+            if (nm) { nm.style.opacity = '1'; nm.style.transform = 'scale(1)'; }
+            if (bar) bar.style.width = '100%';
+          }));
+        }
+        setTimeout(resolve, 1800);
+      });
+
       window.G = window.makeInitialState();
+      window.G.currentPlayer = firstMover; // apply first-mover setting
       window.G._turnStart = null; // start clean
       window.G._turnStart = JSON.stringify(window.G);
       window.renderPlayerCards();
       window.render();
-      if (MY_SLOT === 1) {
+      if (MY_SLOT === firstMover) {
         window.render(); // my setup turn — just render
       } else {
-        showWaiting('Waiting for Player 1 to set up their homeworld…');
+        const oppRole = firstMover === 2 ? 'Challenger' : 'Creator';
+        showWaiting(`Waiting for ${oppRole} to set up their homeworld…`);
       }
     }
 
