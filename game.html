@@ -1167,7 +1167,7 @@ body::before {
     <input type="checkbox" id="setup-advanced" style="display:none">
 
     <div style="display:flex;gap:10px;margin-top:0;">
-      <a href="lobby.html" style="flex-shrink:0;padding:14px 18px;background:transparent;border:1px solid #1c2840;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:6px;text-decoration:none;display:flex;align-items:center;transition:all 0.2s;" onmouseenter="this.style.color='#88aacc';this.style.borderColor='#3a5080'" onmouseleave="this.style.color='#4a6080';this.style.borderColor='#1c2840'">← LOBBY</a>
+      <a href="lobby.html" style="flex-shrink:0;padding:14px 18px;background:transparent;border:1px solid #1c2840;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;text-decoration:none;display:flex;align-items:center;transition:all 0.2s;" onmouseenter="this.style.color='#88aacc';this.style.borderColor='#3a5080'" onmouseleave="this.style.color='#4a6080';this.style.borderColor='#1c2840'">← LOBBY</a>
       <button id="btn-start-game" style="flex:1;padding:14px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:all 0.2s;">
         LAUNCH GAME ›
       </button>
@@ -1176,6 +1176,78 @@ body::before {
 </div>
 
 <script>
+// ============================================================
+//  COLORBLIND MODE
+//  Symbol overlays: each color gets a unique geometric shape.
+//  Rendered inline into ship and star SVGs when _colorblindMode is on.
+// ============================================================
+
+window._colorblindMode = localStorage.getItem('hw_colorblind') === '1';
+
+let _cbId = 0; // unique ID counter for SVG mask elements
+
+// Raw SVG content for each color symbol (paths from uploaded assets)
+const CB_SYM = {
+  red: {
+    vw: 23, vh: 23,
+    html: '<path d="M11.8066 3.17773L13.2871 7.88281L15.0879 6.89062L16.6045 6.05469L15.7666 7.57031L14.7725 9.36816L19.4795 10.8516L20.9941 11.3281L19.4795 11.8047L14.7715 13.2852L15.7666 15.0879L16.6045 16.6045L15.0869 15.7666L13.2861 14.7715L11.8047 19.4785L11.3281 20.9932L10.8516 19.4785L9.36816 14.7715L7.57129 15.7656L6.05469 16.6035L6.8916 15.0869L7.88477 13.2861L3.17871 11.8047L1.66504 11.3281L3.17871 10.8516L7.88379 9.36816L6.8916 7.56934L6.05566 6.05469L7.57031 6.89062L9.36914 7.88281L10.8535 3.17773L11.3301 1.66406L11.8066 3.17773Z" fill="#F05353" stroke="#440D06" stroke-width="1"/>',
+  },
+  blue: {
+    vw: 19, vh: 19,
+    html: '<path d="M7.39746 12.1973C8.44483 12.7642 9.71824 12.7647 10.7656 12.1982L11.0938 12.0205L14.6836 15.6104L14.2217 15.9561C11.1825 18.234 6.98024 18.2335 3.94141 15.9551L3.48047 15.6094L3.8877 15.2012L6.80664 12.2832L7.07031 12.0195L7.39746 12.1973ZM2.96191 3.88867L6.14355 7.07031L5.9668 7.39844C5.40008 8.44589 5.39979 9.71909 5.9668 10.7666L6.14453 11.0947L2.96289 14.2764L2.55469 14.6836L2.20898 14.2227C-0.0693841 11.1838 -0.0699271 6.98149 2.20801 3.94238L2.55469 3.48047L2.96191 3.88867ZM15.9551 3.94141C18.2338 6.98059 18.2337 11.1835 15.9551 14.2227L15.6094 14.6836L12.0205 11.0947L12.1982 10.7676C12.7654 9.71991 12.7653 8.44515 12.1982 7.39746L12.0205 7.06934L15.6094 3.48047L15.9551 3.94141ZM3.94141 2.20898C6.98057 -0.0696442 11.1835 -0.0696377 14.2227 2.20898L14.6846 2.55469L11.0957 6.14355L10.7676 5.96582C9.71996 5.39863 8.44517 5.3988 7.39746 5.96582L7.06934 6.14355L6.80566 5.87988L3.8877 2.96289L3.48047 2.55469L3.94141 2.20898Z" fill="#5C72EC" stroke="#000F48" stroke-width="1"/>',
+  },
+  yellow: {
+    vw: 22, vh: 19,
+    html: '<path d="M11.0166 1.7832L18.9443 15.7832L19.8359 17.3574L18.2627 16.4639L14.2832 14.2051C11.9871 12.902 9.17487 12.9028 6.87891 14.2061L2.90039 16.4639L1.32715 17.3574L2.21777 15.7832L10.1465 1.7832L10.5811 1.01465L11.0166 1.7832Z" fill="#D6D429" stroke="#453601" stroke-width="1"/>',
+  },
+  green: {
+    vw: 18, vh: 18,
+    // green uses a mask — ID is replaced per-render with a unique suffix
+    html: (uid) => `<rect x="0.5" y="6.5" width="11" height="11" fill="#36DD55" stroke="#033502"/><mask id="cbmask${uid}" maskUnits="userSpaceOnUse" x="6" y="0" width="12" height="12"><rect fill="white" x="6" width="12" height="12"/><path d="M17 11H13V5H7V1H17V11Z"/></mask><path d="M17 11H13V5H7V1H17V11Z" fill="#36DD55"/><path d="M17 11V12H18V11H17ZM13 11H12V12H13V11ZM13 5H14V4H13V5ZM7 5H6V6H7V5ZM7 1V0H6V1H7ZM17 1H18V0H17V1ZM17 11V10H13V11V12H17V11ZM13 11H14V5H13H12V11H13ZM13 5V4H7V5V6H13V5ZM7 5H8V1H7H6V5H7ZM7 1V2H17V1V0H7V1ZM17 1H16V11H17H18V1H17Z" fill="#033502" mask="url(#cbmask${uid})"/>`,
+  },
+};
+
+/**
+ * Returns an SVG <g> element string for the colorblind symbol overlay.
+ * @param {string} color  - piece color
+ * @param {number} containerW - SVG width
+ * @param {number} containerH - SVG height
+ * @param {boolean} isShip  - true=ship (position from bottom), false=star (from top)
+ * @param {number} size     - 1|2|3
+ */
+function cbOverlay(color, containerW, containerH, isShip, size) {
+  if (!window._colorblindMode) return '';
+  const sym = CB_SYM[color];
+  if (!sym) return '';
+
+  // Target rendered size (px) per piece size
+  const targets = isShip ? [0, 13, 15, 19] : [0, 12, 14, 17];
+  const target  = targets[size] || 14;
+  const scale   = target / Math.max(sym.vw, sym.vh);
+  const sw      = sym.vw * scale;
+  const sh      = sym.vh * scale;
+
+  // Horizontal: centre in container
+  const tx = (containerW - sw) / 2;
+
+  // Vertical positioning per spec
+  let ty;
+  if (isShip) {
+    // bottom padding: small=16, medium=20, large=24
+    const botPads = [0, 16, 20, 24];
+    ty = containerH - botPads[size] - sh;
+  } else {
+    // top padding: small=4, medium=8, large=10
+    const topPads = [0, 4, 8, 10];
+    ty = topPads[size];
+  }
+
+  const uid = ++_cbId;
+  const inner = typeof sym.html === 'function' ? sym.html(uid) : sym.html;
+
+  return `<g transform="translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${scale.toFixed(4)})" style="pointer-events:none">${inner}</g>`;
+}
+
 // ============================================================
 //  CONSTANTS
 // ============================================================
@@ -1404,6 +1476,7 @@ function triangleSVG(color, size, player, opts = {}) {
   const pipSize = Math.floor(d * 0.32);
   const pip = `<text x="${d/2}" y="${pipY}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.7)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
   const glow = opts.glow ? `filter="url(#glow-${color})"` : '';
+  const cbShip = cbOverlay(color, d, d, true, size);
   return `<svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}" style="display:block">
     <defs>
       <filter id="glow-${color}" x="-40%" y="-40%" width="180%" height="180%">
@@ -1412,7 +1485,7 @@ function triangleSVG(color, size, player, opts = {}) {
       </filter>
     </defs>
     <polygon points="${pts}" fill="${hex}" stroke="rgba(0,0,0,0.4)" stroke-width="1" ${glow}/>
-    ${pip}
+    ${pip}${cbShip}
   </svg>`;
 }
 
@@ -1427,6 +1500,7 @@ function diamondSVG(color, size, opts = {}) {
   const pipSize = Math.floor(d * 0.3);
   const pip = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.65)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
   const glow = opts.glow ? `filter="url(#glow-s-${color})"` : '';
+  const cbStar = cbOverlay(color, d, h, false, size);
   return `<svg width="${d}" height="${h}" viewBox="0 0 ${d} ${h}" style="display:block">
     <defs>
       <filter id="glow-s-${color}" x="-40%" y="-40%" width="180%" height="180%">
@@ -1435,7 +1509,7 @@ function diamondSVG(color, size, opts = {}) {
       </filter>
     </defs>
     <polygon points="${pts}" fill="${hex}" stroke="rgba(255,255,255,0.2)" stroke-width="1" ${glow}/>
-    ${pip}
+    ${pip}${cbStar}
   </svg>`;
 }
 
@@ -1652,11 +1726,11 @@ function showWin(winnerPlayer) {
   if (mySlot) {
     // Star delta row
     const delta = isWinner ? `+${starGain} ★` : `-${starLoss} ★`;
-    const upsetBadge = isWinner && isUpset ? '<div style="font-size:9px;letter-spacing:2px;color:#ffcc00;margin-top:2px">⚡ UPSET BONUS</div>' : '';
+    const upsetBadge = isWinner && isUpset ? '<div style="font-size:12px;letter-spacing:2px;color:#ffcc00;margin-top:2px">⚡ UPSET BONUS</div>' : '';
     const deltaColor = isWinner ? '#22dd77' : '#ff4455';
     tierHtml = `
       <div style="background:rgba(255,255,255,0.03);border:1px solid #1c2840;border-radius:8px;padding:16px 24px;min-width:260px;text-align:center;">
-        <div style="font-size:11px;color:#304050;letter-spacing:2px;margin-bottom:10px;font-family:Orbitron,sans-serif;">YOUR RATING</div>
+        <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:10px;font-family:Orbitron,sans-serif;">YOUR RATING</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;">
           <span style="font-family:Orbitron,sans-serif;font-size:22px;font-weight:700;color:${myOldTier.color}">${myOldStars} ★</span>
           <span style="color:#253040;font-size:16px;">→</span>
@@ -1664,22 +1738,22 @@ function showWin(winnerPlayer) {
           <span style="font-size:14px;font-weight:700;color:${deltaColor}">${delta}</span>
         </div>
         ${upsetBadge}
-        <div style="font-size:11px;color:${myNewTier.color};letter-spacing:1px;margin-top:4px;">${myNewTier.name}</div>
-        ${myTierUp ? `<div style="margin-top:10px;padding:8px 16px;background:rgba(255,204,0,0.12);border:1px solid rgba(255,204,0,0.4);border-radius:6px;font-family:Orbitron,sans-serif;font-size:11px;color:#ffcc00;letter-spacing:2px;animation:pulse-cata 1.2s ease-in-out infinite;">⬆ TIER UP: ${newWinTier.name.toUpperCase()}!</div>` : ''}
+        <div style="font-size:12px;color:${myNewTier.color};letter-spacing:1px;margin-top:4px;">${myNewTier.name}</div>
+        ${myTierUp ? `<div style="margin-top:10px;padding:8px 16px;background:rgba(255,204,0,0.12);border:1px solid rgba(255,204,0,0.4);border-radius:6px;font-family:Orbitron,sans-serif;font-size:12px;color:#ffcc00;letter-spacing:2px;animation:pulse-cata 1.2s ease-in-out infinite;">⬆ TIER UP: ${newWinTier.name.toUpperCase()}!</div>` : ''}
       </div>`;
   }
 
   overlay.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;gap:20px;padding:32px;max-width:440px;text-align:center;">
       <div style="font-family:'Orbitron',sans-serif;font-size:clamp(22px,4vw,36px);font-weight:900;color:${accentColor};letter-spacing:4px;text-shadow:0 0 40px ${accentColor}88;">${titleText}</div>
-      <div style="font-size:13px;color:#6080a0;letter-spacing:2px;">${subtitleText}</div>
+      <div style="font-size:14px;color:#6080a0;letter-spacing:2px;">${subtitleText}</div>
       ${tierHtml}
       <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:4px;">
-        <button id="wo-copy" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">COPY LOG</button>
-        <button id="wo-lobby" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">LOBBY</button>
-        <button id="wo-review" style="padding:10px 22px;background:rgba(34,102,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">REVIEW GAME</button>
+        <button id="wo-copy" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">COPY LOG</button>
+        <button id="wo-lobby" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">LOBBY</button>
+        <button id="wo-review" style="padding:10px 22px;background:rgba(34,102,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">REVIEW GAME</button>
       </div>
-      <div id="wo-status" style="font-size:10px;color:#304050;letter-spacing:1px;min-height:16px;"></div>
+      <div id="wo-status" style="font-size:12px;color:#304050;letter-spacing:1px;min-height:16px;"></div>
     </div>`;
 
   // Copy log
@@ -1735,16 +1809,16 @@ function showDraw() {
   overlay.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;gap:20px;padding:32px;max-width:440px;text-align:center;">
       <div style="font-family:'Orbitron',sans-serif;font-size:clamp(22px,4vw,34px);font-weight:900;color:#88bbcc;letter-spacing:4px;text-shadow:0 0 40px rgba(136,187,204,0.5);">STRATEGIC DRAW</div>
-      <div style="font-size:13px;color:#6080a0;letter-spacing:2px;">Neither commander blinked</div>
+      <div style="font-size:14px;color:#6080a0;letter-spacing:2px;">Neither commander blinked</div>
       <div style="background:rgba(255,255,255,0.03);border:1px solid #1c2840;border-radius:8px;padding:14px 24px;min-width:240px;text-align:center;">
-        <div style="font-size:9px;color:#304050;letter-spacing:2px;margin-bottom:8px;font-family:Orbitron,sans-serif;">NO RATING CHANGE</div>
+        <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:8px;font-family:Orbitron,sans-serif;">NO RATING CHANGE</div>
         <div style="font-size:12px;color:#6080a0;letter-spacing:1px;">${n1} · ${n2}</div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:4px;">
-        <button id="wd-lobby" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">LOBBY</button>
-        <button id="wd-review" style="padding:10px 22px;background:rgba(34,102,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border-radius:4px;">REVIEW GAME</button>
+        <button id="wd-lobby" style="padding:10px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">LOBBY</button>
+        <button id="wd-review" style="padding:10px 22px;background:rgba(34,102,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">REVIEW GAME</button>
       </div>
-      <div id="wd-status" style="font-size:10px;color:#304050;letter-spacing:1px;min-height:16px;"></div>
+      <div id="wd-status" style="font-size:12px;color:#304050;letter-spacing:1px;min-height:16px;"></div>
     </div>`;
 
   document.getElementById('wd-lobby').onclick = async () => {
@@ -2782,7 +2856,7 @@ function renderSidebar() {
   }
   if (PLAYER_CONFIG.advancedMode) {
     const advBadge = document.createElement('div');
-    advBadge.style.cssText = 'font-size:10px;color:#2a4060;letter-spacing:1px;text-align:center;padding:4px 0;font-family:\'Orbitron\',sans-serif;';
+    advBadge.style.cssText = 'font-size:12px;color:#2a4060;letter-spacing:1px;text-align:center;padding:4px 0;font-family:\'Orbitron\',sans-serif;';
     advBadge.textContent = '— SHORTCUT MODE —';
     actionBtns.appendChild(advBadge);
   }
@@ -3973,26 +4047,26 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     modal.innerHTML = `
       <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:32px;width:420px;max-width:95vw;text-align:center;font-family:Share Tech Mono,monospace;color:#a8c0e0;">
         <div style="font-family:Orbitron,sans-serif;font-size:18px;font-weight:900;color:#ddeeff;letter-spacing:4px;margin-bottom:4px">HOMEWORLDS DUEL</div>
-        <div style="font-size:11px;color:#304050;letter-spacing:2px;margin-bottom:24px">${esc(room.name||ROOM_ID.slice(-6).toUpperCase())}</div>
+        <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:24px">${esc(room.name||ROOM_ID.slice(-6).toUpperCase())}</div>
         <div style="display:flex;gap:16px;justify-content:center;margin-bottom:24px">
           <div style="width:130px;padding:14px;border:1px solid ${p1ok?'#2266ff':'#1c2840'};border-radius:6px;background:rgba(255,255,255,0.02)">
-            <div style="font-size:9px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 1</div>
-            <div style="font-size:13px;color:#4488ff;font-family:Orbitron,sans-serif">${esc(p1n)}</div>
-            <div style="font-size:9px;margin-top:4px;color:${p1ok?'#22dd77':'#304050'}">${p1ok?'✓ READY':'waiting…'}</div>
+            <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 1</div>
+            <div style="font-size:14px;color:#4488ff;font-family:Orbitron,sans-serif">${esc(p1n)}</div>
+            <div style="font-size:12px;margin-top:4px;color:${p1ok?'#22dd77':'#304050'}">${p1ok?'✓ READY':'waiting…'}</div>
           </div>
           <div style="display:flex;align-items:center;color:#2a3850;font-size:18px">VS</div>
           <div style="width:130px;padding:14px;border:1px solid ${p2ok?'#ff4455':'#1c2840'};border-radius:6px;background:rgba(255,255,255,0.02)">
-            <div style="font-size:9px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 2</div>
-            <div style="font-size:13px;color:#ff4455;font-family:Orbitron,sans-serif">${esc(p2n)}</div>
-            <div style="font-size:9px;margin-top:4px;color:${p2ok?'#22dd77':'#304050'}">${p2ok?'✓ READY':'waiting…'}</div>
+            <div style="font-size:12px;color:#304050;letter-spacing:2px;margin-bottom:6px">PLAYER 2</div>
+            <div style="font-size:14px;color:#ff4455;font-family:Orbitron,sans-serif">${esc(p2n)}</div>
+            <div style="font-size:12px;margin-top:4px;color:${p2ok?'#22dd77':'#304050'}">${p2ok?'✓ READY':'waiting…'}</div>
           </div>
         </div>
-        <div style="font-size:11px;color:#4a6080;letter-spacing:1px;margin-bottom:20px;min-height:16px">
+        <div style="font-size:12px;color:#4a6080;letter-spacing:1px;margin-bottom:20px;min-height:16px">
           ${both && notStarted ? 'Both players ready!' : 'Waiting for opponent to join…'}
         </div>
-        ${both && notStarted ? `<button id="pg-start" style="width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:3px;cursor:pointer;border-radius:6px;margin-bottom:12px;">START GAME ›</button>` : ''}
-        ${MY_SLOT === 1 && !p2ok ? `<button id="pg-cancel" style="width:100%;padding:11px;background:rgba(180,40,40,0.08);border:1px solid rgba(180,40,40,0.4);color:#c04050;font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:6px;margin-bottom:10px;">✕ CANCEL &amp; DELETE ROOM</button>` : ''}
-        <button onclick="location.href='lobby.html'" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:4px;">← BACK TO LOBBY</button>
+        ${both && notStarted ? `<button id="pg-start" style="width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;margin-bottom:12px;">START GAME ›</button>` : ''}
+        ${MY_SLOT === 1 && !p2ok ? `<button id="pg-cancel" style="width:100%;padding:11px;background:rgba(180,40,40,0.08);border:1px solid rgba(180,40,40,0.4);color:#c04050;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;margin-bottom:10px;">✕ CANCEL &amp; DELETE ROOM</button>` : ''}
+        <button onclick="location.href='lobby.html'" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">← BACK TO LOBBY</button>
       </div>`;
     const sb = document.getElementById('pg-start');
     if (sb) sb.onclick = async () => {
@@ -4028,6 +4102,15 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   async function launchMatch(room, user) {
     if (_started) return;
     _started = true;
+
+    // Load this player's colorblind preference from Firebase
+    try {
+      const cbSnap = await get(ref(db, `players/${user.uid}/colorblindMode`));
+      window._colorblindMode = cbSnap.val() === true;
+      localStorage.setItem('hw_colorblind', window._colorblindMode ? '1' : '0');
+    } catch(e) {
+      // Fall back to localStorage (already set at page load)
+    }
 
     window.PLAYER_CONFIG = {
       names:    ['', room.player1?.name||'Player 1', room.player2?.name||'Player 2'],
@@ -4421,11 +4504,11 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     dlg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:80;display:flex;align-items:center;justify-content:center;';
     dlg.innerHTML = `
       <div style="background:#0c1120;border:1px solid #2a3850;border-radius:10px;padding:28px;width:320px;text-align:center;font-family:Share Tech Mono,monospace;">
-        <div style="font-family:Orbitron,sans-serif;font-size:13px;color:#88bbcc;letter-spacing:3px;margin-bottom:10px;">DRAW OFFERED</div>
+        <div style="font-family:Orbitron,sans-serif;font-size:14px;color:#88bbcc;letter-spacing:3px;margin-bottom:10px;">DRAW OFFERED</div>
         <div style="font-size:12px;color:#6080a0;margin-bottom:20px;line-height:1.6;"><b style="color:#aaccdd">${offererName}</b> proposes a Strategic Draw.<br>Accept or decline?</div>
         <div style="display:flex;gap:10px;justify-content:center;">
-          <button id="_drawAccept" style="padding:9px 22px;background:rgba(68,170,187,0.12);border:1px solid #44aabb;color:#44aabb;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;">ACCEPT</button>
-          <button id="_drawDecline" style="padding:9px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;">DECLINE</button>
+          <button id="_drawAccept" style="padding:9px 22px;background:rgba(68,170,187,0.12);border:1px solid #44aabb;color:#44aabb;font-family:Share Tech Mono,monospace;font-size:12px;cursor:pointer;border-radius:4px;letter-spacing:1px;">ACCEPT</button>
+          <button id="_drawDecline" style="padding:9px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:Share Tech Mono,monospace;font-size:12px;cursor:pointer;border-radius:4px;letter-spacing:1px;">DECLINE</button>
         </div>
       </div>`;
     document.body.appendChild(dlg);
@@ -4473,7 +4556,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     _waitEl.style.cssText = 'position:fixed;top:0;left:0;right:0;height:36px;background:rgba(6,9,18,0.94);border-bottom:1px solid #1c2840;z-index:90;display:flex;align-items:center;justify-content:center;gap:12px;animation:_waitfade 0.3s ease;pointer-events:none;';
     _waitEl.innerHTML = `
       <div style="width:16px;height:16px;border:2px solid #1c2840;border-top-color:#2266ff;border-radius:50%;animation:_spin 0.9s linear infinite;flex-shrink:0"></div>
-      <span style="font-family:Orbitron,sans-serif;font-size:10px;color:#3a5878;letter-spacing:2px">${msg}</span>`;
+      <span style="font-family:Orbitron,sans-serif;font-size:12px;color:#3a5878;letter-spacing:2px">${msg}</span>`;
     document.body.appendChild(_waitEl);
     // Ensure forfeit/lobby buttons stay active during opponent's turn
     const forfeitBtn = document.getElementById('btn-forfeit');
