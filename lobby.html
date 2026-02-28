@@ -116,6 +116,7 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 .room-name{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;color:var(--bright);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .room-priv{font-size:9px;color:#ff8844;letter-spacing:1px;padding:2px 6px;border-radius:2px;border:1px solid transparent}
 @keyframes pulse-badge{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes _slidein{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 .room-meta{font-size:10px;color:#4a6080;line-height:1.9}
 .room-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
 .btn-join{padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;background:rgba(68,136,255,.12);border:1px solid var(--p1);color:var(--p1);transition:all .15s;white-space:nowrap}
@@ -378,6 +379,7 @@ async function reconcileMissedResults(uid) {
       opponent:  oppName,
       starDelta: iWon ? 3 : -1,
       playedAt:  room.updatedAt || Date.now(),
+      unseen:    true,   // cleared when player visits profile
     });
     needsUpdate = true;
   });
@@ -393,9 +395,39 @@ async function reconcileMissedResults(uid) {
   const wins   = merged.filter(g => g.result === 'win').length;
   const losses = merged.filter(g => g.result === 'loss').length;
 
-  await update(ref(db, `players/${uid}`), { wins, losses });
+  await update(ref(db, `players/${uid}`), { wins, losses, hasUnseenResult: true });
   await set(ref(db, `players/${uid}/recentGames`), merged);
   console.log('[Lobby] Reconciled', newEntries.length, 'missed result(s) for', uid);
+
+  // Show notification dot immediately (user is on lobby page)
+  const dot = document.getElementById('result-dot');
+  if (dot) dot.style.display = 'block';
+  const chip = document.getElementById('player-chip');
+  if (chip) chip.style.borderColor = 'rgba(255,51,68,0.5)';
+  showNewResultBanner(newEntries);
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showNewResultBanner(entries) {
+  if (!entries || !entries.length) return;
+  if (document.getElementById('_newResultBanner')) return;
+  const entry = entries[0];
+  const isWin = entry.result === 'win';
+  const banner = document.createElement('div');
+  banner.id = '_newResultBanner';
+  banner.style.cssText = 'position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:50;' +
+    'background:#0c1120;border:1px solid ' + (isWin ? '#22dd77' : '#884444') + ';border-radius:8px;' +
+    'padding:12px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 4px 24px rgba(0,0,0,.6);' +
+    'font-family:Share Tech Mono,monospace;font-size:12px;animation:_slidein .3s ease;white-space:nowrap;';
+  banner.innerHTML =
+    '<span style="font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:2px;color:' +
+    (isWin ? '#22dd77' : '#ff5566') + '">' + (isWin ? '★ VICTORY' : '✕ DEFEAT') + '</span>' +
+    '<span style="color:#7090a8">vs ' + esc(entry.opponent || 'Unknown') + '</span>' +
+    '<button onclick="location.href='profile.html'" style="padding:5px 14px;background:rgba(34,102,255,.12);border:1px solid #2266ff;color:#4488ff;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:3px;letter-spacing:1px">VIEW RESULT</button>' +
+    '<button onclick="this.parentElement.remove()" style="background:transparent;border:none;color:#4a6080;font-size:18px;cursor:pointer;padding:0 4px;">&times;</button>';
+  document.body.appendChild(banner);
+  setTimeout(() => { if (banner.parentElement) banner.remove(); }, 8000);
 }
 
 
@@ -499,8 +531,14 @@ function renderRooms(rooms){
   updateMyTurnBadge(rooms);
   const myUid = ME?.uid;
   let entries = Object.entries(rooms)
-    .map(([id, r]) => ({ ...r, id }))           // inject id from key
-    .filter(r => r.name && r.status && r.status !== 'finished' && r.status !== 'deleted')
+    .map(([id, r]) => ({ ...r, id }))
+    .filter(r => {
+      if (!r.name || !r.status) return false;
+      if (r.status === 'finished' || r.status === 'deleted') return false;
+      // Hide archived rooms — result shown via notification dot on profile pill
+      if (r.status === 'archived') return false;
+      return true;
+    })
     .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
   if (currentFilter !== 'all') {
     if (currentFilter === 'playing')  entries = entries.filter(r => r.status === 'playing');

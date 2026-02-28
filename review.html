@@ -33,6 +33,46 @@ body {
   overflow: hidden;
 }
 
+/* === UNSEEN RESULT OVERLAY === */
+#unseen-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(4, 7, 16, 0.96);
+  align-items: center; justify-content: center; flex-direction: column; gap: 24px;
+}
+#unseen-overlay.show { display: flex; }
+.uo-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(24px, 5vw, 42px); font-weight: 900;
+  letter-spacing: 4px; text-shadow: 0 0 40px currentColor;
+}
+.uo-subtitle { font-size: 13px; color: #6080a0; letter-spacing: 2px; }
+.uo-players {
+  display: flex; gap: 24px; align-items: center;
+  background: rgba(255,255,255,.02); border: 1px solid #1c2840;
+  border-radius: 10px; padding: 16px 28px;
+}
+.uo-player { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.uo-avatar {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: rgba(255,255,255,.05); border: 2px solid #1c2840;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 700; overflow: hidden;
+}
+.uo-name { font-size: 12px; letter-spacing: 1px; color: #a8c0e0; }
+.uo-result { font-size: 10px; letter-spacing: 2px; font-family: 'Orbitron', sans-serif; }
+.uo-vs { font-size: 14px; color: #2a3850; font-family: 'Orbitron', sans-serif; }
+.uo-btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.uo-btn {
+  padding: 12px 28px; cursor: pointer; border-radius: 5px;
+  font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 2px;
+  transition: all .15s;
+}
+.uo-btn.secondary { background: transparent; border: 1px solid #2a3850; color: #4a6080; }
+.uo-btn.secondary:hover { border-color: #3a5080; color: #88aacc; }
+.uo-btn.primary { background: rgba(34,102,255,.12); border: 1px solid #2266ff; color: #4488ff; }
+.uo-btn.primary:hover { background: rgba(34,102,255,.22); box-shadow: 0 0 20px rgba(34,102,255,.3); }
+
 /* === STARFIELD === */
 body::before {
   content: '';
@@ -2101,6 +2141,60 @@ function init(record) {
   });
   // review-sub removed
 
+  // ── Unseen result overlay (arrives from profile via ?unseen=1) ──
+  const _urlParams = new URLSearchParams(location.search);
+  if (_urlParams.get('unseen') === '1') {
+    const ov   = document.getElementById('unseen-overlay');
+    const isDraw = winner === 0;
+    const p1name = players[1] || 'Player 1';
+    const p2name = players[2] || 'Player 2';
+
+    // Build title
+    const uo_title = document.getElementById('uo-title');
+    const uo_sub   = document.getElementById('uo-subtitle');
+    if (isDraw) {
+      uo_title.textContent = 'STRATEGIC DRAW';
+      uo_title.style.color = '#88bbcc';
+      uo_sub.textContent   = 'Neither commander blinked';
+    } else {
+      const winName  = players[winner] || `Player ${winner}`;
+      uo_title.textContent = `${winName.toUpperCase()} WINS`;
+      uo_title.style.color = winner === 1 ? '#4488ff' : '#ff4455';
+      uo_sub.textContent   = 'The cosmos have been conquered';
+    }
+
+    // Build player cards
+    const uo_ps = document.getElementById('uo-players');
+    const rawPlayersUO = Array.isArray(record.players) ? record.players : ['', null, null];
+    [1, 2].forEach(p => {
+      const isW  = p === winner;
+      const name = players[p] || `Player ${p}`;
+      const raw  = rawPlayersUO[p];
+      const av   = (typeof raw === 'object' && raw) ? (raw.avatarBase64 || raw.avatarUrl || '') : '';
+      const avContent = av ? `<img src="${av}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : name[0].toUpperCase();
+      const borderColor = isW ? (isDraw ? '#88bbcc' : '#ffcc00') : '#1c2840';
+      const resultLabel = isDraw ? 'DRAW' : (isW ? '★ WINNER' : 'DEFEATED');
+      const resultColor = isDraw ? '#6090a0' : (isW ? '#ffcc00' : '#884444');
+      const div = document.createElement('div');
+      div.className = 'uo-player';
+      div.innerHTML = `
+        <div class="uo-avatar" style="border-color:${borderColor}">${avContent}</div>
+        <div class="uo-name">${esc(name)}</div>
+        <div class="uo-result" style="color:${resultColor}">${resultLabel}</div>`;
+      uo_ps.appendChild(div);
+      if (p === 1) {
+        const vs = document.createElement('div');
+        vs.className = 'uo-vs';
+        vs.textContent = 'VS';
+        uo_ps.appendChild(vs);
+      }
+    });
+
+    document.getElementById('uo-profile').onclick = () => { location.href = 'profile.html'; };
+    document.getElementById('uo-continue').onclick = () => { ov.classList.remove('show'); };
+    ov.classList.add('show');
+  }
+
   // Render log panel (clickable)
   const logContainer = document.getElementById('log-entries');
   logContainer.innerHTML = logRows.map((r, i) =>
@@ -2340,5 +2434,17 @@ function _initArrows() {
 }
 
 </script>
+
+<!-- UNSEEN RESULT OVERLAY -->
+<div id="unseen-overlay">
+  <div id="uo-title" class="uo-title">—</div>
+  <div id="uo-subtitle" class="uo-subtitle">—</div>
+  <div class="uo-players" id="uo-players"></div>
+  <div class="uo-btn-row">
+    <button class="uo-btn secondary" id="uo-profile">← BACK TO PROFILE</button>
+    <button class="uo-btn primary"   id="uo-continue">REVIEW GAME ▶</button>
+  </div>
+</div>
+
 </body>
 </html>

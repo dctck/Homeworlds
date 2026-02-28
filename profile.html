@@ -194,7 +194,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 
   <!-- MATCH HISTORY -->
   <div class="section">
-    <div class="section-title">RECENT MATCHES</div>
+    <div class="section-title" style="display:flex;align-items:center;gap:8px;">RECENT MATCHES<span class="unseen-badge" id="recent-badge" style="display:none" title="New unreviewed results"></span></div>
     <div class="match-history-scroll" id="match-history"><div class="no-history">No matches recorded yet.</div></div>
   </div>
 
@@ -249,10 +249,6 @@ onAuthStateChanged(auth, async user => {
   if (!ME){window.location.href='index.html';return;}
   renderProfile(user);
   loadHistory(user.uid);
-  // Clear the "unseen result" notification now that they're viewing their profile
-  if (ME.hasUnseenResult) {
-    update(ref(db,`players/${user.uid}`),{hasUnseenResult:null}).catch(()=>{});
-  }
 });
 
 function renderProfile(user){
@@ -365,15 +361,28 @@ document.getElementById('toggle-advanced').onchange=async function(){
 async function loadHistory(uid){
   const container = document.getElementById('match-history');
   try {
-    // Read from players/{uid}/recentGames — written by game.html on game end
-    const snap = await get(ref(db, `players/${uid}/recentGames`));
-    if (!snap.exists()) return;
-    const matches = snap.val(); // already an array, newest first
+    const [snapGames, snapPlayer] = await Promise.all([
+      get(ref(db, `players/${uid}/recentGames`)),
+      get(ref(db, `players/${uid}/hasUnseenResult`)),
+    ]);
+    const hasUnseen = snapPlayer.val() === true;
+
+    // Show unseen badge on section header if there are new results
+    if (hasUnseen) {
+      const badge = document.getElementById('recent-badge');
+      if (badge) badge.style.display = 'inline-flex';
+    }
+
+    if (!snapGames.exists()) return;
+    const matches = snapGames.val();
     if (!matches || !matches.length) return;
     container.innerHTML = '';
+
+    // Find how many games at the top are "unseen" (added since last visit)
+    // We identify unseen games by the `unseen: true` flag written during reconcile
     matches.forEach(m => {
       const row = document.createElement('div');
-      row.className = 'match-row';
+      row.className = 'match-row' + (m.unseen ? ' unseen' : '');
       const isDraw = m.result === 'draw';
       const delta = isDraw ? '—' : (m.starDelta > 0 ? `+${m.starDelta}★` : `${m.starDelta}★`);
       const deltaColor = isDraw ? '#4a6080' : (m.starDelta > 0 ? 'var(--green)' : '#884444');
@@ -383,9 +392,20 @@ async function loadHistory(uid){
         <span class="match-opp">vs ${esc(m.opponent||'Unknown')}</span>
         <span class="match-stars" style="color:${deltaColor}">${delta}</span>
         <span class="match-date">${date}</span>
-        ${m.gameId ? `<a class="match-review" href="review.html?game=${encodeURIComponent(m.gameId)}">▶ REVIEW</a>` : ''}`;
+        ${m.unseen ? '<span class="unseen-badge" title="New result"></span>' : ''}
+        ${m.gameId ? `<a class="match-review" href="review.html?game=${encodeURIComponent(m.gameId)}&unseen=${m.unseen?'1':'0'}">▶ REVIEW</a>` : ''}`;
       container.appendChild(row);
     });
+
+    // Clear hasUnseenResult + unseen flags now that player has seen them
+    if (hasUnseen) {
+      await update(ref(db, `players/${uid}`), { hasUnseenResult: false });
+      // Clear unseen flag on individual game entries
+      const cleared = matches.map(m => ({ ...m, unseen: false }));
+      await set(ref(db, `players/${uid}/recentGames`), cleared);
+      const badge = document.getElementById('recent-badge');
+      if (badge) setTimeout(() => badge.style.display = 'none', 3000); // fade out after 3s
+    }
   } catch(e) {
     console.warn('loadHistory failed:', e.message);
   }

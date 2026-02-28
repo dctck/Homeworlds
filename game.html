@@ -213,7 +213,7 @@ body::before {
   animation: bar-blink 1.4s ease-in-out infinite;
 }
 .pcard-avatar {
-  width: 40px; height: 40px; border-radius: 6px; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   font-family: 'Orbitron', sans-serif; font-size: var(--fs-md); font-weight: 900;
   border: 2px solid transparent; overflow: hidden;
@@ -1278,6 +1278,9 @@ const Note = {
   catastrophe:(sysName, color)                 => `catastrophe ${sysName} ${COLOR_LETTER[color]}`,
   catastropheFailed: ()                        => `catastrophe failed`,
   skip:       ()                               => `skip`,
+  forfeit:    (playerName)                     => `forfeit ${playerName}`,
+  drawOffer:  (playerName)                     => `draw offered by ${playerName}`,
+  drawAccept: (playerName)                     => `draw accepted by ${playerName}`,
 };
 
 function logAction(notation) {
@@ -1557,13 +1560,10 @@ function checkWin() {
 function triggerWin(winner) {
   showWin(winner);  // sets G.phase='OVER', G.winner=winner before anything else
   // Online: persist the OVER state synchronously right now.
-  // The gameEnded event below is async — if this client navigates away or
-  // disconnects before the listener fires, the win would never be written.
-  // Calling saveState() here guarantees the opponent sees it.
   if (window._ONLINE?.active && typeof window.saveState === 'function') {
     window.saveState().catch(() => {});
   }
-  window.dispatchEvent(new CustomEvent('gameEnded', { detail: { winner } }));
+  window.dispatchEvent(new CustomEvent('gameEnded', { detail: { winner, forfeitedBy: G.forfeitedBy || null } }));
 }
 function triggerDraw() {
   showDraw();
@@ -3685,8 +3685,13 @@ function showForfeitDialog(player) {
   overlay.querySelector('#forfeit-confirm').onclick = async () => {
     overlay.remove();
     const winner = player === 1 ? 2 : 1;
+    const forfeiterName = PLAYER_CONFIG.names[player] || `Player ${player}`;
+    // Log the forfeit as an action so it appears in game log and review
+    logAction(Note.forfeit(forfeiterName));
+    commitTurnLog();
+    // Mark forfeitedBy so archive/review can label it correctly
+    G.forfeitedBy = player;
     // triggerWin = showWin + dispatch gameEnded (archive + ELO + recentGames).
-    // showWin alone skips all of that — that was the forfeit bug.
     triggerWin(winner);
   };
 }
@@ -4139,9 +4144,21 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         window.showWin(g.winner);
       } else if (g.currentPlayer === MY_SLOT) {
         const isSetup = g.phase === 'SETUP';
-        window.render(); // it's my turn — just render, no overlay needed
+        window.render();
+        if (g.phase === 'PLAY') startTimerTick();
       } else {
         showWaiting('Waiting for opponent…');
+        if (g.phase === 'PLAY') startTimerTick();
+      }
+      // Check for pending draw offer (in case opponent offered while I was offline)
+      if (g.phase === 'PLAY') {
+        const doSnap = await get(ref(db, `rooms/${ROOM_ID}/drawOffer`));
+        const doVal  = doSnap.val();
+        if (doVal && doVal.from !== MY_SLOT && !document.getElementById('_drawDialog')) {
+          // Trigger the draw dialog listener manually (reuse existing handler)
+          // We fire an onValue event by reading the current value
+            showDrawOfferDialog(doVal);
+        }
       }
     } else {
       // Fresh game — no state saved yet
@@ -4204,8 +4221,11 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window.render();
       // Remove any waiting banner before showing the turn banner
       if (_waitEl) { _waitEl.remove(); _waitEl = null; }
-      const isSetup = incoming.phase === 'SETUP';
-      // No overlay — board is already rendered above, player can move immediately
+      // Start/restart the timer for the new current player's turn
+      if (incoming.phase === 'PLAY') {
+        stopTimerTick();  // clear any old interval first
+        startTimerTick(); // start fresh with corrected timers[currentPlayer]
+      }
     });
 
     // Presence
@@ -4244,15 +4264,35 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         // - writes archivedGameId back to room
         // See functions/index.js: onRoomStatusChange
         await update(ref(db, `rooms/${ROOM_ID}`), {
-          status:     'archived',
-          winner:     detail.winner,
-          winnerName: window.PLAYER_CONFIG?.names[detail.winner] || `Player ${detail.winner}`,
+          status:      'archived',
+          winner:      detail.winner,
+          winnerName:  window.PLAYER_CONFIG?.names[detail.winner] || `Player ${detail.winner}`,
+          forfeitedBy: detail.forfeitedBy || null,
         });
         } // close else (not already archived)
       } catch(e) {
             _archived = false; // allow retry
         return;
       }
+
+      // ── Notify the opponent that they have an unseen result ─
+      // Write hasUnseenResult:true on their player record so when they
+      // next open lobby or profile they see the notification dot.
+      // We can't know their uid from the room but it's stored in the room data.
+      try {
+        const roomForUid = await get(ref(db, `rooms/${ROOM_ID}`));
+        const rData = roomForUid.val() || {};
+        const oppSlotData = rData[`player${OPP_SLOT}`];
+        if (oppSlotData?.uid) {
+          await update(ref(db, `players/${oppSlotData.uid}`), { hasUnseenResult: true });
+        }
+        // Also mark for myself if I was the loser (e.g. I timed out)
+        // Actually both players may want to see it. Mark both.
+        const mySlotData = rData[`player${MY_SLOT}`];
+        if (mySlotData?.uid) {
+          await update(ref(db, `players/${mySlotData.uid}`), { hasUnseenResult: true });
+        }
+      } catch(e) { console.warn('[HW] hasUnseenResult write failed:', e); }
 
     }  // end if (!_archived)
 
@@ -4317,12 +4357,12 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (!window._ONLINE?.active) { _origBanner(title, subtitle); return; }
     // Opponent's number appears in title → my turn just ended
     if (title.includes(`PLAYER ${OPP_SLOT}`) || title.includes('PLAYER ' + OPP_SLOT)) {
-      // CRITICAL: render() MUST be called first so the board updates for the
-      // current player (turn token moves, profile highlight switches) before
-      // the waiting banner appears on top.
+      stopTimerTick(); // my turn ended — stop my local countdown
       window.render();
       window.saveState();
       showWaiting('Waiting for opponent…');
+      // Keep opponent's clock running visually (their time is ticking on their client)
+      if (window.G?.phase === 'PLAY') startTimerTick();
       return;
     }
     // My number in title (e.g. pass-and-play) — suppress for online
@@ -4362,46 +4402,52 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (_drawOfferSent || _drawUsedByMe) return;
     _drawOfferSent = true; _drawUsedByMe = true;
     if (drawBtn) { drawBtn.textContent = '≈ Offered…'; drawBtn.classList.add('pending'); drawBtn.disabled = true; }
-    await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), { from: MY_SLOT, ts: Date.now() });
+    // Log the draw offer as a game action so it appears in review
+    const offererName = window.PLAYER_CONFIG?.names[MY_SLOT] || `Player ${MY_SLOT}`;
+    window.logAction(window.Note.drawOffer(offererName));
+    window.commitTurnLog();
+    if (typeof window.saveState === 'function') window.saveState().catch(() => {});
+    await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), { from: MY_SLOT, fromName: offererName, ts: Date.now() });
   };
 
-  // Listen for draw offer changes on this room
-  onValue(ref(db, `rooms/${ROOM_ID}/drawOffer`), snap => {
-    const offer = snap.val();
+  // Show draw offer dialog (called both from onValue and on rejoin)
+  function showDrawOfferDialog(offer) {
     if (!offer) return;
-    if (offer.from === MY_SLOT) return; // I sent this — ignore echo
-    // Opponent offered a draw — show dialog
-    if (document.getElementById('_drawDialog')) return; // already showing
+    if (offer.from === MY_SLOT) return;
+    if (document.getElementById('_drawDialog')) return;
+    const offererName = offer.fromName || (window.PLAYER_CONFIG?.names[offer.from] || `Player ${offer.from}`);
     const dlg = document.createElement('div');
     dlg.id = '_drawDialog';
     dlg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:80;display:flex;align-items:center;justify-content:center;';
     dlg.innerHTML = `
       <div style="background:#0c1120;border:1px solid #2a3850;border-radius:10px;padding:28px;width:320px;text-align:center;font-family:Share Tech Mono,monospace;">
         <div style="font-family:Orbitron,sans-serif;font-size:13px;color:#88bbcc;letter-spacing:3px;margin-bottom:10px;">DRAW OFFERED</div>
-        <div style="font-size:12px;color:#6080a0;margin-bottom:20px;line-height:1.6;">Your opponent proposes a Strategic Draw.<br>Accept?</div>
+        <div style="font-size:12px;color:#6080a0;margin-bottom:20px;line-height:1.6;"><b style="color:#aaccdd">${offererName}</b> proposes a Strategic Draw.<br>Accept or decline?</div>
         <div style="display:flex;gap:10px;justify-content:center;">
           <button id="_drawAccept" style="padding:9px 22px;background:rgba(68,170,187,0.12);border:1px solid #44aabb;color:#44aabb;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;">ACCEPT</button>
           <button id="_drawDecline" style="padding:9px 22px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;">DECLINE</button>
         </div>
       </div>`;
     document.body.appendChild(dlg);
-
     document.getElementById('_drawAccept').onclick = async () => {
       dlg.remove();
-      // Signal accepted — write OVER state with winner:0 so both clients see it
-      window.G.phase = 'OVER';
-      window.G.winner = 0;
+      const accepterName = window.PLAYER_CONFIG?.names[MY_SLOT] || `Player ${MY_SLOT}`;
+      window.logAction(window.Note.drawAccept(accepterName));
+      window.commitTurnLog();
+      window.G.phase = 'OVER'; window.G.winner = 0;
       await window.saveState();
       window.triggerDraw();
-      // Clear offer
       await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), null);
     };
     document.getElementById('_drawDecline').onclick = async () => {
       dlg.remove();
-      // Clear the offer so proposer can try again later
       await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), null);
-      // Re-enable draw button for proposer (they'll see the offer cleared)
     };
+  }
+
+  // Listen for draw offer changes on this room
+  onValue(ref(db, `rooms/${ROOM_ID}/drawOffer`), snap => {
+    showDrawOfferDialog(snap.val());
   });
 
   // If draw offer is cleared (declined), re-enable the draw button for proposer
