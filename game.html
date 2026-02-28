@@ -331,6 +331,42 @@ body::before {
 }
 .zone-hw-area { padding: 4px 0 6px; }
 #zone-p2 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
+
+/* Live opponent indicator */
+#live-banner {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(68,170,187,0.07);
+  border: 1px solid rgba(68,170,187,0.25);
+  border-radius: 6px;
+  margin: 0 0 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: #44aabb;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+#live-banner.show { display: flex; }
+#live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #44aabb;
+  animation: live-pulse 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(68,170,187,0.5); }
+  50%       { opacity: 0.6; box-shadow: 0 0 0 4px rgba(68,170,187,0); }
+}
+#live-actions {
+  color: #3a7888;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
 #zone-p1 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
 /* Mid zone: rows ordered by BFS distance from P2 → P1 */
 #zone-mid {
@@ -1030,6 +1066,11 @@ body::before {
       </marker>
     </defs>
   </svg>
+  <div id="live-banner">
+    <div id="live-dot"></div>
+    <span>Opponent is thinking</span>
+    <span id="live-actions"></span>
+  </div>
   <div class="zone-hw-area">
     <div class="zone-label" id="zone-label-2" style="text-align:center">— PLAYER 2 HOMEWORLD —</div>
     <div id="zone-p2"></div>
@@ -2067,6 +2108,11 @@ function render() {
   renderPlayerCards();
   if (window._autoSave && !window._ONLINE?.active && G && G.phase !== 'OVER') {
     try { localStorage.setItem('hw_saved_game', JSON.stringify(G)); } catch(e) {}
+  }
+  // Push live state to Firebase so opponent can watch in real time
+  if (window._pushLiveState && window._ONLINE?.active && !window._liveOverride &&
+      G && G.phase === 'PLAY' && G.currentPlayer === window._ONLINE.mySlot) {
+    window._pushLiveState();
   }
 }
 
@@ -4392,6 +4438,96 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const presRef = ref(db, `rooms/${ROOM_ID}/presence/${MY_SLOT}`);
     set(presRef, { uid: user.uid, online: true });
     onDisconnect(presRef).set({ uid: user.uid, online: false });
+
+    // ── Live State: push my in-progress turn to Firebase ──────────
+    // Opponent sees board update in real time as I act.
+    // Debounced 180ms so rapid multi-actions only send once.
+    let _liveDebounce = null;
+    window._pushLiveState = function() {
+      clearTimeout(_liveDebounce);
+      _liveDebounce = setTimeout(async () => {
+        if (!window.G || window.G.phase !== 'PLAY') return;
+        if (window.G.currentPlayer !== MY_SLOT) return; // only active player writes
+        try {
+          const g = JSON.parse(JSON.stringify(window.G));
+          // Strip UI-only fields that observer doesn't need
+          g.history = null; g.selectedShipId = null; g.movingFromSysId = null;
+          // Keep _pendingActions so observer can show action labels
+          await set(ref(db, `rooms/${ROOM_ID}/liveState`), {
+            gJson: JSON.stringify(g),
+            pending: g._pendingActions || [],
+            from: MY_SLOT,
+            ts: Date.now(),
+          });
+        } catch(e) { /* non-critical, swallow silently */ }
+      }, 180);
+    };
+
+    // Clear liveState when turn ends (saveState handles the committed state)
+    const _origSaveState = window.saveState;
+    window.saveState = async function saveState() {
+      // Clear live state first so opponent doesn't see stale in-progress data
+      set(ref(db, `rooms/${ROOM_ID}/liveState`), null).catch(() => {});
+      return _origSaveState();
+    };
+
+    // ── Observer side: watch opponent's live state ─────────────────
+    const liveBanner  = document.getElementById('live-banner');
+    const liveActions = document.getElementById('live-actions');
+
+    onValue(ref(db, `rooms/${ROOM_ID}/liveState`), snap => {
+      // If no data or it's my own write, clear indicator and return
+      if (!snap.exists() || !snap.val()?.gJson) {
+        if (liveBanner) liveBanner.classList.remove('show');
+        if (liveActions) liveActions.textContent = '';
+        return;
+      }
+      const d = snap.val();
+      if (d.from === MY_SLOT) return; // echo of my own push
+
+      // Only apply when it's genuinely the opponent's turn
+      const myTurn = window.G?.currentPlayer === MY_SLOT;
+      if (myTurn) return;
+
+      // Parse and apply the live state visually
+      try {
+        const incoming = JSON.parse(d.gJson);
+        if (!incoming || incoming.phase === 'OVER') return;
+
+        // Carry over timer correction: subtract transit time
+        if (incoming.timers && d.ts) {
+          const elapsed = Date.now() - d.ts;
+          const p = incoming.currentPlayer;
+          incoming.timers[p] = Math.max(0, incoming.timers[p] - elapsed);
+        }
+
+        incoming.interaction = 'IDLE';
+        incoming.selectedShipId = null;
+        window._liveOverride = true; // flag so render() doesn't push back to Firebase
+        window.G = incoming;
+        window.render();
+        window._liveOverride = false;
+
+        // Show live banner with latest action label
+        if (liveBanner) liveBanner.classList.add('show');
+        if (liveActions && d.pending?.length) {
+          const KEYWORDS = ['homeworld','build','trade','discover','move','attack','sacrifice','catastrophe','pass','skip'];
+          const last = d.pending[d.pending.length - 1] || '';
+          // Syntax-highlight the action string
+          const highlighted = last.split(' ').map(t => {
+            if (KEYWORDS.includes(t)) return `<b style="color:#66ccdd">${t}</b>`;
+            if (/^r\d/.test(t)) return `<span style="color:#ff5566">${t}</span>`;
+            if (/^b\d/.test(t)) return `<span style="color:#4488ff">${t}</span>`;
+            if (/^y\d/.test(t)) return `<span style="color:#ffcc00">${t}</span>`;
+            if (/^g\d/.test(t)) return `<span style="color:#22dd77">${t}</span>`;
+            return t;
+          }).join(' ');
+          liveActions.innerHTML = `— ${highlighted}`;
+        } else if (liveActions) {
+          liveActions.innerHTML = '';
+        }
+      } catch(e) { /* ignore parse errors */ }
+    });
   }
 
   // ── When game ends: push OVER state + auto-archive (host only) ─
