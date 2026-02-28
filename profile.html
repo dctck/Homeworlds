@@ -73,12 +73,12 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 
 /* ── Section ── */
 .section{background:rgba(12,17,32,.85);border:1px solid var(--border);border-radius:10px;padding:22px;margin-bottom:16px}
-.section-title{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;color:#4a6080;margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid rgba(28,40,64,.6)}
+.section-title{font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:3px;color:#4a6080;margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid rgba(28,40,64,.6)}
 .setting-row{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 0;border-bottom:1px solid rgba(28,40,64,.4)}
 .setting-row:last-child{border-bottom:none;padding-bottom:0}
 .setting-info{flex:1}
-.setting-name{font-size:12px;color:var(--bright);margin-bottom:4px}
-.setting-desc{font-size:12px;color:#4a6080;line-height:1.6}
+.setting-name{font-size:14px;color:var(--bright);margin-bottom:4px}
+.setting-desc{font-size:13px;color:#4a6080;line-height:1.6}
 .toggle{position:relative;width:44px;height:24px;display:inline-block;cursor:pointer;flex-shrink:0;margin-top:2px}
 .toggle input{opacity:0;width:0;height:0}
 .toggle-track{position:absolute;inset:0;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--border);transition:.2s}
@@ -298,6 +298,7 @@ function renderProfile(user){
 
   // Toggle
   document.getElementById('toggle-advanced').checked=!!ME.advancedMode;
+  localStorage.setItem('hw_advanced', ME.advancedMode ? '1' : '0');
   document.getElementById('toggle-colorblind').checked=!!ME.colorblindMode;
   // Mirror to localStorage so game.html can read it without auth wait
   localStorage.setItem('hw_colorblind', ME.colorblindMode ? '1' : '0');
@@ -364,6 +365,7 @@ document.getElementById('avatar-file-input').onchange=async e=>{
 
 // ── Settings ──────────────────────────────────────────────────
 document.getElementById('toggle-advanced').onchange=async function(){
+  localStorage.setItem('hw_advanced', this.checked ? '1' : '0');
   await update(ref(db,`players/${USER.uid}`),{advancedMode:this.checked});
 };
 

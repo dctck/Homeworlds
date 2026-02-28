@@ -123,9 +123,9 @@ body::before {
 .action-btn.sac { border-color: #8855cc; color: #bb88ff; }
 .sep { height: 1px; background: var(--border); margin: 4px 0; }
 #sac-counter {
-  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); color: #bb88ff;
-  text-align: center; padding: 6px; background: rgba(136,85,204,0.08);
-  border-radius: 4px; border: 1px solid rgba(136,85,204,0.3); display: none;
+  font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs);
+  text-align: center; padding: 6px; background: rgba(255,255,255,0.04);
+  border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); display: none;
 }
 #catastrophe-panel { display: flex; flex-direction: column; gap: 6px; }
 .catastrophe-alert {
@@ -1166,6 +1166,9 @@ body::before {
 
     <input type="checkbox" id="setup-advanced" style="display:none">
 
+    <div id="resume-game-row" style="display:none;margin-bottom:10px;">
+      <button id="btn-resume-game" style="width:100%;padding:12px;background:rgba(34,221,119,0.1);border:1px solid rgba(34,221,119,0.4);color:#22dd77;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;">↩ RESUME SAVED GAME</button>
+    </div>
     <div style="display:flex;gap:10px;margin-top:0;">
       <a href="lobby.html" style="flex-shrink:0;padding:14px 18px;background:transparent;border:1px solid #1c2840;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;text-decoration:none;display:flex;align-items:center;transition:all 0.2s;" onmouseenter="this.style.color='#88aacc';this.style.borderColor='#3a5080'" onmouseleave="this.style.color='#4a6080';this.style.borderColor='#1c2840'">← LOBBY</a>
       <button id="btn-start-game" style="flex:1;padding:14px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:all 0.2s;">
@@ -1183,6 +1186,9 @@ body::before {
 // ============================================================
 
 window._colorblindMode = localStorage.getItem('hw_colorblind') === '1';
+if (!window._savedAdvancedMode) {
+  window._savedAdvancedMode = localStorage.getItem('hw_advanced') === '1';
+}
 
 let _cbId = 0; // unique ID counter for SVG mask elements
 
@@ -1348,7 +1354,7 @@ function randomStarName() {
 
 function pieceNote(color, size) { return `${COLOR_LETTER[color]}${size}`; }
 
-const Note = {
+const Note = window.Note = {
   homeworld: (s1, s2, ship, sysName) =>
     `set HW ${pieceNote(s1.color,s1.size)} ${pieceNote(s2.color,s2.size)} ship ${pieceNote(ship.color,ship.size)} ${sysName}`,
   build:      (ship, sysName)                  => `build ${pieceNote(ship.color,ship.size)} ${sysName}`,
@@ -1365,13 +1371,13 @@ const Note = {
   drawAccept: (playerName)                     => `draw accepted by ${playerName}`,
 };
 
-function logAction(notation) {
+window.logAction = function logAction(notation) {
   G._pendingActions = G._pendingActions || [];
   G._pendingActions.push(notation);
   // Don't call renderLog here — log only updates on End Turn
 }
 
-function commitTurnLog() {
+window.commitTurnLog = function commitTurnLog() {
   const actions = G._pendingActions || [];
   if (actions.length > 0) {
     G.log.push({ turn: G.currentTurn, player: G.currentPlayer, actions: [...actions] });
@@ -1452,9 +1458,18 @@ function shipImgHTML(color, size, player, opts = {}) {
   const letter = COLOR_LETTER_MAP[color];
   const src = `assets/ships/${prefix}${letter}.webp`;
   const [w, h] = SHIP_DIMS[size];
-  // Player 2 ships flip vertically
   const flip = player === 2 ? 'transform:scaleY(-1);' : '';
   const filter = opts.glow ? `filter:drop-shadow(0 0 6px ${COLOR_HEX[color]}) drop-shadow(0 0 3px #fff);` : '';
+  if (window._colorblindMode) {
+    // For webp ships, overlay the CB symbol via an absolutely-positioned SVG
+    const cbG = cbOverlay(color, w, h, true, size, player);
+    if (cbG) {
+      return `<div style="position:relative;display:inline-block;width:${w}px;height:${h}px;flex-shrink:0">`
+        + `<img src="${src}" width="${w}" height="${h}" style="display:block;${flip}${filter}" draggable="false">`
+        + `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="position:absolute;top:0;left:0;pointer-events:none">${cbG}</svg>`
+        + `</div>`;
+    }
+  }
   return `<img src="${src}" width="${w}" height="${h}" style="display:block;${flip}${filter}" draggable="false">`;
 }
 
@@ -1467,6 +1482,15 @@ function starImgHTML(color, size, opts = {}) {
   const src = `assets/stars/${prefix}${letter}.webp`;
   const [w, h] = STAR_DIMS[size];
   const filter = opts.glow ? `filter:drop-shadow(0 0 8px ${COLOR_HEX[color]});` : '';
+  if (window._colorblindMode) {
+    const cbG = cbOverlay(color, w, h, false, size, 0);
+    if (cbG) {
+      return `<div style="position:relative;display:inline-block;width:${w}px;height:${h}px;flex-shrink:0">`
+        + `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`
+        + `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="position:absolute;top:0;left:0;pointer-events:none">${cbG}</svg>`
+        + `</div>`;
+    }
+  }
   return `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`;
 }
 
@@ -1685,6 +1709,7 @@ function buildLogText(winnerPlayer) {
 }
 
 function showWin(winnerPlayer) {
+  try { localStorage.removeItem('hw_saved_game'); } catch(e) {}
   stopTimerTick();
   _chatMessages = [];
   G.phase = 'OVER';
@@ -2040,6 +2065,9 @@ function render() {
   renderSidebar();
   renderLog();
   renderPlayerCards();
+  if (window._autoSave && !window._ONLINE?.active && G && G.phase !== 'OVER') {
+    try { localStorage.setItem('hw_saved_game', JSON.stringify(G)); } catch(e) {}
+  }
 }
 
 // ============================================================
@@ -2581,9 +2609,6 @@ function renderSystem(sys) {
       wrap.style.cursor = 'pointer';
       wrap.onclick = (e) => { e.stopPropagation(); onMoveTargetClick(sys.id); };
       wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, { glow: false });
-      const ownerDot = document.createElement('div');
-      ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
-      wrap.appendChild(ownerDot);
       _stampPid(wrap);
     return wrap;
     }
@@ -2596,9 +2621,6 @@ function renderSystem(sys) {
         wrap.onclick = (e) => { e.stopPropagation(); onAttackTargetClick(ship.id); };
       }
       wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {});
-      const ownerDot = document.createElement('div');
-      ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
-      wrap.appendChild(ownerDot);
       _stampPid(wrap);
     return wrap;
     }
@@ -2639,9 +2661,6 @@ function renderSystem(sys) {
           wrap.classList.add('valid-attack-direct');
           wrap.onclick = (e) => { e.stopPropagation(); directAttack(ship, sys); };
           wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {});
-          const ownerDot = document.createElement('div');
-          ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
-          wrap.appendChild(ownerDot);
           _stampPid(wrap);
     return wrap;
         }
@@ -2663,9 +2682,6 @@ function renderSystem(sys) {
           wrap.onclick = (e) => { e.stopPropagation(); onShipClick(ship.id); };
         }
         wrap.innerHTML = shipImgHTML(ship.color, ship.size, ship.owner, {}) + wrap.innerHTML;
-        const ownerDot = document.createElement('div');
-        ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
-        wrap.appendChild(ownerDot);
         _stampPid(wrap);
     return wrap;
       }
@@ -2705,9 +2721,6 @@ function renderSystem(sys) {
 
     // Insert image FIRST so any previously appended children (power-tip) are not overwritten
     wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, { glow: isSelected }));
-    const ownerDot = document.createElement('div');
-    ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
-    wrap.appendChild(ownerDot);
     _stampPid(wrap);
     return wrap;
   }
@@ -2807,7 +2820,7 @@ function renderSidebar() {
 
   // Show/hide draw button based on phase
   const _drawBtn = document.getElementById('btn-draw');
-  if (_drawBtn) { const _sd = G.phase==='PLAY' && !!(window._ONLINE?.active); _drawBtn.style.display = _sd?'block':'none'; }
+  if (_drawBtn) { _drawBtn.style.display = G.phase==='PLAY' ? 'block' : 'none'; }
 
   // ---- SETUP PHASE ----
   if (G.phase === 'SETUP') {
@@ -2862,7 +2875,7 @@ function renderSidebar() {
     const _sacColor = G.sacrificePool.color;
     const _sacPower = {red:'Hijack',blue:'Trade',yellow:'Move',green:'Build'}[_sacColor] || _sacColor;
     const _sacHex   = {red:'#ff5566',blue:'#4488ff',yellow:'#ffcc00',green:'#22dd77'}[_sacColor] || '#aaa';
-    sacCounter.innerHTML = `<span style="color:${_sacHex};font-weight:bold">${G.sacrificePool.count} ${_sacPower}</span> action${G.sacrificePool.count !== 1 ? 's' : ''} left`;
+    sacCounter.innerHTML = `<span style="color:${_sacHex};font-weight:bold;letter-spacing:1px">${G.sacrificePool.count} ${_sacPower} action${G.sacrificePool.count !== 1 ? 's' : ''} left</span>`;
   }
   if (PLAYER_CONFIG.advancedMode) {
     const advBadge = document.createElement('div');
@@ -3167,6 +3180,7 @@ function onShipClick(shipId) {
         G.selectedShipId = null;
         return;
       }
+      G.interaction = 'SHIP_SELECTED'; // doBuild requires non-IDLE
       doBuild(clickedSys, targetColor);
       return;
     }
@@ -3406,10 +3420,12 @@ document.getElementById('btn-reset').onclick = () => {
     restartSetup();
     return;
   }
-  // Reset to beginning of current turn (undo all actions taken this turn)
-  if (G.history) {
-    G = JSON.parse(G.history);
-  } else if (G._pendingActions && G._pendingActions.length > 0) {
+  // Reset ALL actions this turn — restore to turn-start snapshot
+  if (G._turnStart) {
+    const ts = G._turnStart;
+    G = JSON.parse(ts);
+    G._turnStart = ts;
+  } else {
     G._pendingActions = [];
     G.turnUsed = false;
     G.sacrificePool = { color: null, count: 0 };
@@ -3417,6 +3433,7 @@ document.getElementById('btn-reset').onclick = () => {
   G.selectedShipId = null;
   G.movingFromSysId = null;
   G.interaction = 'IDLE';
+  G.history = null;
   render();
 };
 
@@ -3464,6 +3481,7 @@ function doEndTurn() {
     G.movingFromSysId = null;
     G.interaction = 'IDLE';
     G.history = null;
+    G._turnStart = JSON.stringify(G);
 
     // Turn Timer: reset next player's clock to one full turn
     if (PLAYER_CONFIG.tcMode === 'turn' && PLAYER_CONFIG.tcTurnMs) {
@@ -3625,14 +3643,19 @@ function escapeHtml(s) {
 //  TIMER
 // ============================================================
 let _timerInterval = null;
+let _timerTickTs   = null;
 
 function startTimerTick() {
   if (_timerInterval) return;
-  if (!PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs) return; // unlimited
+  if (!PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs) return;
+  _timerTickTs = Date.now();
   _timerInterval = setInterval(() => {
     if (!G || G.phase !== 'PLAY') return;
+    const now     = Date.now();
+    const elapsed = Math.min(now - (_timerTickTs || now), 2000);
+    _timerTickTs  = now;
     const p = G.currentPlayer;
-    G.timers[p] = Math.max(0, G.timers[p] - 250);
+    G.timers[p] = Math.max(0, G.timers[p] - elapsed);
     renderPlayerCards();
     if (G.timers[p] <= 0) {
       clearInterval(_timerInterval); _timerInterval = null;
@@ -3643,7 +3666,22 @@ function startTimerTick() {
 
 function stopTimerTick() {
   clearInterval(_timerInterval); _timerInterval = null;
+  _timerTickTs = null;
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (!_timerInterval || !G || G.phase !== 'PLAY') return;
+  if (document.hidden) {
+    _timerTickTs = Date.now();
+  } else if (_timerTickTs) {
+    const elapsed = Date.now() - _timerTickTs;
+    _timerTickTs  = Date.now();
+    const p = G.currentPlayer;
+    G.timers[p] = Math.max(0, G.timers[p] - elapsed);
+    renderPlayerCards();
+    if (G.timers[p] <= 0) { stopTimerTick(); showWin(p === 1 ? 2 : 1); }
+  }
+});
 
 function formatTimer(ms) {
   if (!PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs) return '—';
@@ -3900,7 +3938,12 @@ function showReportDialog(player) {
     };
 
     G = makeInitialState();
+    G._p1name = name1; G._p2name = name2;
+    G._turnStart = JSON.stringify(G);
     document.getElementById('startup-modal').remove();
+    const _lbr = document.getElementById('btn-lobby-row');
+    if (_lbr) _lbr.style.display = 'block';
+    window._autoSave = true;
     initChat();
     renderPlayerCards();
     render();
@@ -3911,6 +3954,29 @@ function showReportDialog(player) {
     const advCb = document.getElementById('setup-advanced');
     if (advCb) advCb.checked = true;
   }
+
+  // Resume saved game if one exists
+  try {
+    const _savedRaw = localStorage.getItem('hw_saved_game');
+    if (_savedRaw) {
+      document.getElementById('resume-game-row').style.display = 'block';
+      document.getElementById('btn-resume-game').onclick = () => {
+        const sg = JSON.parse(_savedRaw);
+        PLAYER_CONFIG = {
+          names:    ['', sg._p1name || 'Player 1', sg._p2name || 'Player 2'],
+          elos:     ['', '1200', '1200'],
+          timeMs: 0, tcMode: 'unlimited', tcTurnMs: 0,
+          advancedMode: !!(window._savedAdvancedMode),
+        };
+        G = sg;
+        document.getElementById('startup-modal').remove();
+        const _lbr2 = document.getElementById('btn-lobby-row');
+        if (_lbr2) _lbr2.style.display = 'block';
+        window._autoSave = true;
+        initChat(); renderPlayerCards(); render();
+      };
+    }
+  } catch(e) {}
 
   // Start button hover
   const sb = document.getElementById('btn-start-game');
@@ -4256,6 +4322,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     } else {
       // Fresh game — no state saved yet
       window.G = window.makeInitialState();
+      window.G._turnStart = JSON.stringify(window.G);
       window.renderPlayerCards();
       window.render();
       if (MY_SLOT === 1) {
