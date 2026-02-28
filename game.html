@@ -1360,6 +1360,7 @@ window.commitTurnLog = function commitTurnLog() {
   const actions = G._pendingActions || [];
   if (actions.length > 0) {
     G.log.push({ turn: G.currentTurn, player: G.currentPlayer, actions: [...actions] });
+    console.log(`[HW LOG] commitTurnLog turn=${G.currentTurn} player=${G.currentPlayer} actions=[${actions.join(', ')}] — G.log now ${G.log.length} entries`);
     G.currentTurn++;
   }
   G._pendingActions = [];
@@ -1374,12 +1375,12 @@ window.commitTurnLog = function commitTurnLog() {
 
 
 
-function renderLog() {
+window.renderLog = function renderLog() {
   const container = document.getElementById('log-entries');
   const counter   = document.getElementById('log-turn-count');
   if (!container) return;
 
-  const KEYWORDS = ['set','build','trade','discover','move','hijack','sacrifice','catastrophe','skip','failed','HW','ship'];
+  const KEYWORDS = ['set','build','trade','discover','move','hijack','sacrifice','catastrophe','skip','failed','HW','ship','draw','forfeit'];
   function highlight(str) {
     return str.split(' ').map(t => {
       if (KEYWORDS.includes(t))       return `<span class="ml-kw">${t}</span>`;
@@ -3439,7 +3440,19 @@ document.getElementById('btn-draw').onclick = () => {
     if (typeof window._sendDrawOffer === 'function') window._sendDrawOffer();
   } else {
     // Pass-and-play: both players present — confirm once
-    if (confirm('Both players agree to a draw?')) triggerDraw();
+    if (confirm('Both players agree to a draw?')) {
+      // Log the draw as two entries: offer from current player, accept from other
+      const _drawProposer = G.currentPlayer;
+      const _drawAccepter = 3 - _drawProposer;
+      logAction(Note.drawOffer());
+      commitTurnLog();
+      // Temporarily switch player to log the acceptance from the other side
+      G.currentPlayer = _drawAccepter;
+      logAction(Note.drawAccept());
+      commitTurnLog();
+      G.currentPlayer = _drawProposer;
+      triggerDraw();
+    }
   }
 };
 document.getElementById('btn-reset').onclick = () => {
@@ -3844,6 +3857,7 @@ function showForfeitDialog(player) {
     // Log the forfeit as an action so it appears in game log and review
     logAction(Note.forfeit());
     commitTurnLog();
+    renderLog();
     // Mark forfeitedBy so archive/review can label it correctly
     G.forfeitedBy = player;
     // triggerWin = showWin + dispatch gameEnded (archive + ELO + recentGames).
@@ -4329,6 +4343,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       // Game already in progress — restore it
       const saved = gameSnap.val();
       const g = JSON.parse(saved.gJson);
+      console.log(`[HW RESTORE] Found Firebase state — phase=${g.phase} turn=${g.currentTurn} log.length=${g.log?.length ?? 0} writtenBy=${saved.writtenBy} ts=${saved.ts}`);
       // Mark this timestamp so onValue doesn't re-apply the same state
       if (saved.writtenBy !== MY_SLOT) window._lastOppTs = saved.ts || 0;
       syncUid(g);
@@ -4339,15 +4354,22 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       // saved.ts = Date.now() at the moment saveState() was called.
       // g.timers[g.currentPlayer] = how much time that player had then.
       // Subtract elapsed time so the clock is accurate after a rejoin/refresh.
-      if (g.phase === 'PLAY' && g.timers && saved.ts) {
+      // Timer correction: only for timed games — unlimited has timers[p]=0 which
+      // would instantly trigger game-over if we applied this check unconditionally.
+      const _hasTimer = PLAYER_CONFIG.timeMs > 0 || PLAYER_CONFIG.tcTurnMs > 0;
+      if (g.phase === 'PLAY' && g.timers && saved.ts && _hasTimer) {
         const elapsed = Date.now() - saved.ts;
         const p = g.currentPlayer;
+        const before = g.timers[p];
         g.timers[p] = Math.max(0, g.timers[p] - elapsed);
+        console.log(`[HW TIMER] Rejoin correction for player ${p}: ${before}ms → ${g.timers[p]}ms (elapsed ${elapsed}ms)`);
         if (g.timers[p] <= 0) {
-          // Time ran out while offline — show win after render
+          console.warn(`[HW TIMER] Player ${p} timed out while offline — triggering win`);
           g.phase  = 'OVER';
           g.winner = p === 1 ? 2 : 1;
         }
+      } else if (g.phase === 'PLAY') {
+        console.log(`[HW TIMER] No correction needed (${_hasTimer ? 'no saved.ts' : 'unlimited game'})`);
       }
 
       // Remove lobby modal now — restore path doesn't need animation
@@ -4456,15 +4478,19 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       // ── Timer correction: d.ts is when opponent's saveState() was called.
       // The game state encodes G.timers[currentPlayer] at that moment.
       // By the time we receive it, some ms have passed — subtract them.
-      if (incoming.phase === 'PLAY' && incoming.timers && d.ts) {
+      // Only applies to timed games — unlimited has timers[p]=0 so skip.
+      const _oppHasTimer = PLAYER_CONFIG.timeMs > 0 || PLAYER_CONFIG.tcTurnMs > 0;
+      if (incoming.phase === 'PLAY' && incoming.timers && d.ts && _oppHasTimer) {
         const elapsed = Date.now() - d.ts;
         const p = incoming.currentPlayer;
         incoming.timers[p] = Math.max(0, incoming.timers[p] - elapsed);
+        console.log(`[HW TIMER] onValue correction for player ${p}: elapsed ${elapsed}ms`);
       }
 
       window.G = incoming;
 
       if (incoming.phase === 'OVER') {
+        console.log(`[HW RECV] Received OVER state from Firebase — winner=${incoming.winner} log.length=${incoming.log?.length ?? 0}`);
         window.G = incoming;
         window.render();
         const alreadyShown = document.getElementById('win-overlay')?.classList.contains('show');
@@ -4553,13 +4579,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       }, 180);
     };
 
-    // Clear liveState when turn ends (saveState handles the committed state)
-    const _origSaveState = window.saveState;
-    window.saveState = async function saveState() {
-      // Clear live state first so opponent doesn't see stale in-progress data
-      set(ref(db, `rooms/${ROOM_ID}/liveState`), null).catch(() => {});
-      return _origSaveState();
-    };
+    // Note: liveState-clearing wrapper is applied AFTER the real saveState is defined below.
 
     // ── Observer side: watch opponent's live state ─────────────────
     const liveBanner  = document.getElementById('live-banner');
@@ -4624,13 +4644,19 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   let _archived = false;
   window.addEventListener('gameEnded', async ({ detail }) => {
     if (!window._ONLINE?.active) return;
+    console.log(`[HW END] gameEnded fired — winner=${detail.winner} forfeitedBy=${detail.forfeitedBy ?? 'none'} G.log.length=${window.G?.log?.length ?? 0} pendingActions=${window.G?._pendingActions?.length ?? 0}`);
+
     // Only commit if there are actual pending actions (winner's side).
     // The loser's side has G._pendingActions=[] (cleared when incoming state loaded),
     // so calling commitTurnLog() there would push an empty snapshot without a log entry.
     if (typeof window.commitTurnLog === 'function' && (window.G?._pendingActions?.length > 0 || window.G?.turnUsed)) {
+      console.log('[HW END] Committing pending actions before save');
       window.commitTurnLog();
     }
+
+    console.log(`[HW END] Calling saveState — G.log.length=${window.G?.log?.length ?? 0}`);
     await saveState();
+    console.log('[HW END] saveState complete');
 
     // Anyone whose client sees the game end can archive.
     // Guard: check if already archived in Firebase first (prevents double-write if both clients race)
@@ -4640,24 +4666,27 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         // Check if already archived (other client may have beaten us)
         const existingSnap = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
         if (existingSnap.val()) {
+          console.log('[HW END] Already archived by other client — skipping archive write');
           // Already archived by the other client — do NOT return here.
           // Fall through so this client still runs its own ELO + recentGames update below.
         } else {
-
-        // Client just marks status=archived; Cloud Function handles the rest:
-        // - archives game to gamesPlayed with flat moves array (from game log)
-        // - calculates ELO + stars for both players server-side
-        // - writes archivedGameId back to room
-        // See functions/index.js: onRoomStatusChange
-        await update(ref(db, `rooms/${ROOM_ID}`), {
-          status:      'archived',
-          winner:      detail.winner,
-          winnerName:  window.PLAYER_CONFIG?.names[detail.winner] || `Player ${detail.winner}`,
-          forfeitedBy: detail.forfeitedBy || null,
-        });
+          console.log(`[HW END] Writing status:archived to room — winner=${detail.winner}`);
+          // Client just marks status=archived; Cloud Function handles the rest:
+          // - archives game to gamesPlayed with flat moves array (from game log)
+          // - calculates ELO + stars for both players server-side
+          // - writes archivedGameId back to room
+          // See functions/index.js: onRoomStatusChange
+          await update(ref(db, `rooms/${ROOM_ID}`), {
+            status:      'archived',
+            winner:      detail.winner,
+            winnerName:  window.PLAYER_CONFIG?.names[detail.winner] || `Player ${detail.winner}`,
+            forfeitedBy: detail.forfeitedBy || null,
+          });
+          console.log('[HW END] ✓ Room archived successfully');
         } // close else (not already archived)
       } catch(e) {
-            _archived = false; // allow retry
+        console.error('[HW END] ✗ Archive failed:', e.message, e);
+        _archived = false; // allow retry
         return;
       }
 
@@ -4733,8 +4762,15 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     g._turnStart = null;     // local undo snapshot — never needed by opponent
     const ts = Date.now();
     const _gamePayload = { gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts };
-    _logPayload(`saveState turn=${g.currentTurn ?? '?'} phase=${g.phase}`, _gamePayload);
-    await set(ref(db, `rooms/${ROOM_ID}/game`), _gamePayload);
+    _logPayload(`saveState turn=${g.currentTurn ?? '?'} phase=${g.phase} log.length=${g.log?.length ?? 0}`, _gamePayload);
+    console.log(`[HW SAVE] Saving — phase=${g.phase} turn=${g.currentTurn} log.length=${g.log?.length ?? 0} player=${g.currentPlayer}`);
+    try {
+      await set(ref(db, `rooms/${ROOM_ID}/game`), _gamePayload);
+      console.log('[HW SAVE] ✓ Firebase rooms/.../game write OK');
+    } catch(e) {
+      console.error('[HW SAVE] ✗ Firebase write FAILED:', e.message, e);
+      throw e; // re-throw so callers know
+    }
     // Update room metadata so lobby can show whose turn it is + game status
     const meta = { currentPlayer: g.currentPlayer, updatedAt: ts };
     if (g.phase === 'OVER') {
@@ -4742,7 +4778,21 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       meta.winner = g.winner;
       meta.winnerName = window.PLAYER_CONFIG?.names[g.winner] || `Player ${g.winner}`;
     }
-    await update(ref(db, `rooms/${ROOM_ID}`), meta);
+    try {
+      await update(ref(db, `rooms/${ROOM_ID}`), meta);
+    } catch(e) {
+      console.error('[HW SAVE] ✗ Firebase room meta update FAILED:', e.message);
+    }
+  }
+
+  // ── liveState-clearing wrapper (applied HERE, after real saveState is defined) ──
+  // When a turn ends, clear the in-progress live state so opponent stops seeing stale moves.
+  {
+    const _origSaveState = window.saveState;
+    window.saveState = async function saveState() {
+      set(ref(db, `rooms/${ROOM_ID}/liveState`), null).catch(() => {});
+      return _origSaveState();
+    };
   }
 
   // ── Intercept showPassBanner: fires when a turn ends ─────────
@@ -4755,7 +4805,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (title.includes(`PLAYER ${OPP_SLOT}`) || title.includes('PLAYER ' + OPP_SLOT)) {
       stopTimerTick(); // my turn ended — stop my local countdown
       window.render();
-      window.saveState();
+      console.log(`[HW SAVE] showPassBanner intercepted (opp turn "${title}") — calling saveState`);
+      window.saveState().catch(e => console.error('[HW SAVE] saveState from showPassBanner failed:', e));
       showWaiting('Waiting for opponent…');
       // Keep opponent's clock running visually (their time is ticking on their client)
       if (window.G?.phase === 'PLAY') startTimerTick();
@@ -4802,7 +4853,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const offererName = window.PLAYER_CONFIG?.names[MY_SLOT] || `Player ${MY_SLOT}`;
     window.logAction(window.Note.drawOffer());
     window.commitTurnLog();
-    if (typeof window.saveState === 'function') window.saveState().catch(() => {});
+    if (typeof window.renderLog === 'function') window.renderLog();
+    if (typeof window.saveState === 'function') window.saveState().catch(e => console.error('[HW SAVE] draw offer save failed:', e));
     await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), { from: MY_SLOT, fromName: offererName, ts: Date.now() });
   };
 
@@ -4830,6 +4882,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       const accepterName = window.PLAYER_CONFIG?.names[MY_SLOT] || `Player ${MY_SLOT}`;
       window.logAction(window.Note.drawAccept());
       window.commitTurnLog();
+      if (typeof window.renderLog === 'function') window.renderLog();
       window.G.phase = 'OVER'; window.G.winner = 0;
       await window.saveState();
       window.triggerDraw();
@@ -4839,6 +4892,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       dlg.remove();
       window.logAction(window.Note.drawDecline());
       window.commitTurnLog();
+      if (typeof window.renderLog === 'function') window.renderLog();
       await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), null);
     };
   }
