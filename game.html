@@ -4439,6 +4439,15 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     set(presRef, { uid: user.uid, online: true });
     onDisconnect(presRef).set({ uid: user.uid, online: false });
 
+    // Clear liveState when this player disconnects or navigates away mid-turn.
+    // Without this, the opponent keeps seeing stale in-progress moves after the
+    // active player goes to lobby before ending their turn.
+    const liveRef = ref(db, `rooms/${ROOM_ID}/liveState`);
+    onDisconnect(liveRef).set(null);
+    window.addEventListener('beforeunload', () => {
+      set(liveRef, null).catch(() => {});
+    });
+
     // ── Live State: push my in-progress turn to Firebase ──────────
     // Opponent sees board update in real time as I act.
     // Debounced 180ms so rapid multi-actions only send once.
