@@ -247,6 +247,14 @@ body::before {
   flex-shrink: 0; line-height: 1;
 }
 .pcard-gear:hover { color: #7090b0; }
+.pcard-presence {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #2a3850; border: 1px solid #1c2840;
+  flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s;
+  margin-right: 2px;
+}
+.pcard-presence.online  { background: #22dd77; box-shadow: 0 0 5px #22dd7799; border-color: #22dd77; }
+.pcard-presence.offline { background: #2a3850; }
 .pcard-forfeit {
   background: none; border: none; cursor: pointer; color: #5a3040;
   font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s;
@@ -1094,6 +1102,7 @@ body::before {
       <div class="pcard-elo" id="pcard-elo-2">◆ 1200</div>
     </div>
     <div class="pcard-timer-wrap">
+      <div class="pcard-presence offline" id="pcard-presence-2" title="Offline"></div>
       <span class="pcard-timer" id="timer-display-2">—</span>
     </div>
     <button class="pcard-gear" id="pcard-gear-2" title="Options" onclick="showReportDialog(2)">⚙</button>
@@ -1106,6 +1115,7 @@ body::before {
       <div class="pcard-elo" id="pcard-elo-1">◆ 1200</div>
     </div>
     <div class="pcard-timer-wrap">
+      <div class="pcard-presence offline" id="pcard-presence-1" title="Online"></div>
       <span class="pcard-timer" id="timer-display-1">—</span>
     </div>
   </div>
@@ -1334,9 +1344,10 @@ const Note = window.Note = {
   catastrophe:(sysName, color)                 => `catastrophe ${sysName} ${COLOR_LETTER[color]}`,
   catastropheFailed: ()                        => `catastrophe failed`,
   skip:       ()                               => `skip`,
-  forfeit:    (playerName)                     => `forfeit ${playerName}`,
-  drawOffer:  (playerName)                     => `draw offered by ${playerName}`,
-  drawAccept: (playerName)                     => `draw accepted by ${playerName}`,
+  forfeit:    ()                               => `forfeit`,
+  drawOffer:  ()                               => `draw ?`,
+  drawAccept: ()                               => `draw Yes`,
+  drawDecline:()                               => `draw No`,
 };
 
 window.logAction = function logAction(notation) {
@@ -1384,12 +1395,25 @@ function renderLog() {
     }).join(' ');
   }
 
+  // Build homeworld labels from log (e.g. "Nexus"→"N") — same as review.html
+  const _hwLabels = ['', 'P1', 'P2'];
+  (G.log || []).forEach(entry => {
+    (entry.actions || []).forEach(a => {
+      const t = a.trim().split(/\s+/);
+      let hwName = null;
+      if (t[0] === 'set' && t[1] === 'HW' && t[6]) hwName = t[6];
+      else if (t[0] === 'homeworld' && t[4])        hwName = t[4];
+      if (hwName) _hwLabels[entry.player] = hwName[0].toUpperCase();
+    });
+  });
+
   const rows = [];
   (G.log || []).forEach(entry => {
     entry.actions.forEach(a => {
       const pClass = entry.player === 1 ? 'ml-p1' : 'ml-p2';
+      const pLabel = _hwLabels[entry.player] || `P${entry.player}`;
       rows.push({
-        prefix: `<span class="ml-turn">${entry.turn}.</span><span class="${pClass}">P${entry.player}</span>`,
+        prefix: `<span class="ml-turn">${entry.turn}.</span><span class="${pClass}">${pLabel}</span>`,
         body: highlight(a)
       });
     });
@@ -3818,7 +3842,7 @@ function showForfeitDialog(player) {
     const winner = player === 1 ? 2 : 1;
     const forfeiterName = PLAYER_CONFIG.names[player] || `Player ${player}`;
     // Log the forfeit as an action so it appears in game log and review
-    logAction(Note.forfeit(forfeiterName));
+    logAction(Note.forfeit());
     commitTurnLog();
     // Mark forfeitedBy so archive/review can label it correctly
     G.forfeitedBy = player;
@@ -4469,6 +4493,25 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     set(presRef, { uid: user.uid, online: true });
     onDisconnect(presRef).set({ uid: user.uid, online: false });
 
+    // ── Presence dots on player cards ────────────────────────
+    function _updatePresenceDot(slot, online) {
+      const dot = document.getElementById(`pcard-presence-${slot}`);
+      if (!dot) return;
+      dot.classList.toggle('online',  online);
+      dot.classList.toggle('offline', !online);
+      dot.title = online ? 'Online' : 'Offline';
+    }
+    // My own dot: always show as online while I'm here
+    _updatePresenceDot(MY_SLOT, true);
+    // Watch both slots for changes
+    onValue(ref(db, `rooms/${ROOM_ID}/presence`), snap => {
+      const pres = snap.val() || {};
+      [1, 2].forEach(slot => {
+        const p = pres[slot];
+        _updatePresenceDot(slot, !!(p?.online));
+      });
+    });
+
     // Clear liveState when this player disconnects or navigates away mid-turn.
     // Without this, the opponent keeps seeing stale in-progress moves after the
     // active player goes to lobby before ending their turn.
@@ -4757,7 +4800,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (drawBtn) { drawBtn.textContent = '≈ Offered…'; drawBtn.classList.add('pending'); drawBtn.disabled = true; }
     // Log the draw offer as a game action so it appears in review
     const offererName = window.PLAYER_CONFIG?.names[MY_SLOT] || `Player ${MY_SLOT}`;
-    window.logAction(window.Note.drawOffer(offererName));
+    window.logAction(window.Note.drawOffer());
     window.commitTurnLog();
     if (typeof window.saveState === 'function') window.saveState().catch(() => {});
     await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), { from: MY_SLOT, fromName: offererName, ts: Date.now() });
@@ -4785,7 +4828,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     document.getElementById('_drawAccept').onclick = async () => {
       dlg.remove();
       const accepterName = window.PLAYER_CONFIG?.names[MY_SLOT] || `Player ${MY_SLOT}`;
-      window.logAction(window.Note.drawAccept(accepterName));
+      window.logAction(window.Note.drawAccept());
       window.commitTurnLog();
       window.G.phase = 'OVER'; window.G.winner = 0;
       await window.saveState();
@@ -4794,6 +4837,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     };
     document.getElementById('_drawDecline').onclick = async () => {
       dlg.remove();
+      window.logAction(window.Note.drawDecline());
+      window.commitTurnLog();
       await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), null);
     };
   }

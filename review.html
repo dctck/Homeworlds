@@ -1128,7 +1128,8 @@ const SHIP_DIMS = { 1:[24,40], 2:[32,56], 3:[40,72] };
 function shipImgHTML(color, size, player, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
-  const src = `assets/ships/${prefix}${letter}.webp`;
+  const suffix = window._colorblindMode ? '_cb' : '';
+  const src = `assets/ships/${prefix}${letter}${suffix}.webp`;
   const [w, h] = SHIP_DIMS[size];
   // Player 2 ships flip vertically
   const flip = player === 2 ? 'transform:scaleY(-1);' : '';
@@ -1142,7 +1143,8 @@ const STAR_DIMS = { 1:[28,28], 2:[36,36], 3:[46,46] };
 function starImgHTML(color, size, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
-  const src = `assets/stars/${prefix}${letter}.webp`;
+  const suffix = window._colorblindMode ? '_cb' : '';
+  const src = `assets/stars/${prefix}${letter}${suffix}.webp`;
   const [w, h] = STAR_DIMS[size];
   const filter = opts.glow ? `filter:drop-shadow(0 0 8px ${COLOR_HEX[color]});` : '';
   return `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`;
@@ -1214,6 +1216,10 @@ function isConnected(s1, s2) {
 // In review mode, G.interaction is always IDLE — no interactive branches fire.
 // We still need these functions defined to avoid ReferenceErrors.
 let G = null; // set to current snapshot before every render
+// ── Colorblind mode ─────────────────────────────────────────
+// Read from localStorage (same key game.html uses)
+window._colorblindMode = localStorage.getItem('hw_colorblind') === '1';
+
 let _arrowPid = 0;   // arrow system piece counter, reset on each goTo
 function findShip(id) {
   if (!G) return null;
@@ -1652,7 +1658,7 @@ function renderBoard() {
 }
 
 // ── Log (identical to game.html, but with click-to-jump) ────
-const KEYWORDS_LOG = ['set','build','trade','discover','move','hijack','sacrifice','catastrophe','skip','HW','ship','homeworld','attack'];
+const KEYWORDS_LOG = ['set','build','trade','discover','move','hijack','sacrifice','catastrophe','skip','HW','ship','homeworld','attack','draw','forfeit'];
 function highlightLog(str) {
   return str.split(' ').map(t => {
     if (KEYWORDS_LOG.includes(t))  return `<span class="ml-kw">${t}</span>`;
@@ -1763,12 +1769,14 @@ function parseNotation(str) {
     case 'pass':
       return { type:'skip' };
 
-    // Non-game-state notations — log annotations only, no board change needed
+    // Non-game-state notations — visible in log but don't change board
     case 'draw':
-      // "draw offered by {name}" or "draw accepted by {name}"
+      // "draw ?"  → offer sent
+      // "draw Yes"→ accepted
+      // "draw No" → declined
       return { type: 'annotation', text: str };
     case 'forfeit':
-      // "forfeit {playerName}"
+      // "forfeit"
       return { type: 'annotation', text: str };
 
     default:
@@ -1976,9 +1984,27 @@ function buildFromRecord(record) {
 
   flatMoves.forEach((mv, i) => {
     const parsed = parseNotation(mv.action);
-    if (!parsed || parsed.type === 'annotation') return; // annotations don't change board state
+    if (!parsed) return;
 
     const player = mv.player;
+
+    // Annotations (draw ?, draw Yes, draw No, forfeit) — show in log but don't change board
+    if (parsed.type === 'annotation') {
+      const pc = player === 1 ? 'ml-p1' : 'ml-p2';
+      const pLabel = hwLabels[player] || `P${player}`;
+      const prevRow = rows[rows.length - 1];
+      const sameT = prevRow && prevRow.turn === mv.turn;
+      const turnLabel = sameT
+        ? `<span class="ml-turn ml-turn-cont">·</span>`
+        : `<span class="ml-turn">${mv.turn}.</span>`;
+      rows.push({
+        snapIdx: snaps.length - 1, // point to last real board state
+        turn: mv.turn, player,
+        html: `<span class="mini-log-prefix">${turnLabel}<span class="${pc}">${pLabel}</span>\xa0</span>` +
+              `<span class="mini-log-body">${highlightLog(mv.action)}</span>`
+      });
+      return;
+    }
 
     // Apply the action
     st = applyParsed(st, parsed, player);
