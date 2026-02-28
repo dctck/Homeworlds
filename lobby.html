@@ -506,7 +506,10 @@ document.getElementById('btn-create').onclick = async () => {
     id:roomRef.key, name, status:'waiting', isPrivate:isPrivFinal,
     password: isPrivFinal ? simpleHash(pw) : '',
     hostUid:ME.uid, guestUid:null,
-    settings:{tcMode:selectedTc,timeMs,tcTurnMs,firstMoverPref:selectedFm},
+    settings:{tcMode:selectedTc,timeMs,tcTurnMs,firstMoverPref:selectedFm,
+      // For random mode, decide first player NOW so both clients see the same value
+      firstPlayer: selectedFm === 'random' ? (Math.random() < 0.5 ? 1 : 2) : 2,
+    },
     player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0,elo:ME.elo||1200,avatarBase64:ME.avatarBase64||'',avatarUrl:ME.avatarUrl||''},
     player2:null, currentTurn:1, createdAt:Date.now(),
   });

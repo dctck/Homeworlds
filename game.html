@@ -4355,11 +4355,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       }
     } else {
       // Fresh game — no state saved yet
-      // Determine who goes first from room settings written by lobby
-      const _fmPref = room.settings?.firstMoverPref ?? 'challenger';
-      const firstMover = _fmPref === 'random'
-        ? (Math.random() < 0.5 ? 1 : 2)
-        : 2; // 'challenger' → player 2 (joiner) goes first
+      // firstPlayer is pre-computed in lobby at room creation time so both clients agree.
+      // For 'challenger' mode it's always 2; for 'random' it was rolled once and saved.
+      const firstMover = room.settings?.firstPlayer ?? 2;
       const firstMoverName = firstMover === 1
         ? (room.player1?.name || 'Creator')
         : (room.player2?.name || 'Challenger');

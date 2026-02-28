@@ -2304,11 +2304,12 @@ function esc(s) {
   };
 })();
 
-load();
-
 // ── Arrow drawing (identical to game.html) ──────────────────
+// Declared BEFORE load() so goTo() can access them (const is not hoisted)
 const _arrows   = [];   // { fromPid, toPid, color }
 let   _arrowDrag = null; // { fromPid, fromEl, alt }
+
+load();
 /** Called by renderSystem to stamp a unique ID on each piece element */
 function _stampPid(el) {
   const pid = 'p' + (++_arrowPid);
