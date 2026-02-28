@@ -2655,9 +2655,10 @@ function renderSystem(sys) {
     // ── SETUP ──
     if (G.phase === 'SETUP' && G.setupDone && sys.isHomeworld === G.currentPlayer && isOwn) {
       wrap.style.cursor = 'pointer';
+      wrap.title = 'Remove ship (keep stars)';
       wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
       wrap.onmouseleave = () => wrap.style.filter = '';
-      wrap.onclick = () => restartSetup();
+      wrap.onclick = () => removeSetupPiece('ship', 0);
     } else if (isOwn) {
       // IDLE / default: select this ship
       if (G.phase === 'PLAY') {
@@ -2700,12 +2701,13 @@ function renderSystem(sys) {
     wrap.style.flexShrink = '0';
 
     if (isSetupOwnHW) {
+      const _sIdx = sys.stars.indexOf(star);
       wrap.style.cursor = 'pointer';
-      wrap.title = `Remove ${star.color} size-${star.size} star`;
+      wrap.title = `Remove ${star.color} size-${star.size} star${_sIdx > 0 ? ' (also removes ship)' : ' (also removes all)'}`;
       wrap.innerHTML = starImgHTML(star.color, star.size);
       wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
       wrap.onmouseleave = () => wrap.style.filter = '';
-      wrap.onclick = () => restartSetup();
+      wrap.onclick = () => removeSetupPiece('star', _sIdx);
     } else {
       wrap.innerHTML = starImgHTML(star.color, star.size);
       _stampPid(wrap);
@@ -2795,7 +2797,8 @@ function renderSidebar() {
     titleEl.textContent = `${_setupName} — SETUP`;
 
     if (G.setupDone) {
-      guideEl.textContent = G.currentPlayer === 1
+      const _firstSetup = G.firstMover || 1;
+      guideEl.textContent = G.currentPlayer === _firstSetup
         ? 'Homeworld set! Click the ✓ token on your homeworld to continue.'
         : 'Homeworld set! Click the ✓ token on your homeworld to begin the game.';
       const resetBtn = document.createElement('button');
@@ -3088,6 +3091,41 @@ function restartSetup() {
   G.setupCache = { stars: [] };
   G.setupStep = 0;
   G._pendingActions = [];  // clear any staged log entry
+  render();
+}
+
+// Smart per-piece removal from the finalized homeworld preview.
+// Clicking the ship only removes the ship; clicking a star removes that star
+// and all subsequent pieces (ship too), since placement is ordered.
+function removeSetupPiece(type, starIndex) {
+  if (!G.setupDone) return; // shouldn't happen, but guard
+  const hw = G.systems.find(s => s.isHomeworld === G.currentPlayer);
+  if (!hw) { restartSetup(); return; }
+
+  // Always return the ship
+  const ship = hw.ships.find(s => s.owner === G.currentPlayer);
+
+  if (type === 'ship') {
+    // Remove ship only — keep both stars placed
+    if (ship) G.bank[ship.color][ship.size]++;
+    // Rebuild from the placed stars — move them back to setupCache
+    G.setupCache.stars = hw.stars.map(s => ({ color: s.color, size: s.size }));
+    G.setupStep = 2;
+    G.setupDone = false;
+    G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
+  } else {
+    // type === 'star' at index starIndex
+    // Return ship + all stars from starIndex onwards
+    if (ship) G.bank[ship.color][ship.size]++;
+    for (let i = starIndex; i < hw.stars.length; i++) {
+      G.bank[hw.stars[i].color][hw.stars[i].size]++;
+    }
+    G.setupCache.stars = hw.stars.slice(0, starIndex).map(s => ({ color: s.color, size: s.size }));
+    G.setupStep = starIndex;
+    G.setupDone = false;
+    G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
+  }
+  G._pendingActions = [];
   render();
 }
 
@@ -3414,14 +3452,19 @@ function doEndTurn() {
       renderLog();
       G.setupDone = false;
       G.history = null;
-      if (p === 1) {
-        G.currentPlayer = 2;
-        showPassBanner('PLAYER 2 — SETUP', 'Choose your homeworld stars and ship');
+      // firstMover: who sets up first AND takes first turn in play phase (default: 1)
+      const firstSetup  = G.firstMover || 1;
+      const secondSetup = 3 - firstSetup;
+      if (p === firstSetup) {
+        // First player done with setup — second player now sets up
+        G.currentPlayer = secondSetup;
+        showPassBanner(`PLAYER ${secondSetup} — SETUP`, 'Choose your homeworld stars and ship');
       } else {
+        // Second player done — start play phase; firstMover goes first
         G.phase = 'PLAY';
-        G.currentPlayer = 1;
+        G.currentPlayer = firstSetup;
         startTimerTick();
-        showPassBanner("PLAYER 1'S TURN", 'The game begins — good luck!');
+        showPassBanner(`PLAYER ${firstSetup}'S TURN`, 'The game begins — good luck!');
       }
       return;
     }
@@ -4079,9 +4122,6 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   });
 
   // ── Pre-game lobby wait ──────────────────────────────────────
-  // Tracks the host's "who goes first" selection across re-renders
-  let _firstMoverPref = 'challenger'; // default: challenger (joiner) goes first
-
   function _fmtSettings(s) {
     if (!s) return 'Unlimited · Standard';
     const parts = [];
@@ -4104,22 +4144,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const both = p1ok && p2ok, notStarted = room.status !== 'playing';
     const settingsStr = _fmtSettings(room.settings);
 
-    // First-mover selector (host only, shown when both are ready)
-    const fmSelector = (MY_SLOT === 1 && both && notStarted) ? `
-      <div style="margin-bottom:16px;text-align:left">
-        <div style="font-size:10px;color:#304050;letter-spacing:2px;margin-bottom:6px">WHO GOES FIRST</div>
-        <div style="display:flex;gap:8px">
-          <button id="pg-fm-challenger" style="flex:1;padding:8px 4px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;border-radius:4px;cursor:pointer;border:1px solid ${_firstMoverPref==='challenger'?'#44aabb':'#1c2840'};background:${_firstMoverPref==='challenger'?'rgba(68,170,187,0.12)':'transparent'};color:${_firstMoverPref==='challenger'?'#44aabb':'#4a6080'};">
-            Challenger First
-          </button>
-          <button id="pg-fm-random" style="flex:1;padding:8px 4px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;border-radius:4px;cursor:pointer;border:1px solid ${_firstMoverPref==='random'?'#44aabb':'#1c2840'};background:${_firstMoverPref==='random'?'rgba(68,170,187,0.12)':'transparent'};color:${_firstMoverPref==='random'?'#44aabb':'#4a6080'};">
-            ⚄ Random
-          </button>
-        </div>
-        <div style="font-size:10px;color:#2a3850;margin-top:5px;line-height:1.5">
-          ${_firstMoverPref==='challenger' ? `<b style="color:#44aabb">${esc(p2n)}</b> (the joiner) sets up and moves first.` : 'Decided randomly when you click Start.'}
-        </div>
-      </div>` : '';
+    // First-mover preference is set in lobby at room creation (room.settings.firstMoverPref)
+    const _fmLabel = room.settings?.firstMoverPref === 'random' ? '⚄ Random First' : '→ Challenger First';
 
     modal.innerHTML = `
       <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:32px;width:420px;max-width:95vw;text-align:center;font-family:Share Tech Mono,monospace;color:#a8c0e0;">
@@ -4142,28 +4168,16 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         <div style="font-size:12px;color:#4a6080;letter-spacing:1px;margin-bottom:16px;min-height:16px">
           ${both && notStarted ? 'Both players ready!' : 'Waiting for opponent to join…'}
         </div>
-        ${fmSelector}
+        ${both && notStarted ? `<div style="font-size:11px;color:#2a4055;letter-spacing:1px;margin-bottom:14px">${_fmLabel}</div>` : ''}
         ${both && notStarted ? `<button id="pg-start" style="width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;margin-bottom:12px;">START GAME ›</button>` : ''}
         ${MY_SLOT === 1 && !p2ok ? `<button id="pg-cancel" style="width:100%;padding:11px;background:rgba(180,40,40,0.08);border:1px solid rgba(180,40,40,0.4);color:#c04050;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;margin-bottom:10px;">✕ CANCEL &amp; DELETE ROOM</button>` : ''}
         <button onclick="location.href='lobby.html'" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">← BACK TO LOBBY</button>
       </div>`;
 
-    // First-mover toggle buttons
-    const fmC = document.getElementById('pg-fm-challenger');
-    const fmR = document.getElementById('pg-fm-random');
-    if (fmC) fmC.onclick = () => { _firstMoverPref = 'challenger'; showLobbyWait(room); };
-    if (fmR) fmR.onclick = () => { _firstMoverPref = 'random';     showLobbyWait(room); };
-
     const sb = document.getElementById('pg-start');
     if (sb) sb.onclick = async () => {
       sb.disabled = true; sb.textContent = 'STARTING…';
-      // Resolve who goes first
-      const firstMover = _firstMoverPref === 'random'
-        ? (Math.random() < 0.5 ? 1 : 2)
-        : 2; // 'challenger' → player 2 (joiner) goes first
-      // Write status + firstMover into room settings
-      const updatedSettings = Object.assign({}, room.settings || {}, { firstMover });
-      await update(ref(db, `rooms/${ROOM_ID}`), { status: 'playing', settings: updatedSettings });
+      await update(ref(db, `rooms/${ROOM_ID}`), { status: 'playing' });
     };
     const cb = document.getElementById('pg-cancel');
     if (cb) cb.onclick = async () => {
@@ -4217,8 +4231,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     };
     window._ONLINE = { active: true, mySlot: MY_SLOT };
 
-    const modal = document.getElementById('startup-modal');
-    if (modal) modal.remove();
+    // NOTE: Do NOT remove the startup-modal here.
+    // The fresh-game path uses it for the "who goes first" animation.
+    // It will be removed there, or below for the restore-game path.
 
     // Show lobby + draw buttons
     const lobbyBtnRow = document.getElementById('btn-lobby-row');
@@ -4311,6 +4326,10 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         }
       }
 
+      // Remove lobby modal now — restore path doesn't need animation
+      const _modalEl = document.getElementById('startup-modal');
+      if (_modalEl) _modalEl.remove();
+
       window.G = g;
       window.renderPlayerCards();
       window.render();
@@ -4318,7 +4337,6 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       if (g.phase === 'OVER') {
         window.showWin(g.winner);
       } else if (g.currentPlayer === MY_SLOT) {
-        const isSetup = g.phase === 'SETUP';
         window.render();
         if (g.phase === 'PLAY') startTimerTick();
       } else {
@@ -4337,8 +4355,11 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       }
     } else {
       // Fresh game — no state saved yet
-      // Determine who goes first from room settings (set by host when clicking Start)
-      const firstMover = room.settings?.firstMover ?? 2; // default: 2 = challenger first
+      // Determine who goes first from room settings written by lobby
+      const _fmPref = room.settings?.firstMoverPref ?? 'challenger';
+      const firstMover = _fmPref === 'random'
+        ? (Math.random() < 0.5 ? 1 : 2)
+        : 2; // 'challenger' → player 2 (joiner) goes first
       const firstMoverName = firstMover === 1
         ? (room.player1?.name || 'Creator')
         : (room.player2?.name || 'Challenger');
@@ -4370,8 +4391,13 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         setTimeout(resolve, 1800);
       });
 
+      // Remove lobby modal now that animation is done
+      const _freshModal = document.getElementById('startup-modal');
+      if (_freshModal) _freshModal.remove();
+
       window.G = window.makeInitialState();
       window.G.currentPlayer = firstMover; // apply first-mover setting
+      window.G.firstMover = firstMover;    // store so doEndTurn knows setup order
       window.G._turnStart = null; // start clean
       window.G._turnStart = JSON.stringify(window.G);
       window.renderPlayerCards();

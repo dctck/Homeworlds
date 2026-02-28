@@ -86,6 +86,11 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 .tc-custom.show{display:flex}
 .tc-custom input{width:48px;padding:3px 6px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:3px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:12px;text-align:center}
 
+.fm-row{display:flex;gap:6px;margin-bottom:8px}
+.fm-btn{flex:1;padding:6px 4px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:3px;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;transition:all .15s;text-align:center;line-height:1.3}
+.fm-btn:hover{border-color:#3a5080;color:var(--text)}
+.fm-btn.active{background:rgba(68,170,187,.1);border-color:#44aabb;color:#44aabb}
+.fm-desc{font-size:11px;color:#3a5060;line-height:1.5;min-height:26px;padding:2px 2px 6px;letter-spacing:.3px}
 .btn-create{width:100%;padding:11px;cursor:pointer;background:rgba(34,221,119,.1);border:1px solid rgba(34,221,119,.4);color:var(--green);font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;border-radius:4px;transition:all .15s;margin-top:2px}
 .btn-create:hover{background:rgba(34,221,119,.2);box-shadow:0 0 14px rgba(34,221,119,.2)}
 .btn-create:disabled{opacity:.3;cursor:not-allowed}
@@ -224,6 +229,15 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
       </div>
     </div>
 
+    <div class="form-row">
+      <label class="form-label">WHO GOES FIRST</label>
+      <div class="fm-row">
+        <button class="fm-btn active" data-fm="challenger">Challenger First</button>
+        <button class="fm-btn" data-fm="random">⚄ Random</button>
+      </div>
+      <div class="fm-desc" id="fm-desc">The joiner moves and sets up first.</div>
+    </div>
+
     <button class="btn-create" id="btn-create">CREATE ROOM</button>
   </div>
 
@@ -303,6 +317,7 @@ const TC_DESC = {
 };
 
 let selectedTc  = 'unlimited';
+let selectedFm  = 'challenger'; // 'challenger' | 'random'
 let ME          = null;
 let lastRooms   = {};
 let currentFilter = 'all';
@@ -448,6 +463,20 @@ document.querySelectorAll('.tc-btn').forEach(btn => {
   };
 });
 
+// ── First-mover tabs ─────────────────────────────────────────
+const FM_DESC = {
+  challenger: 'The joiner moves and sets up first.',
+  random:     'First player decided randomly when the game starts.',
+};
+document.querySelectorAll('.fm-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.fm-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedFm = btn.dataset.fm;
+    document.getElementById('fm-desc').textContent = FM_DESC[selectedFm] || '';
+  };
+});
+
 // ── Filter tabs ──────────────────────────────────────────────
 document.querySelectorAll('.ftab').forEach(tab => {
   tab.onclick = () => {
@@ -477,7 +506,7 @@ document.getElementById('btn-create').onclick = async () => {
     id:roomRef.key, name, status:'waiting', isPrivate:isPrivFinal,
     password: isPrivFinal ? simpleHash(pw) : '',
     hostUid:ME.uid, guestUid:null,
-    settings:{tcMode:selectedTc,timeMs,tcTurnMs},
+    settings:{tcMode:selectedTc,timeMs,tcTurnMs,firstMoverPref:selectedFm},
     player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0,elo:ME.elo||1200,avatarBase64:ME.avatarBase64||'',avatarUrl:ME.avatarUrl||''},
     player2:null, currentTurn:1, createdAt:Date.now(),
   });
@@ -605,7 +634,7 @@ function renderRooms(rooms){
     card.innerHTML=`
       <div>
         <div class="room-name">${esc(room.name)} ${badges}</div>
-        <div class="room-meta">HOST: ${esc(room.player1?.name||'—')} &nbsp;${hostTier}&nbsp; · ${tc}</div>
+        <div class="room-meta">HOST: ${esc(room.player1?.name||'—')} &nbsp;${hostTier}&nbsp; · ${tc} · ${formatFm(room.settings)}</div>
       </div>
       <div class="room-actions">
         ${statusHtml}
@@ -652,6 +681,11 @@ function formatTc(s){
   if (s.tcMode==='turn')          return `⏱ ${Math.round(s.tcTurnMs/60000)}MIN/TURN`;
   if (s.tcMode==='tournament')    return '🏆 TOURNAMENT';
   return s.tcMode;
+}
+function formatFm(s){
+  if (!s) return '→ Challenger First';
+  if (s.firstMoverPref === 'random') return '⚄ Random First';
+  return '→ Challenger First';
 }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function simpleHash(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=(h*0x01000193)>>>0;} return h.toString(16); }
