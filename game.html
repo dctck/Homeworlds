@@ -3445,6 +3445,7 @@ function doEndTurn() {
     G.movingFromSysId = null;
     G.interaction = 'IDLE';
     G.history = null;
+    G._turnStart = null; // clear before snapshot to prevent exponential nesting
     G._turnStart = JSON.stringify(G);
 
     // Turn Timer: reset next player's clock to one full turn
@@ -3903,6 +3904,7 @@ function showReportDialog(player) {
 
     G = makeInitialState();
     G._p1name = name1; G._p2name = name2;
+    G._turnStart = null; // start clean — no prior state to capture
     G._turnStart = JSON.stringify(G);
     document.getElementById('startup-modal').remove();
     const _lbr = document.getElementById('btn-lobby-row');
@@ -4286,6 +4288,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     } else {
       // Fresh game — no state saved yet
       window.G = window.makeInitialState();
+      window.G._turnStart = null; // start clean
       window.G._turnStart = JSON.stringify(window.G);
       window.renderPlayerCards();
       window.render();
@@ -4386,12 +4389,14 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
           g._pendingActions = [];   // sent separately below
           g.selectedShipId  = null;
           g.movingFromSysId = null;
-          await set(ref(db, `rooms/${ROOM_ID}/liveState`), {
-            gJson: JSON.stringify(g),              // board state only (~2-5 KB)
-            pending: window.G._pendingActions || [], // action labels for banner
+          const _livePayload = {
+            gJson: JSON.stringify(g),
+            pending: window.G._pendingActions || [],
             from: MY_SLOT,
             ts: Date.now(),
-          });
+          };
+          _logPayload(`liveState (in-progress)`, _livePayload);
+          await set(ref(db, `rooms/${ROOM_ID}/liveState`), _livePayload);
         } catch(e) { /* non-critical, swallow silently */ }
       }, 180);
     };
@@ -4559,16 +4564,34 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     return null;
   };
 
+  // ── Payload size tracker ──────────────────────────────────────────────────
+  window._payloadStats = { sessionBytes: 0, writeCount: 0 };
+  function _logPayload(label, data) {
+    const bytes = new TextEncoder().encode(JSON.stringify(data)).length;
+    window._payloadStats.sessionBytes += bytes;
+    window._payloadStats.writeCount++;
+    const kb    = (bytes / 1024).toFixed(2);
+    const totMb = (window._payloadStats.sessionBytes / 1_048_576).toFixed(3);
+    const style = bytes > 150_000 ? 'color:#f66;font-weight:bold' : 'color:#4af;font-weight:bold';
+    console.log(
+      `%c[FB WRITE] ${label} | this write: ${kb} KB | session total: ${totMb} MB | #${window._payloadStats.writeCount}`,
+      style
+    );
+    if (bytes > 150_000) console.warn('[FB WRITE] ⚠️  LARGE PAYLOAD — possible nesting bug!');
+    return data;
+  }
+
   // ── Save canonical G to Firebase ─────────────────────────────
   window.saveState = async function saveState() {
     const g = JSON.parse(JSON.stringify(window.G));
     g.history = null; g.interaction = 'IDLE';
     g.selectedShipId = null; g._pendingActions = [];
     g._gameSnapshots = null; // never persist review snapshots to Firebase
+    g._turnStart = null;     // local undo snapshot — never needed by opponent
     const ts = Date.now();
-    await set(ref(db, `rooms/${ROOM_ID}/game`), {
-      gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts,
-    });
+    const _gamePayload = { gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts };
+    _logPayload(`saveState turn=${g.currentTurn ?? '?'} phase=${g.phase}`, _gamePayload);
+    await set(ref(db, `rooms/${ROOM_ID}/game`), _gamePayload);
     // Update room metadata so lobby can show whose turn it is + game status
     const meta = { currentPlayer: g.currentPlayer, updatedAt: ts };
     if (g.phase === 'OVER') {
