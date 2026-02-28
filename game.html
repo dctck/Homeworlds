@@ -4509,22 +4509,13 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         return;
       }
 
-      // ── Notify the opponent that they have an unseen result ─
-      // Write hasUnseenResult:true on their player record so when they
-      // next open lobby or profile they see the notification dot.
-      // We can't know their uid from the room but it's stored in the room data.
+      // ── Notify both players of unseen result ─────────────────
+      // Each client only writes to its OWN player record (Firebase rule: auth.uid === $uid).
+      // The opponent's client will write to their own record when they see the game-over event.
       try {
-        const roomForUid = await get(ref(db, `rooms/${ROOM_ID}`));
-        const rData = roomForUid.val() || {};
-        const oppSlotData = rData[`player${OPP_SLOT}`];
-        if (oppSlotData?.uid) {
-          await update(ref(db, `players/${oppSlotData.uid}`), { hasUnseenResult: true });
-        }
-        // Also mark for myself if I was the loser (e.g. I timed out)
-        // Actually both players may want to see it. Mark both.
-        const mySlotData = rData[`player${MY_SLOT}`];
-        if (mySlotData?.uid) {
-          await update(ref(db, `players/${mySlotData.uid}`), { hasUnseenResult: true });
+        const myUid = window._ONLINE?.user?.uid;
+        if (myUid) {
+          await update(ref(db, `players/${myUid}`), { hasUnseenResult: true });
         }
       } catch(e) { console.warn('[HW] hasUnseenResult write failed:', e); }
 
