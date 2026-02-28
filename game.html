@@ -1231,6 +1231,79 @@ if (!window._savedAdvancedMode) {
   window._savedAdvancedMode = localStorage.getItem('hw_advanced') === '1';
 }
 
+let _cbId = 0; // unique ID counter for SVG mask elements
+
+// Raw SVG content for each color symbol (paths from uploaded assets)
+const CB_SYM = {
+  red: {
+    vw: 23, vh: 23,
+    html: '<path d="M11.8066 3.17773L13.2871 7.88281L15.0879 6.89062L16.6045 6.05469L15.7666 7.57031L14.7725 9.36816L19.4795 10.8516L20.9941 11.3281L19.4795 11.8047L14.7715 13.2852L15.7666 15.0879L16.6045 16.6045L15.0869 15.7666L13.2861 14.7715L11.8047 19.4785L11.3281 20.9932L10.8516 19.4785L9.36816 14.7715L7.57129 15.7656L6.05469 16.6035L6.8916 15.0869L7.88477 13.2861L3.17871 11.8047L1.66504 11.3281L3.17871 10.8516L7.88379 9.36816L6.8916 7.56934L6.05566 6.05469L7.57031 6.89062L9.36914 7.88281L10.8535 3.17773L11.3301 1.66406L11.8066 3.17773Z" fill="#F05353" stroke="#440D06" stroke-width="1"/>',
+  },
+  blue: {
+    vw: 19, vh: 19,
+    html: '<path d="M7.39746 12.1973C8.44483 12.7642 9.71824 12.7647 10.7656 12.1982L11.0938 12.0205L14.6836 15.6104L14.2217 15.9561C11.1825 18.234 6.98024 18.2335 3.94141 15.9551L3.48047 15.6094L3.8877 15.2012L6.80664 12.2832L7.07031 12.0195L7.39746 12.1973ZM2.96191 3.88867L6.14355 7.07031L5.9668 7.39844C5.40008 8.44589 5.39979 9.71909 5.9668 10.7666L6.14453 11.0947L2.96289 14.2764L2.55469 14.6836L2.20898 14.2227C-0.0693841 11.1838 -0.0699271 6.98149 2.20801 3.94238L2.55469 3.48047L2.96191 3.88867ZM15.9551 3.94141C18.2338 6.98059 18.2337 11.1835 15.9551 14.2227L15.6094 14.6836L12.0205 11.0947L12.1982 10.7676C12.7654 9.71991 12.7653 8.44515 12.1982 7.39746L12.0205 7.06934L15.6094 3.48047L15.9551 3.94141ZM3.94141 2.20898C6.98057 -0.0696442 11.1835 -0.0696377 14.2227 2.20898L14.6846 2.55469L11.0957 6.14355L10.7676 5.96582C9.71996 5.39863 8.44517 5.3988 7.39746 5.96582L7.06934 6.14355L6.80566 5.87988L3.8877 2.96289L3.48047 2.55469L3.94141 2.20898Z" fill="#5C72EC" stroke="#000F48" stroke-width="1"/>',
+  },
+  yellow: {
+    vw: 22, vh: 19,
+    html: '<path d="M11.0166 1.7832L18.9443 15.7832L19.8359 17.3574L18.2627 16.4639L14.2832 14.2051C11.9871 12.902 9.17487 12.9028 6.87891 14.2061L2.90039 16.4639L1.32715 17.3574L2.21777 15.7832L10.1465 1.7832L10.5811 1.01465L11.0166 1.7832Z" fill="#D6D429" stroke="#453601" stroke-width="1"/>',
+  },
+  green: {
+    vw: 18, vh: 18,
+    // green uses a mask — ID is replaced per-render with a unique suffix
+    html: (uid) => `<defs><mask id="cbmask${uid}" maskUnits="userSpaceOnUse" x="6" y="0" width="12" height="12"><rect fill="white" x="6" width="12" height="12"/><path d="M17 11H13V5H7V1H17V11Z"/></mask></defs><rect x="0.5" y="6.5" width="11" height="11" fill="#36DD55" stroke="#033502"/><path d="M17 11H13V5H7V1H17V11Z" fill="#36DD55"/><path d="M17 11V12H18V11H17ZM13 11H12V12H13V11ZM13 5H14V4H13V5ZM7 5H6V6H7V5ZM7 1V0H6V1H7ZM17 1H18V0H17V1ZM17 11V10H13V11V12H17V11ZM13 11H14V5H13H12V11H13ZM13 5V4H7V5V6H13V5ZM7 5H8V1H7H6V5H7ZM7 1V2H17V1V0H7V1ZM17 1H16V11H17H18V1H17Z" fill="#033502" mask="url(#cbmask${uid})"/>`,
+  },
+};
+
+/**
+ * Returns an SVG <g> element string for the colorblind symbol overlay.
+ * @param {string}  color  - piece color
+ * @param {number}  d      - SVG width (= height for ships, just width for stars)
+ * @param {number}  h      - SVG height (same as d for ships)
+ * @param {boolean} isShip - true = triangle ship, false = diamond star
+ * @param {number}  size   - 1 | 2 | 3
+ * @param {number}  player - 0|1 = tip-up (P1/bank), 2 = tip-down (P2)
+ */
+function cbOverlay(color, d, h, isShip, size, player) {
+  if (!window._colorblindMode) return '';
+  const sym = CB_SYM[color];
+  if (!sym) return '';
+
+  // --- Symbol rendered size ----------------------------------------
+  // Larger than first attempt so it fills the ship belly visibly
+  const shipTargets = [0, 14, 18, 22]; // px, indexed by size
+  const starTargets = [0, 13, 16, 20];
+  const target = (isShip ? shipTargets : starTargets)[size] || 14;
+  const scale  = target / Math.max(sym.vw, sym.vh);
+  const sw     = sym.vw * scale;
+  const sh_    = sym.vh * scale;
+
+  // --- Horizontal: centred in the SVG viewBox ---------------------
+  const tx = (d - sw) / 2;
+
+  // --- Vertical ---------------------------------------------------
+  let ty;
+  if (isShip) {
+    // Place symbol at the triangle's centroid so it lands in the belly.
+    // Triangle vertices (pad=2):
+    //   P1/bank (tip UP):   tip=(d/2,2),   base-l=(2,d-2), base-r=(d-2,d-2)
+    //   P2      (tip DOWN): tip=(d/2,d-2), base-l=(2,2),   base-r=(d-2,2)
+    const pad = 2;
+    const cy = (player === 2)
+      ? ((d - pad) + pad + pad) / 3          // (d-2+2+2)/3
+      : (pad + (d - pad) + (d - pad)) / 3;   // (2+d-2+d-2)/3
+    ty = cy - sh_ / 2;
+  } else {
+    // Stars: place symbol near the top of the diamond,
+    // top padding: small=4, medium=8, large=10 (per original spec)
+    const topPads = [0, 4, 8, 10];
+    ty = topPads[size];
+  }
+
+  const uid   = ++_cbId;
+  const inner = typeof sym.html === 'function' ? sym.html(uid) : sym.html;
+
+  return `<g transform="translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${scale.toFixed(4)})" style="pointer-events:none">${inner}</g>`;
+}
 
 // ============================================================
 //  CONSTANTS
@@ -1424,11 +1497,20 @@ const SHIP_DIMS = { 1:[24,40], 2:[32,56], 3:[40,72] };
 function shipImgHTML(color, size, player, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
-  const suffix = window._colorblindMode ? '_cb' : '';
-  const src = `assets/ships/${prefix}${letter}${suffix}.webp`;
+  const src = `assets/ships/${prefix}${letter}.webp`;
   const [w, h] = SHIP_DIMS[size];
   const flip = player === 2 ? 'transform:scaleY(-1);' : '';
   const filter = opts.glow ? `filter:drop-shadow(0 0 6px ${COLOR_HEX[color]}) drop-shadow(0 0 3px #fff);` : '';
+  if (window._colorblindMode) {
+    // For webp ships, overlay the CB symbol via an absolutely-positioned SVG
+    const cbG = cbOverlay(color, w, h, true, size, player);
+    if (cbG) {
+      return `<div style="position:relative;display:inline-block;width:${w}px;height:${h}px;flex-shrink:0">`
+        + `<img src="${src}" width="${w}" height="${h}" style="display:block;${flip}${filter}" draggable="false">`
+        + `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="position:absolute;top:0;left:0;pointer-events:none">${cbG}</svg>`
+        + `</div>`;
+    }
+  }
   return `<img src="${src}" width="${w}" height="${h}" style="display:block;${flip}${filter}" draggable="false">`;
 }
 
@@ -1438,10 +1520,18 @@ const STAR_DIMS = { 1:[28,28], 2:[36,36], 3:[46,46] };
 function starImgHTML(color, size, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
-  const suffix = window._colorblindMode ? '_cb' : '';
-  const src = `assets/stars/${prefix}${letter}${suffix}.webp`;
+  const src = `assets/stars/${prefix}${letter}.webp`;
   const [w, h] = STAR_DIMS[size];
   const filter = opts.glow ? `filter:drop-shadow(0 0 8px ${COLOR_HEX[color]});` : '';
+  if (window._colorblindMode) {
+    const cbG = cbOverlay(color, w, h, false, size, 0);
+    if (cbG) {
+      return `<div style="position:relative;display:inline-block;width:${w}px;height:${h}px;flex-shrink:0">`
+        + `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`
+        + `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="position:absolute;top:0;left:0;pointer-events:none">${cbG}</svg>`
+        + `</div>`;
+    }
+  }
   return `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`;
 }
 
@@ -1461,6 +1551,7 @@ function triangleSVG(color, size, player, opts = {}) {
   const pipSize = Math.floor(d * 0.32);
   const pip = `<text x="${d/2}" y="${pipY}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.7)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
   const glow = opts.glow ? `filter="url(#glow-${color})"` : '';
+  const cbShip = cbOverlay(color, d, d, true, size, player);
   return `<svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}" style="display:block">
     <defs>
       <filter id="glow-${color}" x="-40%" y="-40%" width="180%" height="180%">
@@ -1469,7 +1560,7 @@ function triangleSVG(color, size, player, opts = {}) {
       </filter>
     </defs>
     <polygon points="${pts}" fill="${hex}" stroke="rgba(0,0,0,0.4)" stroke-width="1" ${glow}/>
-    ${pip}
+    ${pip}${cbShip}
   </svg>`;
 }
 
@@ -1484,6 +1575,7 @@ function diamondSVG(color, size, opts = {}) {
   const pipSize = Math.floor(d * 0.3);
   const pip = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.65)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
   const glow = opts.glow ? `filter="url(#glow-s-${color})"` : '';
+  const cbStar = cbOverlay(color, d, h, false, size);
   return `<svg width="${d}" height="${h}" viewBox="0 0 ${d} ${h}" style="display:block">
     <defs>
       <filter id="glow-s-${color}" x="-40%" y="-40%" width="180%" height="180%">
@@ -1492,7 +1584,7 @@ function diamondSVG(color, size, opts = {}) {
       </filter>
     </defs>
     <polygon points="${pts}" fill="${hex}" stroke="rgba(255,255,255,0.2)" stroke-width="1" ${glow}/>
-    ${pip}
+    ${pip}${cbStar}
   </svg>`;
 }
 
@@ -2015,7 +2107,17 @@ function render() {
   renderLog();
   renderPlayerCards();
   if (window._autoSave && !window._ONLINE?.active && G && G.phase !== 'OVER') {
-    try { localStorage.setItem('hw_saved_game', JSON.stringify(G)); } catch(e) {}
+    try {
+      // Strip bulky in-memory-only fields before saving — these grow each turn
+      // and cause noticeable lag by mid-game when serialized on every render.
+      const gs = {
+        ...G,
+        history:        null,  // prev full-state snapshot (for undo)
+        _turnStart:     null,  // full-state snapshot at turn start
+        _gameSnapshots: null,  // per-turn snapshot array used by review
+      };
+      localStorage.setItem('hw_saved_game', JSON.stringify(gs));
+    } catch(e) {}
   }
   // Push live state to Firebase so opponent can watch in real time
   if (window._pushLiveState && window._ONLINE?.active && !window._liveOverride &&
@@ -4239,14 +4341,13 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       // g.timers[g.currentPlayer] = how much time that player had then.
       // Subtract elapsed time so the clock is accurate after a rejoin/refresh.
       if (g.phase === 'PLAY' && g.timers && saved.ts) {
+        const elapsed = Date.now() - saved.ts;
         const p = g.currentPlayer;
-        if ((g.timers[p] || 0) > 0) {
-          const elapsed = Date.now() - saved.ts;
-          g.timers[p] = Math.max(0, g.timers[p] - elapsed);
-          if (g.timers[p] <= 0) {
-            g.phase  = 'OVER';
-            g.winner = p === 1 ? 2 : 1;
-          }
+        g.timers[p] = Math.max(0, g.timers[p] - elapsed);
+        if (g.timers[p] <= 0) {
+          // Time ran out while offline — show win after render
+          g.phase  = 'OVER';
+          g.winner = p === 1 ? 2 : 1;
         }
       }
 
@@ -4312,11 +4413,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       // The game state encodes G.timers[currentPlayer] at that moment.
       // By the time we receive it, some ms have passed — subtract them.
       if (incoming.phase === 'PLAY' && incoming.timers && d.ts) {
+        const elapsed = Date.now() - d.ts;
         const p = incoming.currentPlayer;
-        if ((incoming.timers[p] || 0) > 0) {
-          const elapsed = Date.now() - d.ts;
-          incoming.timers[p] = Math.max(0, incoming.timers[p] - elapsed);
-        }
+        incoming.timers[p] = Math.max(0, incoming.timers[p] - elapsed);
       }
 
       window.G = incoming;
@@ -4370,12 +4469,18 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         if (window.G.currentPlayer !== MY_SLOT) return; // only active player writes
         try {
           const g = JSON.parse(JSON.stringify(window.G));
-          // Strip UI-only fields that observer doesn't need
-          g.history = null; g.selectedShipId = null; g.movingFromSysId = null;
-          // Keep _pendingActions so observer can show action labels
+          // Send only what's needed to render the board.
+          // Opponent already has the full log from last committed turn.
+          g.history         = null; // prev full-state snapshot
+          g._turnStart      = null; // another full-state snapshot
+          g._gameSnapshots  = null; // per-turn snapshot array (huge)
+          g.log             = [];   // opponent has their own copy
+          g._pendingActions = [];   // sent separately below
+          g.selectedShipId  = null;
+          g.movingFromSysId = null;
           await set(ref(db, `rooms/${ROOM_ID}/liveState`), {
-            gJson: JSON.stringify(g),
-            pending: g._pendingActions || [],
+            gJson: JSON.stringify(g),              // board state only (~2-5 KB)
+            pending: window.G._pendingActions || [], // action labels for banner
             from: MY_SLOT,
             ts: Date.now(),
           });
@@ -4416,11 +4521,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
         // Carry over timer correction: subtract transit time
         if (incoming.timers && d.ts) {
+          const elapsed = Date.now() - d.ts;
           const p = incoming.currentPlayer;
-          if ((incoming.timers[p] || 0) > 0) {
-            const elapsed = Date.now() - d.ts;
-            incoming.timers[p] = Math.max(0, incoming.timers[p] - elapsed);
-          }
+          incoming.timers[p] = Math.max(0, incoming.timers[p] - elapsed);
         }
 
         incoming.interaction = 'IDLE';
@@ -4553,6 +4656,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const g = JSON.parse(JSON.stringify(window.G));
     g.history = null; g.interaction = 'IDLE';
     g.selectedShipId = null; g._pendingActions = [];
+    g._gameSnapshots = null; // never persist review snapshots to Firebase
     const ts = Date.now();
     await set(ref(db, `rooms/${ROOM_ID}/game`), {
       gJson: JSON.stringify(g), writtenBy: MY_SLOT, ts,
