@@ -1203,46 +1203,56 @@ const CB_SYM = {
   green: {
     vw: 18, vh: 18,
     // green uses a mask — ID is replaced per-render with a unique suffix
-    html: (uid) => `<rect x="0.5" y="6.5" width="11" height="11" fill="#36DD55" stroke="#033502"/><mask id="cbmask${uid}" maskUnits="userSpaceOnUse" x="6" y="0" width="12" height="12"><rect fill="white" x="6" width="12" height="12"/><path d="M17 11H13V5H7V1H17V11Z"/></mask><path d="M17 11H13V5H7V1H17V11Z" fill="#36DD55"/><path d="M17 11V12H18V11H17ZM13 11H12V12H13V11ZM13 5H14V4H13V5ZM7 5H6V6H7V5ZM7 1V0H6V1H7ZM17 1H18V0H17V1ZM17 11V10H13V11V12H17V11ZM13 11H14V5H13H12V11H13ZM13 5V4H7V5V6H13V5ZM7 5H8V1H7H6V5H7ZM7 1V2H17V1V0H7V1ZM17 1H16V11H17H18V1H17Z" fill="#033502" mask="url(#cbmask${uid})"/>`,
+    html: (uid) => `<defs><mask id="cbmask${uid}" maskUnits="userSpaceOnUse" x="6" y="0" width="12" height="12"><rect fill="white" x="6" width="12" height="12"/><path d="M17 11H13V5H7V1H17V11Z"/></mask></defs><rect x="0.5" y="6.5" width="11" height="11" fill="#36DD55" stroke="#033502"/><path d="M17 11H13V5H7V1H17V11Z" fill="#36DD55"/><path d="M17 11V12H18V11H17ZM13 11H12V12H13V11ZM13 5H14V4H13V5ZM7 5H6V6H7V5ZM7 1V0H6V1H7ZM17 1H18V0H17V1ZM17 11V10H13V11V12H17V11ZM13 11H14V5H13H12V11H13ZM13 5V4H7V5V6H13V5ZM7 5H8V1H7H6V5H7ZM7 1V2H17V1V0H7V1ZM17 1H16V11H17H18V1H17Z" fill="#033502" mask="url(#cbmask${uid})"/>`,
   },
 };
 
 /**
  * Returns an SVG <g> element string for the colorblind symbol overlay.
- * @param {string} color  - piece color
- * @param {number} containerW - SVG width
- * @param {number} containerH - SVG height
- * @param {boolean} isShip  - true=ship (position from bottom), false=star (from top)
- * @param {number} size     - 1|2|3
+ * @param {string}  color  - piece color
+ * @param {number}  d      - SVG width (= height for ships, just width for stars)
+ * @param {number}  h      - SVG height (same as d for ships)
+ * @param {boolean} isShip - true = triangle ship, false = diamond star
+ * @param {number}  size   - 1 | 2 | 3
+ * @param {number}  player - 0|1 = tip-up (P1/bank), 2 = tip-down (P2)
  */
-function cbOverlay(color, containerW, containerH, isShip, size) {
+function cbOverlay(color, d, h, isShip, size, player) {
   if (!window._colorblindMode) return '';
   const sym = CB_SYM[color];
   if (!sym) return '';
 
-  // Target rendered size (px) per piece size
-  const targets = isShip ? [0, 13, 15, 19] : [0, 12, 14, 17];
-  const target  = targets[size] || 14;
-  const scale   = target / Math.max(sym.vw, sym.vh);
-  const sw      = sym.vw * scale;
-  const sh      = sym.vh * scale;
+  // --- Symbol rendered size ----------------------------------------
+  // Larger than first attempt so it fills the ship belly visibly
+  const shipTargets = [0, 14, 18, 22]; // px, indexed by size
+  const starTargets = [0, 13, 16, 20];
+  const target = (isShip ? shipTargets : starTargets)[size] || 14;
+  const scale  = target / Math.max(sym.vw, sym.vh);
+  const sw     = sym.vw * scale;
+  const sh_    = sym.vh * scale;
 
-  // Horizontal: centre in container
-  const tx = (containerW - sw) / 2;
+  // --- Horizontal: centred in the SVG viewBox ---------------------
+  const tx = (d - sw) / 2;
 
-  // Vertical positioning per spec
+  // --- Vertical ---------------------------------------------------
   let ty;
   if (isShip) {
-    // bottom padding: small=16, medium=20, large=24
-    const botPads = [0, 16, 20, 24];
-    ty = containerH - botPads[size] - sh;
+    // Place symbol at the triangle's centroid so it lands in the belly.
+    // Triangle vertices (pad=2):
+    //   P1/bank (tip UP):   tip=(d/2,2),   base-l=(2,d-2), base-r=(d-2,d-2)
+    //   P2      (tip DOWN): tip=(d/2,d-2), base-l=(2,2),   base-r=(d-2,2)
+    const pad = 2;
+    const cy = (player === 2)
+      ? ((d - pad) + pad + pad) / 3          // (d-2+2+2)/3
+      : (pad + (d - pad) + (d - pad)) / 3;   // (2+d-2+d-2)/3
+    ty = cy - sh_ / 2;
   } else {
-    // top padding: small=4, medium=8, large=10
+    // Stars: place symbol near the top of the diamond,
+    // top padding: small=4, medium=8, large=10 (per original spec)
     const topPads = [0, 4, 8, 10];
     ty = topPads[size];
   }
 
-  const uid = ++_cbId;
+  const uid   = ++_cbId;
   const inner = typeof sym.html === 'function' ? sym.html(uid) : sym.html;
 
   return `<g transform="translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${scale.toFixed(4)})" style="pointer-events:none">${inner}</g>`;
@@ -1476,7 +1486,7 @@ function triangleSVG(color, size, player, opts = {}) {
   const pipSize = Math.floor(d * 0.32);
   const pip = `<text x="${d/2}" y="${pipY}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.7)" font-size="${pipSize}" font-family="monospace" font-weight="bold">${SIZE_PIPS[size]}</text>`;
   const glow = opts.glow ? `filter="url(#glow-${color})"` : '';
-  const cbShip = cbOverlay(color, d, d, true, size);
+  const cbShip = cbOverlay(color, d, d, true, size, player);
   return `<svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}" style="display:block">
     <defs>
       <filter id="glow-${color}" x="-40%" y="-40%" width="180%" height="180%">
