@@ -3854,9 +3854,13 @@ function showForfeitDialog(player) {
     overlay.remove();
     const winner = player === 1 ? 2 : 1;
     const forfeiterName = PLAYER_CONFIG.names[player] || `Player ${player}`;
-    // Log the forfeit as an action so it appears in game log and review
+    // Log the forfeit under the forfeiting player, not G.currentPlayer
+    // (forfeit can happen on opponent's turn, so G.currentPlayer may be wrong)
+    const _origCurrentPlayer = G.currentPlayer;
+    G.currentPlayer = player; // temporarily switch so commitTurnLog logs it correctly
     logAction(Note.forfeit());
     commitTurnLog();
+    G.currentPlayer = _origCurrentPlayer;
     renderLog();
     // Mark forfeitedBy so archive/review can label it correctly
     G.forfeitedBy = player;
@@ -4603,6 +4607,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       try {
         const incoming = JSON.parse(d.gJson);
         if (!incoming || incoming.phase === 'OVER') return;
+        console.log(`[HW LIVE] Received liveState from opponent — currentTurn=${incoming.currentTurn} realLog=${window.G?.log?.length ?? 0} entries preserved`);
 
         // Carry over timer correction: subtract transit time
         if (incoming.timers && d.ts) {
@@ -4613,6 +4618,10 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
 
         incoming.interaction = 'IDLE';
         incoming.selectedShipId = null;
+        // IMPORTANT: liveState intentionally strips log=[] to save bandwidth.
+        // Restore the real log from our current G so it isn't lost.
+        incoming.log = window.G?.log || [];
+        incoming._pendingActions = window.G?._pendingActions || [];
         window._liveOverride = true; // flag so render() doesn't push back to Firebase
         window.G = incoming;
         window.render();
