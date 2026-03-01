@@ -110,38 +110,46 @@ body::before {
 
 /* === ACTION PANEL === */
 #action-section { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
-/* ── Action buttons — card style ── */
+/* ── Action buttons ── */
 .action-btn {
-  width: 100%; padding: 10px 14px 10px 12px; cursor: pointer;
+  width: 100%; padding: 9px 12px; cursor: pointer;
   background: rgba(255,255,255,0.025); border: 1px solid #1c2840;
   color: var(--text); font-family: 'Share Tech Mono', monospace;
   font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase;
   border-radius: 6px; transition: background .15s, border-color .15s, color .15s;
-  text-align: left; display: flex; flex-direction: column; gap: 0;
+  text-align: left; display: flex; flex-direction: row; align-items: center; gap: 9px;
   position: relative; overflow: hidden;
 }
-/* Color accent bar on the left */
 .action-btn::before {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: currentColor; opacity: 0.3; transition: opacity .15s;
+  background: currentColor; opacity: 0.25; transition: opacity .15s;
 }
-.action-btn:hover:not(:disabled)::before { opacity: 0.7; }
+.action-btn:hover:not(:disabled)::before { opacity: 0.6; }
 .action-btn:hover:not(:disabled) { background: rgba(255,255,255,0.06); color: var(--bright); }
-.action-btn:disabled { opacity: 0.25; cursor: not-allowed; }
-.action-btn:disabled::before { opacity: 0.15; }
+.action-btn:disabled { opacity: 1; cursor: not-allowed; }
+.action-btn:disabled::before { opacity: 0.12; }
 .action-btn.active { background: rgba(255,255,0,0.08); border-color: var(--glow-valid); color: #ffff80; }
-.action-btn.sac { border-color: rgba(136,85,204,0.5); color: #bb88ff; }
-.action-btn.sac::before { background: #8855cc; opacity: 0.5; }
-/* Action label (first line) */
-.abl { display: block; line-height: 1.2; }
-/* Warning sub-label — shows inline in the button */
-.abw {
-  display: block; font-size: 10px; letter-spacing: 0.5px;
-  color: #cc5544; margin-top: 3px; text-transform: none;
-  font-family: 'Share Tech Mono', monospace; line-height: 1.3;
-  opacity: 0.9;
+.action-btn.sac { border-color: rgba(136,85,204,0.4); color: #bb88ff; }
+.action-btn.sac::before { background: #8855cc; opacity: 0.4; }
+/* Action icon */
+.action-icon { width: 18px; height: 18px; flex-shrink: 0; object-fit: contain; transition: opacity .15s; }
+.action-btn:disabled .action-icon { opacity: 0.35; filter: grayscale(0.5); }
+/* Label */
+.abl { flex: 1; line-height: 1.2; }
+.abl.is-warn { color: #cc5544; text-transform: none; letter-spacing: 0.5px; }
+.sep { height: 1px; background: var(--border); margin: 6px 0; }
+/* Floating click tooltip */
+.click-tooltip {
+  position: fixed; z-index: 9999; pointer-events: none;
+  background: rgba(8,12,24,0.97); border: 1px solid #cc4433;
+  color: #ff7766; font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; letter-spacing: 0.5px; padding: 5px 11px;
+  border-radius: 5px; white-space: nowrap;
+  transform: translateX(-50%) translateY(-8px);
+  opacity: 1; transition: opacity 0.35s, transform 0.35s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.7);
 }
-.sep { height: 1px; background: var(--border); margin: 8px 0; }
+.click-tooltip.fade { opacity: 0; transform: translateX(-50%) translateY(-18px); }
 #sac-counter {
   font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs);
   text-align: center; padding: 6px; background: rgba(255,255,255,0.04);
@@ -1642,6 +1650,21 @@ function setGuide(msg) {
   document.getElementById('guide-text').textContent = msg;
 }
 
+/** Floating tooltip that appears above a click point then fades out. */
+function showClickTooltip(message, event) {
+  document.querySelectorAll('.click-tooltip').forEach(el => el.remove());
+  const tip = document.createElement('div');
+  tip.className = 'click-tooltip';
+  tip.textContent = message;
+  tip.style.left = event.clientX + 'px';
+  tip.style.top  = (event.clientY - 36) + 'px';
+  document.body.appendChild(tip);
+  requestAnimationFrame(() => {
+    setTimeout(() => tip.classList.add('fade'), 900);
+    setTimeout(() => tip.remove(), 1280);
+  });
+}
+
 function getLargestOwnShip(sys, player) {
   const ownShips = sys.ships.filter(s => s.owner === player);
   if (ownShips.length === 0) return null;
@@ -2355,40 +2378,43 @@ function isSelectableShip(ship, sys) {
  * Fired when user clicks a colored star or own-ship in their selected ship's system.
  * Routes to the appropriate action for that color.
  */
-function onPowerClick(color, sys) {
+function onPowerClick(color, sys, event) {
   const ship = findShip(G.selectedShipId);
   if (!ship) return;
   const shipSys = findSystemByShip(G.selectedShipId);
   if (!shipSys || shipSys.id !== sys.id) return;
 
-  // Validate power source
-  const sacPool = G.sacrificePool.count > 0;
-  const powers  = getSystemPowers(sys, G.currentPlayer);
+  const sacPool  = G.sacrificePool.count > 0;
+  const powers   = getSystemPowers(sys, G.currentPlayer);
   const hasPower = sacPool ? G.sacrificePool.color === color : powers.has(color);
   if (!hasPower || !hasActionLeft(color)) return;
+
+  const _warn = (guide, tip) => {
+    setGuide('⚠ ' + guide);
+    if (event) showClickTooltip(tip, event);
+  };
 
   if (color === 'yellow') {
     const isLastInHW = sys.isHomeworld === G.currentPlayer &&
       sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
-    if (isLastInHW) { setGuide('⚠ Cannot move your last ship away from your Homeworld — you would lose!'); return; }
+    if (isLastInHW) { _warn('Cannot move your last ship away from your Homeworld — you would lose!', 'Cannot abandon HW'); return; }
     startMove(ship, sys);
   } else if (color === 'blue') {
     const avail = COLORS.filter(c => c !== ship.color && G.bank[c][ship.size] > 0);
-    if (avail.length === 0) { setGuide('⚠ No other colors available to trade into.'); return; }
+    if (avail.length === 0) { _warn('No other colors available to trade into.', 'Stash empty'); return; }
     startTrade(ship, sys);
   } else if (color === 'red') {
     const largest = getLargestOwnShip(sys, G.currentPlayer);
     const enemies = sys.ships.filter(s => s.owner !== G.currentPlayer);
-    if (!enemies.length) { setGuide('⚠ No enemy ships in this system.'); return; }
+    if (!enemies.length) { _warn('No enemy ships in this system.', 'No enemy'); return; }
     if (!largest || !enemies.some(s => s.size <= largest.size)) {
-      setGuide(`⚠ All enemies are larger than your biggest ship (Size ${largest?.size ?? '?'}).`); return;
+      _warn(`All enemies are larger than your biggest ship (Size ${largest?.size ?? '?'}).`, 'Enemy too big'); return;
     }
     startAttack(ship, sys);
   } else if (color === 'green') {
-    // Build the SELECTED ship's own color directly — no color picker
     const targetColor = ship.color;
     const smallestSz  = [1,2,3].find(sz => G.bank[targetColor][sz] > 0);
-    if (!smallestSz) { setGuide(`⚠ Bank has no ${targetColor} pieces left.`); return; }
+    if (!smallestSz) { _warn(`Bank has no ${targetColor} pieces left.`, 'Stash empty'); return; }
     doBuild(sys, targetColor);
   }
 }
@@ -2684,7 +2710,7 @@ function renderSystem(sys) {
           tip.className = 'power-tip';
           tip.textContent = POWER_LABEL[ship.color] || ship.color.toUpperCase();
           wrap.appendChild(tip);
-          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(ship.color, sys); };
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(ship.color, sys, e); };
         } else {
           // No valid action for this color — re-select to this ship
           wrap.onclick = (e) => { e.stopPropagation(); onShipClick(ship.id); };
@@ -2718,7 +2744,7 @@ function renderSystem(sys) {
           tip.className = 'power-tip';
           tip.textContent = POWER_LABEL[ship.color] || ship.color.toUpperCase();
           wrap.appendChild(tip);
-          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(ship.color, sys); };
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(ship.color, sys, e); };
         } else {
           // No power available for this color — click does nothing (deselect via board bg)
           wrap.onclick = (e) => { e.stopPropagation(); };
@@ -2766,7 +2792,7 @@ function renderSystem(sys) {
           tip.className = 'power-tip';
           tip.textContent = POWER_LABEL[star.color] || star.color.toUpperCase();
           wrap.appendChild(tip);
-          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(star.color, sys); };
+          wrap.onclick = (e) => { e.stopPropagation(); onPowerClick(star.color, sys, e); };
         }
       }
 
@@ -2931,64 +2957,114 @@ function renderSidebar() {
       const powers = getSystemPowers(sys, G.currentPlayer);
       const sacPool = G.sacrificePool.count > 0;
 
-      // Action buttons
-      const makeActionBtn = (label, color, action, canAct, disabledReason = null) => {
+      // ── Action buttons ──────────────────────────────────────────────────────
+      const ACTION_ICONS = {
+        blue:   'assets/actionIcons/iconb.webp',
+        yellow: 'assets/actionIcons/icony.webp',
+        red:    'assets/actionIcons/iconr.webp',
+        green:  'assets/actionIcons/icong.webp',
+        sac:    'assets/actionIcons/iconp.webp',
+      };
+
+      /**
+       * actionName = default label e.g. "TRADE"
+       * warnText   = short warning that REPLACES label when disabled  e.g. "Stash empty"
+       *              if null and disabled, button is just grayed out with no warning text
+       */
+      const makeActionBtn = (actionName, color, action, canAct, warnText = null) => {
         const btn = document.createElement('button');
         btn.className = 'action-btn';
         const hex = COLOR_HEX[color];
-        if (hex) {
-          btn.style.borderColor = canAct ? hex : 'rgba(28,40,64,0.6)';
-          btn.style.color = canAct ? hex : '';
-          if (canAct) btn.style.background = `${hex}10`;
+
+        if (canAct && hex) {
+          btn.style.borderColor = hex;
+          btn.style.color       = hex;
+          btn.style.background  = `${hex}10`;
+        } else if (!canAct && warnText) {
+          btn.style.borderColor = 'rgba(28,40,64,0.5)';
+          btn.style.color       = '#cc5544';
+        } else {
+          btn.style.borderColor = 'rgba(28,40,64,0.5)';
+          btn.style.opacity     = '0.28';
         }
-        // Label line
+
+        // Icon
+        const iconSrc = ACTION_ICONS[color];
+        if (iconSrc) {
+          const img = document.createElement('img');
+          img.src = iconSrc; img.className = 'action-icon';
+          img.width = 18; img.height = 18; img.draggable = false;
+          btn.appendChild(img);
+        }
+
+        // Label — becomes the warning when disabled with a reason
         const lblEl = document.createElement('span');
         lblEl.className = 'abl';
-        lblEl.textContent = label;
-        btn.appendChild(lblEl);
-        // Warning: shown inline inside the button when disabled with a reason
-        if (!canAct && disabledReason) {
-          btn.title = disabledReason;
-          const wEl = document.createElement('span');
-          wEl.className = 'abw';
-          wEl.textContent = '⚠ ' + disabledReason;
-          btn.appendChild(wEl);
+        if (!canAct && warnText) {
+          lblEl.textContent = warnText;
+          lblEl.classList.add('is-warn');
+        } else {
+          lblEl.textContent = actionName;
         }
+        btn.appendChild(lblEl);
+
         btn.disabled = !canAct;
-        btn.onclick = action;
+        btn.onclick  = action;
         actionBtns.appendChild(btn);
       };
 
-      const canBld = (powers.has('green') || sacPool) && hasActionLeft('green');
-      const canTrd = (powers.has('blue') || sacPool) && hasActionLeft('blue');
-      const canMov = (powers.has('yellow') || sacPool) && hasActionLeft('yellow');
-      const canAtk = (powers.has('red') || sacPool) && hasActionLeft('red');
-
-      // Override for sacrifice pool
-      const effectiveCanBld = sacPool ? (G.sacrificePool.color === 'green' && G.sacrificePool.count > 0) : canBld;
-      const effectiveCanTrd = sacPool ? (G.sacrificePool.color === 'blue' && G.sacrificePool.count > 0) : canTrd;
-      const effectiveCanMov = sacPool ? (G.sacrificePool.color === 'yellow' && G.sacrificePool.count > 0) : canMov;
-      const effectiveCanAtk = sacPool ? (G.sacrificePool.color === 'red' && G.sacrificePool.count > 0) : canAtk;
-      const effectivePowers = sacPool ? new Set([G.sacrificePool.color]) : powers;
-
+      // ── Per-action availability + granular disable reason ────────────────
       const isLastInHW = sys.isHomeworld === G.currentPlayer &&
         sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
-      const moveEnabled = sacPool ? (G.sacrificePool.color === 'yellow' && effectiveCanMov) : (powers.has('yellow') && canMov);
-
       const enemyShips = sys.ships.filter(s => s.owner !== G.currentPlayer);
-      const largest = getLargestOwnShip(sys, G.currentPlayer);
+      const largest    = getLargestOwnShip(sys, G.currentPlayer);
       const capturable = enemyShips.filter(s => largest && s.size <= largest.size);
-      const atkPowerOk = sacPool ? (G.sacrificePool.color === 'red' && effectiveCanAtk) : (powers.has('red') && canAtk);
-      const atkDisabledReason = !atkPowerOk ? null
-        : enemyShips.length === 0 ? 'No enemy ships in this system'
-        : capturable.length === 0 ? `Enemy ships are larger than your biggest ship (Size ${largest?.size ?? '?'})`
-        : null;
+
+      const hasPow = c => sacPool ? G.sacrificePool.color === c : powers.has(c);
+      const actionOk = c => hasPow(c) && hasActionLeft(c);
+
+      // Trade
+      const trdStashOk = COLORS.some(c => c !== ship.color && G.bank[c][ship.size] > 0);
+      const trdWarn = !hasPow('blue') ? null
+        : !hasActionLeft('blue') ? 'Turn done'
+        : !trdStashOk ? 'Stash empty' : null;
+      const canTrdFull = actionOk('blue') && trdStashOk;
+
+      // Move
+      const movWarn = !hasPow('yellow') ? null
+        : !hasActionLeft('yellow') ? 'Turn done'
+        : isLastInHW ? 'Cannot abandon HW' : null;
+      const canMovFull = actionOk('yellow') && !isLastInHW;
+
+      // Hijack
+      const atkWarn = !hasPow('red') ? null
+        : !hasActionLeft('red') ? 'Turn done'
+        : enemyShips.length === 0 ? 'No enemy'
+        : capturable.length === 0 ? 'Enemy too big' : null;
+      const canAtkFull = actionOk('red') && enemyShips.length > 0 && capturable.length > 0;
+
+      // Build
+      const bldStashOk = [1,2,3].some(sz => G.bank[ship.color][sz] > 0);
+      const bldWarn = !hasPow('green') ? null
+        : !hasActionLeft('green') ? 'Turn done'
+        : !bldStashOk ? 'Stash empty' : null;
+      const canBldFull = actionOk('green') && bldStashOk;
+
+      // Keep compat vars used elsewhere (startBuild checks these)
+      const canBld = (powers.has('green') || sacPool) && hasActionLeft('green');
+      const canTrd = (powers.has('blue')  || sacPool) && hasActionLeft('blue');
+      const canMov = (powers.has('yellow')|| sacPool) && hasActionLeft('yellow');
+      const canAtk = (powers.has('red')   || sacPool) && hasActionLeft('red');
+      const effectiveCanBld = sacPool ? (G.sacrificePool.color === 'green' && G.sacrificePool.count > 0) : canBld;
+      const effectiveCanTrd = sacPool ? (G.sacrificePool.color === 'blue'  && G.sacrificePool.count > 0) : canTrd;
+      const effectiveCanMov = sacPool ? (G.sacrificePool.color === 'yellow'&& G.sacrificePool.count > 0) : canMov;
+      const effectiveCanAtk = sacPool ? (G.sacrificePool.color === 'red'   && G.sacrificePool.count > 0) : canAtk;
 
       if (!PLAYER_CONFIG.advancedMode) {
-        makeActionBtn('🔵 TRADE (blue)', 'blue', () => startTrade(ship, sys), sacPool ? (G.sacrificePool.color==='blue' && effectiveCanTrd) : (powers.has('blue') && canTrd));
-        makeActionBtn('🟡 MOVE (yellow)', 'yellow', () => startMove(ship, sys), !isLastInHW && moveEnabled, isLastInHW ? 'Last ship in homeworld — cannot move away' : null);
-        makeActionBtn('🔴 HIJACK (red)', 'red', () => startAttack(ship, sys), atkPowerOk && !atkDisabledReason, atkDisabledReason);
-        makeActionBtn('🟢 BUILD (green)', 'green', () => startBuild(ship, sys), sacPool ? (G.sacrificePool.color==='green' && effectiveCanBld) : (powers.has('green') && canBld));
+        makeActionBtn('TRADE',  'blue',   () => startTrade(ship, sys),  canTrdFull, trdWarn);
+        makeActionBtn('MOVE',   'yellow', () => startMove(ship, sys),   canMovFull, movWarn);
+        makeActionBtn('HIJACK', 'red',    () => startAttack(ship, sys), canAtkFull, atkWarn);
+        makeActionBtn('BUILD',  'green',  () => startBuild(ship, sys),  canBldFull, bldWarn);
       }
 
       if (!sacPool) {
@@ -3000,12 +3076,26 @@ function renderSidebar() {
         const isOnlyShipInHW = sys.isHomeworld === G.currentPlayer && sys.ships.filter(s => s.owner === G.currentPlayer).length === 1;
         const sacBtn = document.createElement('button');
         sacBtn.className = 'action-btn sac';
-        sacBtn.disabled = G.turnUsed || isOnlyShipInHW;
-        const _sacLbl = document.createElement('span'); _sacLbl.className = 'abl'; _sacLbl.textContent = '💀 SACRIFICE'; sacBtn.appendChild(_sacLbl);
-        if (isOnlyShipInHW) {
-          sacBtn.title = 'Cannot sacrifice your only ship in your homeworld!';
-          const _sacW = document.createElement('span'); _sacW.className = 'abw'; _sacW.textContent = '⚠ Only ship in homeworld — cannot sacrifice'; sacBtn.appendChild(_sacW);
+        const _sacDisabled = G.turnUsed || isOnlyShipInHW;
+        sacBtn.disabled = _sacDisabled;
+        // Determine label / warning
+        const _sacWarnText = isOnlyShipInHW ? 'Only ship in HW'
+          : G.turnUsed ? 'Turn done' : null;
+        if (_sacDisabled && _sacWarnText) {
+          sacBtn.style.color = '#cc5544'; sacBtn.style.borderColor = 'rgba(28,40,64,0.5)';
+        } else if (_sacDisabled) {
+          sacBtn.style.opacity = '0.28'; sacBtn.style.borderColor = 'rgba(28,40,64,0.5)';
         }
+        // Icon
+        const _sacImg = document.createElement('img');
+        _sacImg.src = 'assets/actionIcons/iconp.webp'; _sacImg.className = 'action-icon';
+        _sacImg.width = 18; _sacImg.height = 18; _sacImg.draggable = false;
+        sacBtn.appendChild(_sacImg);
+        // Label
+        const _sacLbl = document.createElement('span'); _sacLbl.className = 'abl';
+        if (_sacWarnText) { _sacLbl.textContent = _sacWarnText; _sacLbl.classList.add('is-warn'); }
+        else { _sacLbl.textContent = 'SACRIFICE'; }
+        sacBtn.appendChild(_sacLbl);
         sacBtn.onclick = () => doSacrifice(ship, sys);
         actionBtns.appendChild(sacBtn);
       }
