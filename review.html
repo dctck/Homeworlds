@@ -2021,6 +2021,11 @@ function buildFromRecord(record) {
       }
     }
 
+    // Stamp currentPlayer = the player who made this move so homeworld glow is correct.
+    // The replay engine doesn't flip currentPlayer between turns (no explicit end-turn
+    // notation), so we set it explicitly here from mv.player.
+    st.currentPlayer = player;
+
     // Take a snapshot after every action
     const snap = JSON.parse(JSON.stringify(st));
     snap.interaction = 'IDLE'; snap.selectedShipId = null;
