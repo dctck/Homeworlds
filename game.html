@@ -1102,7 +1102,7 @@ body::before {
       <div class="pcard-elo" id="pcard-elo-2">◆ 1200</div>
     </div>
     <div class="pcard-timer-wrap">
-      <div class="pcard-presence offline" id="pcard-presence-2" title="Offline"></div>
+      <div class="pcard-presence offline" id="pcard-presence-2" title="Offline" style="display:none"></div>
       <span class="pcard-timer" id="timer-display-2">—</span>
     </div>
     <button class="pcard-gear" id="pcard-gear-2" title="Options" onclick="showReportDialog(2)">⚙</button>
@@ -1115,7 +1115,7 @@ body::before {
       <div class="pcard-elo" id="pcard-elo-1">◆ 1200</div>
     </div>
     <div class="pcard-timer-wrap">
-      <div class="pcard-presence offline" id="pcard-presence-1" title="Online"></div>
+      <div class="pcard-presence offline" id="pcard-presence-1" title="Online" style="display:none"></div>
       <span class="pcard-timer" id="timer-display-1">—</span>
     </div>
   </div>
@@ -1206,9 +1206,7 @@ body::before {
       <div id="time-control-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
         <button class="tc-btn tc-active" data-mode="unlimited">∞ Unlimited</button>
         <button class="tc-btn" data-mode="blitz">⚡ Blitz</button>
-        <button class="tc-btn" data-mode="sudden">💀 Sudden Death</button>
-        <button class="tc-btn" data-mode="turn">⏱ Turn Timer</button>
-        <button class="tc-btn" data-mode="tournament">🏆 Tournament</button>
+        <button class="tc-btn" data-mode="turn">⏱ Per Turn</button>
       </div>
       <!-- Mode descriptions + inputs -->
       <div id="tc-desc" style="font-size:12px;color:#4a6478;line-height:1.6;margin-bottom:8px;">No time limit per turn.</div>
@@ -3928,29 +3926,56 @@ function showReportDialog(player) {
 (function() {
   // Time control mode config
   const TC_MODES = {
-    unlimited:  { desc: 'No time limit per turn.',                                                       inputs: [] },
-    blitz:      { desc: '10 minutes total per player. First to run out loses.',                          inputs: [] },
-    sudden:     { desc: 'Each player starts with a set amount of time. Run out = lose.',                 inputs: [
-                    { id: 'tc-sudden-min', label: 'Minutes each', type: 'number', default: 20, min: 1, max: 360 }
-                  ]},
-    turn:       { desc: 'Each turn has the same fixed time. Clock resets to this amount every turn.',   inputs: [
-                    { id: 'tc-turn-min', label: 'Minutes per turn', type: 'number', default: 5, min: 1, max: 60 }
-                  ]},
-    tournament: { desc: 'Each player starts with 12 hrs. After every move you make, +12 hrs is added back (max 24 hrs). Ideal for async play.', inputs: [] },
+    unlimited: { desc: 'No time limit — play at your own pace.', inputs: [] },
+    blitz:     { desc: 'Time per player. Time runs out = you lose.', inputs: [
+                   { id: 'tc-blitz-val', label: 'Time per player', default: 10, unit: 'min' }
+                 ]},
+    turn:      { desc: 'Each turn has a fixed time limit. Clock resets every turn. Time runs out = you lose.', inputs: [
+                   { id: 'tc-turn-val', label: 'Time per turn', default: 5, unit: 'min' }
+                 ]},
   };
 
+  let _ppNpTarget = null;
+  function _ppCloseNp() { const p=document.getElementById('pp-numpad'); if(p)p.remove(); _ppNpTarget=null; }
+  function _ppOpenNp(inp) {
+    _ppCloseNp(); _ppNpTarget = inp;
+    const pad = document.createElement('div'); pad.id='pp-numpad';
+    pad.style.cssText='position:absolute;z-index:9999;background:#0a0f1e;border:1px solid #2a3850;border-radius:8px;padding:10px;box-shadow:0 8px 28px rgba(0,0,0,.9);min-width:168px;';
+    pad.innerHTML=`<div id="pp-np-disp" style="font-family:Orbitron,sans-serif;font-size:18px;font-weight:700;color:#ddeeff;text-align:center;padding:6px;background:rgba(0,0,0,.4);border-radius:4px;margin-bottom:8px;letter-spacing:2px">${inp.value}</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">${[7,8,9,4,5,6,1,2,3].map(n=>`<button data-n="${n}" style="padding:9px;background:rgba(255,255,255,.04);border:1px solid #1c2840;border-radius:4px;color:#a8c0e0;font-family:Share Tech Mono,monospace;font-size:13px;cursor:pointer">${n}</button>`).join('')}<button data-n="0" style="grid-column:1/3;padding:9px;background:rgba(255,255,255,.04);border:1px solid #1c2840;border-radius:4px;color:#a8c0e0;font-family:Share Tech Mono,monospace;font-size:13px;cursor:pointer">0</button><button id="pp-np-del" style="padding:9px;background:rgba(255,68,85,.06);border:1px solid rgba(255,68,85,.2);border-radius:4px;color:#cc4455;cursor:pointer">⌫</button><button id="pp-np-ok" style="grid-column:1/-1;margin-top:3px;padding:8px;background:rgba(34,221,119,.1);border:1px solid rgba(34,221,119,.4);border-radius:4px;color:#22dd77;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:2px;cursor:pointer">OK</button></div>`;
+    const modalBox = inp.closest('div[style*="border-radius:12px"]') || document.body;
+    modalBox.style.position = 'relative';
+    const mRect = modalBox.getBoundingClientRect(); const iRect = inp.getBoundingClientRect();
+    pad.style.top  = (iRect.bottom - mRect.top + 4) + 'px';
+    pad.style.left = (iRect.left  - mRect.left) + 'px';
+    modalBox.appendChild(pad);
+    let cur = inp.value.replace(/^0+/,'') || '';
+    const sync = () => { document.getElementById('pp-np-disp').textContent=cur||'0'; _ppNpTarget.value=cur||'0'; };
+    pad.querySelectorAll('[data-n]').forEach(b => b.onclick=()=>{ if(cur.length<4){cur=(cur+b.dataset.n).replace(/^0+/,'')||'0';sync();} });
+    pad.querySelector('#pp-np-del').onclick = ()=>{ cur=cur.slice(0,-1); sync(); };
+    pad.querySelector('#pp-np-ok').onclick  = ()=>_ppCloseNp();
+  }
   function renderTCInputs(mode) {
+    _ppCloseNp();
     const cfg = TC_MODES[mode];
     document.getElementById('tc-desc').textContent = cfg.desc;
     const inputArea = document.getElementById('tc-inputs');
     inputArea.innerHTML = '';
     cfg.inputs.forEach(inp => {
       const wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex;flex-direction:column;gap:3px;';
-      wrap.innerHTML = `<label style="font-size:12px;color:#506080;letter-spacing:1px">${inp.label}</label>
-        <input id="${inp.id}" type="${inp.type}" value="${inp.default}" min="${inp.min}" max="${inp.max}"
-          style="width:90px;padding:6px 8px;background:#060912;border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;">`;
-      inputArea.appendChild(wrap);
+      wrap.style.cssText = 'display:flex;align-items:center;gap:6px;position:relative;';
+      const inpEl = document.createElement('input');
+      inpEl.id=inp.id; inpEl.type='text'; inpEl.inputMode='none'; inpEl.readOnly=true; inpEl.value=String(inp.default);
+      inpEl.style.cssText='width:64px;padding:6px 8px;background:#060912;border:1px solid #2a4070;border-radius:4px;color:#ddeeff;font-family:Share Tech Mono,monospace;font-size:13px;outline:none;cursor:pointer;text-align:center;';
+      inpEl.onclick = () => _ppOpenNp(inpEl);
+      const unitWrap = document.createElement('div');
+      unitWrap.style.cssText='display:flex;border:1px solid #1c2840;border-radius:3px;overflow:hidden;';
+      ['min','sec'].forEach((u,i) => {
+        const ub = document.createElement('button'); ub.textContent=u; ub.dataset.unit=u;
+        ub.style.cssText=`padding:4px 8px;background:${i===0?'rgba(68,136,255,.15)':'none'};border:none;color:${i===0?'#4488ff':'#4a6080'};font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;transition:all .15s;`;
+        ub.onclick = () => { unitWrap.querySelectorAll('button').forEach(b=>{b.style.background='none';b.style.color='#4a6080';}); ub.style.background='rgba(68,136,255,.15)'; ub.style.color='#4488ff'; };
+        unitWrap.appendChild(ub);
+      });
+      wrap.appendChild(inpEl); wrap.appendChild(unitWrap); inputArea.appendChild(wrap);
     });
   }
 
@@ -3972,15 +3997,14 @@ function showReportDialog(player) {
     const activeTC = document.querySelector('.tc-btn.tc-active');
     const mode = activeTC ? activeTC.dataset.mode : 'unlimited';
 
-    let timeMs = 0;
-    let tcTurnMs = 0; // for 'turn' mode: ms to reset each turn
-    if (mode === 'blitz')       timeMs = 10 * 60 * 1000;
-    else if (mode === 'sudden') timeMs = (parseInt(document.getElementById('tc-sudden-min')?.value) || 20) * 60 * 1000;
-    else if (mode === 'turn') {
-      tcTurnMs = (parseInt(document.getElementById('tc-turn-min')?.value) || 5) * 60 * 1000;
-      timeMs = tcTurnMs; // each player's "timer" starts at one turn's worth
+    function _ppReadMs(fId) {
+      const val = parseInt(document.getElementById(fId)?.value)||0;
+      const ub = document.getElementById(fId)?.parentElement?.querySelector('[style*="rgba(68,136,255"]');
+      return ub?.dataset.unit==='sec' ? val*1000 : val*60*1000;
     }
-    else if (mode === 'tournament') timeMs = 12 * 60 * 60 * 1000;
+    let timeMs = 0, tcTurnMs = 0;
+    if (mode==='blitz')  timeMs  = _ppReadMs('tc-blitz-val')||10*60*1000;
+    else if (mode==='turn') { tcTurnMs=_ppReadMs('tc-turn-val')||5*60*1000; timeMs=tcTurnMs; }
 
     PLAYER_CONFIG = {
       names:    ['', name1, name2],
@@ -4017,13 +4041,19 @@ function showReportDialog(player) {
       document.getElementById('resume-game-row').style.display = 'block';
       document.getElementById('btn-resume-game').onclick = () => {
         const sg = JSON.parse(_savedRaw);
+        // Restore timer config from hint so clock resumes correctly
+        let _th = {};
+        try { _th = JSON.parse(localStorage.getItem('hw_timer_hint') || '{}'); } catch(e) {}
         PLAYER_CONFIG = {
           names:    ['', sg._p1name || 'Player 1', sg._p2name || 'Player 2'],
           elos:     ['', '1200', '1200'],
-          timeMs: 0, tcMode: 'unlimited', tcTurnMs: 0,
+          tcMode:   _th.tcMode   || 'unlimited',
+          timeMs:   _th.timeMs   || 0,
+          tcTurnMs: _th.tcTurnMs || 0,
           advancedMode: !!(window._savedAdvancedMode),
         };
         G = sg;
+        if (_th.timers) G.timers = _th.timers; // restore exact timer values
         document.getElementById('startup-modal').remove();
         const _lbr2 = document.getElementById('btn-lobby-row');
         if (_lbr2) _lbr2.style.display = 'block';
@@ -4216,7 +4246,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         ${both && notStarted ? `<div style="font-size:11px;color:#2a4055;letter-spacing:1px;margin-bottom:14px">${_fmLabel}</div>` : ''}
         ${both && notStarted ? `<button id="pg-start" style="width:100%;padding:13px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;margin-bottom:12px;">START GAME ›</button>` : ''}
         ${MY_SLOT === 1 && !p2ok ? `<button id="pg-cancel" style="width:100%;padding:11px;background:rgba(180,40,40,0.08);border:1px solid rgba(180,40,40,0.4);color:#c04050;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;margin-bottom:10px;">✕ CANCEL &amp; DELETE ROOM</button>` : ''}
-        <button onclick="location.href='lobby.html'" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">← BACK TO LOBBY</button>
+        <button id="pg-back-lobby" style="padding:10px 28px;background:transparent;border:1px solid #253040;color:#4a6080;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px;">← BACK TO LOBBY</button>
       </div>`;
 
     const sb = document.getElementById('pg-start');
@@ -4229,12 +4259,21 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       if (!confirm('Delete this room? This cannot be undone.')) return;
       cb.disabled = true; cb.textContent = 'DELETING…';
       try {
-        await set(ref(db, `rooms/${ROOM_ID}`), null); // full delete
+        await set(ref(db, `rooms/${ROOM_ID}`), null);
         window.location.href = 'lobby.html';
       } catch(e) {
         cb.disabled = false; cb.textContent = '✕ CANCEL & DELETE ROOM';
         alert('Failed to delete room: ' + e.message);
       }
+    };
+    const blb = document.getElementById('pg-back-lobby');
+    if (blb) blb.onclick = async (e) => {
+      e.preventDefault();
+      if (MY_SLOT === 2) {
+        try { await update(ref(db,`rooms/${ROOM_ID}`),{player2:null,guestUid:null}); }
+        catch(err) { console.warn('[HW] vacate slot failed:',err); }
+      }
+      window.location.href = 'lobby.html';
     };
   }
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -4534,6 +4573,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       dot.classList.toggle('offline', !online);
       dot.title = online ? 'Online' : 'Offline';
     }
+    // Reveal presence dots — only shown in online mode (hidden by default)
+    [1,2].forEach(s=>{const d=document.getElementById(`pcard-presence-${s}`);if(d)d.style.display='';});
     // My own dot: always show as online while I'm here
     _updatePresenceDot(MY_SLOT, true);
     // Watch both slots for changes

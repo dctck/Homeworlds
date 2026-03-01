@@ -76,7 +76,7 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 .toggle input:checked~.toggle-thumb{background:var(--p1);transform:translateX(18px)}
 
 /* Time control — 3 rows: 2+2+1 */
-.tc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px}
+.tc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:6px}
 .tc-full{grid-column:1/-1}
 .tc-btn{padding:6px 6px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:3px;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;transition:all .15s;text-align:center;line-height:1.3}
 .tc-btn:hover{border-color:#3a5080;color:var(--text)}
@@ -85,6 +85,20 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 .tc-custom{margin-top:6px;font-size:12px;color:#4a6080;display:none;align-items:center;gap:6px}
 .tc-custom.show{display:flex}
 .tc-custom input{width:48px;padding:3px 6px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:3px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:12px;text-align:center}
+.tc-numfield{display:flex;align-items:center;gap:6px}
+.tc-numinput{width:56px;padding:4px 6px;background:rgba(255,255,255,.06);border:1px solid #2a4070;border-radius:3px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:13px;text-align:center;cursor:pointer;outline:none;caret-color:transparent}
+.tc-numinput:focus{border-color:var(--p1)}
+.tc-unit-toggle{display:flex;border:1px solid var(--border);border-radius:3px;overflow:hidden}
+.tc-unit{padding:3px 8px;background:none;border:none;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;transition:all .15s}
+.tc-unit.active{background:rgba(68,136,255,.15);color:var(--p1)}
+#hw-numpad{position:fixed;z-index:500;background:#0a0f1e;border:1px solid #2a3850;border-radius:10px;padding:12px;box-shadow:0 8px 32px rgba(0,0,0,.8);user-select:none;min-width:176px}
+#hw-numpad .np-disp{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:700;color:var(--bright);text-align:center;padding:8px;background:rgba(0,0,0,.4);border-radius:5px;margin-bottom:10px;letter-spacing:2px}
+#hw-numpad .np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+#hw-numpad .np-btn{padding:10px;background:rgba(255,255,255,.04);border:1px solid #1c2840;border-radius:5px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:14px;cursor:pointer;text-align:center;transition:background .1s}
+#hw-numpad .np-btn:active,#hw-numpad .np-btn:hover{background:rgba(68,136,255,.2);border-color:var(--p1);color:var(--bright)}
+#hw-numpad .np-zero{grid-column:1/3}
+#hw-numpad .np-del{background:rgba(255,68,85,.06);border-color:rgba(255,68,85,.2);color:#cc4455}
+#hw-numpad .np-ok{background:rgba(34,221,119,.1);border-color:rgba(34,221,119,.4);color:var(--green);margin-top:4px;grid-column:1/-1;padding:8px;font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px}
 
 .fm-row{display:flex;gap:6px;margin-bottom:8px}
 .fm-btn{flex:1;padding:6px 4px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:3px;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;transition:all .15s;text-align:center;line-height:1.3}
@@ -202,30 +216,32 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 
     <div class="form-row">
       <label class="form-label">TIME CONTROL</label>
-      <!-- Row 1 -->
       <div class="tc-grid">
-        <button class="tc-btn active" data-tc="unlimited">∞ UNLIMITED</button>
+        <button class="tc-btn active" data-tc="unlimited">∞ UNLIM</button>
         <button class="tc-btn" data-tc="blitz">⚡ BLITZ</button>
-      </div>
-      <!-- Row 2 -->
-      <div class="tc-grid">
-        <button class="tc-btn" data-tc="sudden">🔔 SUDDEN DEATH</button>
-        <button class="tc-btn" data-tc="turn">⏱ TURN TIMER</button>
-      </div>
-      <!-- Row 3 -->
-      <div class="tc-grid">
-        <button class="tc-btn tc-full" data-tc="tournament">🏆 TOURNAMENT</button>
+        <button class="tc-btn" data-tc="turn">⏱ PER TURN</button>
+        <button class="tc-btn" data-tc="tournament">🏆 TOUR</button>
       </div>
       <div class="tc-desc" id="tc-desc">No time limit — play at your own pace.</div>
-      <div class="tc-custom" id="tc-custom-sudden">
-        <span>Total time each:</span>
-        <input type="number" id="tc-sudden-min" value="20" min="5" max="120">
-        <span>min</span>
+      <div class="tc-custom" id="tc-custom-blitz">
+        <span>Time per player:</span>
+        <div class="tc-numfield">
+          <input type="text" inputmode="none" id="tc-blitz-val" value="10" readonly class="tc-numinput">
+          <div class="tc-unit-toggle">
+            <button class="tc-unit active" data-field="blitz" data-unit="min">min</button>
+            <button class="tc-unit" data-field="blitz" data-unit="sec">sec</button>
+          </div>
+        </div>
       </div>
       <div class="tc-custom" id="tc-custom-turn">
-        <span>Per turn:</span>
-        <input type="number" id="tc-turn-min" value="5" min="1" max="30">
-        <span>min</span>
+        <span>Time per turn:</span>
+        <div class="tc-numfield">
+          <input type="text" inputmode="none" id="tc-turn-val" value="5" readonly class="tc-numinput">
+          <div class="tc-unit-toggle">
+            <button class="tc-unit active" data-field="turn" data-unit="min">min</button>
+            <button class="tc-unit" data-field="turn" data-unit="sec">sec</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -310,9 +326,8 @@ function tierHTML(stars){const t=getTier(stars);return `<span class="tier-badge"
 // ── TC descriptions ──────────────────────────────────────────
 const TC_DESC = {
   unlimited:  'No time limit — play at your own pace.',
-  blitz:      '10 minutes total per player. Fast and tactical.',
-  sudden:     'Custom total time per player. Time runs out = you lose.',
-  turn:       'Fixed time per turn. Fails to act = auto-skip.',
+  blitz:      'Time per player. Time runs out = you lose.',
+  turn:       'Each turn has a fixed time limit. Clock resets every turn. Time runs out = you lose.',
   tournament: '30 min total + 30 sec added per move. Standard competitive format.',
 };
 
@@ -458,10 +473,42 @@ document.querySelectorAll('.tc-btn').forEach(btn => {
     btn.classList.add('active');
     selectedTc = btn.dataset.tc;
     document.getElementById('tc-desc').textContent = TC_DESC[selectedTc] || '';
-    document.getElementById('tc-custom-sudden').classList.toggle('show', selectedTc === 'sudden');
+    document.getElementById('tc-custom-blitz').classList.toggle('show', selectedTc === 'blitz');
     document.getElementById('tc-custom-turn').classList.toggle('show', selectedTc === 'turn');
   };
 });
+
+// ── Unit toggles ──────────────────────────────────────────────
+document.querySelectorAll('.tc-unit').forEach(btn => {
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const field = btn.dataset.field;
+    document.querySelectorAll(`.tc-unit[data-field="${field}"]`).forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+});
+
+// ── Number pad ────────────────────────────────────────────────
+let _npTarget = null;
+function _buildNumpad(inp) {
+  closeNumpad(); _npTarget = inp;
+  const pad = document.createElement('div'); pad.id = 'hw-numpad';
+  pad.innerHTML = `<div class="np-disp" id="np-disp">${inp.value}</div><div class="np-grid">${[7,8,9,4,5,6,1,2,3].map(n=>`<button class="np-btn" data-n="${n}">${n}</button>`).join('')}<button class="np-btn np-zero" data-n="0">0</button><button class="np-btn np-del">⌫</button><button class="np-btn np-ok">✓ OK</button></div>`;
+  document.body.appendChild(pad);
+  const r = inp.getBoundingClientRect();
+  let lft = r.left, top = r.bottom + 6;
+  if (lft + 180 > window.innerWidth - 8) lft = window.innerWidth - 186;
+  if (top + 240 > window.innerHeight - 8) top = r.top - 246;
+  pad.style.left = lft + 'px'; pad.style.top = top + 'px';
+  let cur = inp.value.replace(/^0+/,'') || '';
+  const sync = () => { document.getElementById('np-disp').textContent = cur||'0'; _npTarget.value = cur||'0'; };
+  pad.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { if(cur.length<4){cur=(cur+b.dataset.n).replace(/^0+/,'')||'0';sync();} });
+  pad.querySelector('.np-del').onclick = () => { cur=cur.slice(0,-1); sync(); };
+  pad.querySelector('.np-ok').onclick  = () => closeNumpad();
+}
+function closeNumpad() { const p=document.getElementById('hw-numpad'); if(p)p.remove(); _npTarget=null; }
+document.addEventListener('mousedown', e => { const p=document.getElementById('hw-numpad'); if(p&&!p.contains(e.target)&&!e.target.classList.contains('tc-numinput'))closeNumpad(); }, true);
+document.querySelectorAll('.tc-numinput').forEach(inp => inp.addEventListener('click', () => _buildNumpad(inp)));
 
 // ── First-mover tabs ─────────────────────────────────────────
 const FM_DESC = {
@@ -495,10 +542,14 @@ document.getElementById('btn-create').onclick = async () => {
   const pw     = isPriv ? document.getElementById('room-password').value.trim() : '';
   const isPrivFinal = isPriv && pw.length > 0;  // not private if password left blank
 
+  function _readTcField(fId, uField) {
+    const val = parseInt(document.getElementById(fId)?.value)||0;
+    const unit = document.querySelector(`.tc-unit.active[data-field="${uField}"]`)?.dataset.unit||'min';
+    return unit==='sec' ? val*1000 : val*60*1000;
+  }
   let timeMs=0, tcTurnMs=0;
-  if (selectedTc==='blitz')      timeMs = 10*60*1000;
-  if (selectedTc==='sudden')     timeMs = (parseInt(document.getElementById('tc-sudden-min').value)||20)*60*1000;
-  if (selectedTc==='turn')     { tcTurnMs=(parseInt(document.getElementById('tc-turn-min').value)||5)*60*1000; timeMs=tcTurnMs; }
+  if (selectedTc==='blitz')      timeMs  = _readTcField('tc-blitz-val','blitz')||10*60*1000;
+  if (selectedTc==='turn')     { tcTurnMs=_readTcField('tc-turn-val','turn')||5*60*1000; timeMs=tcTurnMs; }
   if (selectedTc==='tournament') { timeMs=30*60*1000; tcTurnMs=30*1000; }
 
   const roomRef = push(ref(db,'rooms'));
@@ -628,10 +679,16 @@ function renderRooms(rooms){
         ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=2'">REJOIN</button>`
         : '';
     } else {
-      statusHtml = `<span class="room-status s-wait">OPEN</span>`;
-      actionsHtml = isHost
-        ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=1'">REJOIN</button>`
-        : `<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password||''}">JOIN</button>`;
+      const _isFull = !!room.player2;
+      if (_isFull && !isParticipant) {
+        statusHtml  = `<span class="room-status" style="color:#8855aa;border:1px solid rgba(136,85,170,.3);background:rgba(136,85,170,.06);font-size:12px;letter-spacing:1px;padding:3px 7px;border-radius:2px;white-space:nowrap">FULL</span>`;
+        actionsHtml = '';
+      } else {
+        statusHtml  = `<span class="room-status s-wait">OPEN</span>`;
+        actionsHtml = isHost
+          ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='game.html?room=${room.id}&player=1'">REJOIN</button>`
+          : `<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password||''}">JOIN</button>`;
+      }
     }
 
     card.innerHTML=`
@@ -678,10 +735,11 @@ async function doJoin(id){
 
 // ── Helpers ──────────────────────────────────────────────────
 function formatTc(s){
+  function _fD(ms){if(!ms)return'';return ms%60000===0?ms/60000+'min':ms/1000+'sec';}
   if (!s||s.tcMode==='unlimited') return '∞ UNLIMITED';
-  if (s.tcMode==='blitz')         return '⚡ BLITZ 10MIN';
-  if (s.tcMode==='sudden')        return `🔔 ${Math.round(s.timeMs/60000)}MIN EACH`;
-  if (s.tcMode==='turn')          return `⏱ ${Math.round(s.tcTurnMs/60000)}MIN/TURN`;
+  if (s.tcMode==='blitz')         return `⚡ BLITZ ${_fD(s.timeMs)}`;
+  if (s.tcMode==='sudden')        return `⚡ BLITZ ${_fD(s.timeMs)}`; // legacy
+  if (s.tcMode==='turn')          return `⏱ PER TURN ${_fD(s.tcTurnMs)}`;
   if (s.tcMode==='tournament')    return '🏆 TOURNAMENT';
   return s.tcMode;
 }
