@@ -187,10 +187,6 @@ footer em{color:#354050;font-style:normal}
           <input type="checkbox" id="check-age">
           <label for="check-age">I am 13 years of age or older</label>
         </div>
-        <div class="auth-check-row">
-          <input type="checkbox" id="check-terms">
-          <label for="check-terms">I agree to the <a href="terms.html" target="_blank">Terms of Service</a></label>
-        </div>
         <button class="btn-auth" id="btn-signup">CREATE ACCOUNT</button>
         <div class="auth-status" id="su-status"></div>
         <div class="legal-note">We only email you a one-time verification code.<br>No newsletters. No spam.</div>
@@ -434,7 +430,7 @@ document.getElementById('btn-signup').onclick = async () => {
   if (pw1.length < 8)     { setStatus('su-status', 'Password must be at least 8 characters');      return; }
   if (pw1 !== pw2)         { setStatus('su-status', 'Passwords do not match');                     return; }
   if (!document.getElementById('check-age').checked)   { setStatus('su-status', 'You must be 13 or older to create an account'); return; }
-  if (!document.getElementById('check-terms').checked) { setStatus('su-status', 'Please accept the Terms of Service');          return; }
+  
 
   const btn = document.getElementById('btn-signup');
   btn.disabled = true; btn.textContent = '…';
