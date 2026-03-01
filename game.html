@@ -4068,9 +4068,10 @@ function showReportDialog(player) {
       inpEl.id=inp.id; inpEl.type='number'; inpEl.inputMode='numeric';
       inpEl.min='1'; inpEl.max='999'; inpEl.step='1'; inpEl.value=String(inp.default);
       inpEl.style.cssText='width:64px;padding:6px 8px;background:#060912;border:1px solid #2a4070;border-radius:4px;color:#ddeeff;font-family:Share Tech Mono,monospace;font-size:13px;outline:none;text-align:center;';
-      inpEl.addEventListener('focus', () => inpEl.select());
+      const _default = String(inp.default);
+      inpEl.addEventListener('focus', () => { inpEl.value = ''; });
+      inpEl.addEventListener('blur',  () => { if (!inpEl.value || parseInt(inpEl.value) < 1) inpEl.value = _default; });
       inpEl.addEventListener('keydown', e => { if(['.','e','E','+','-'].includes(e.key)) e.preventDefault(); });
-      inpEl.addEventListener('change', () => { const v=parseInt(inpEl.value); inpEl.value=isNaN(v)||v<1?1:v; });
       // Unit toggle
       const unitWrap = document.createElement('div');
       unitWrap.style.cssText='display:flex;border:1px solid #1c2840;border-radius:3px;overflow:hidden;';

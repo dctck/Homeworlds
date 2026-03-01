@@ -483,16 +483,13 @@ document.querySelectorAll('.tc-unit').forEach(btn => {
   };
 });
 
-// Select all on focus so user can overwrite immediately
+// Clear on focus, restore default on blur if empty
 document.querySelectorAll('.tc-numinput').forEach(inp => {
-  inp.addEventListener('focus', () => inp.select());
-  // Prevent non-integer input
+  const _default = inp.value;
+  inp.addEventListener('focus', () => { inp.value = ''; });
+  inp.addEventListener('blur',  () => { if (!inp.value || parseInt(inp.value) < 1) inp.value = _default; });
   inp.addEventListener('keydown', e => {
     if (['.','e','E','+','-'].includes(e.key)) e.preventDefault();
-  });
-  inp.addEventListener('change', () => {
-    const v = parseInt(inp.value);
-    inp.value = isNaN(v) || v < 1 ? 1 : v;
   });
 });
 
