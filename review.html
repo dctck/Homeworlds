@@ -720,189 +720,133 @@ body::before {
    RESPONSIVE — Mobile: single scrollable column
    ============================================================ */
 @media (max-width: 800px) {
-  /* ── Simplest possible scroll: let html scroll naturally ── */
-  html {
-    height: auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overflow-x: hidden;
-  }
+  /* ── Review mobile: single scrollable column ── */
+  html { height: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-x: hidden; }
   body {
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: unset !important;
+    grid-template-rows: unset !important;
+    grid-template-areas: unset !important;
+    height: auto !important;
+    overflow: visible !important;
     min-height: 100vh;
-    height: auto;
-    overflow: visible;
   }
 
-  /* ── Hide desktop-only right panel ── */
-  #right-panel { display: none !important; }
-
-  /* ── Reset all desktop grid-areas ── */
-  #bank-section, #sidebar, #board, #bottom-btns { grid-area: unset; }
-
-  /* ══ ORDER: 0=nav 1=profiles 2=stash 3=board 4=sidebar 5=btns 6=logchat ══ */
-
-  /* 0 · Nav bar */
-  #mobile-nav {
-    order: 0;
-    display: flex;
+  /* ── Sticky top bar ── */
+  #rv-mobile-top {
+    display: flex !important;
+    position: sticky; top: 0; z-index: 50;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
     align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
+    padding: 0;
     flex-shrink: 0;
-    position: relative;
-    z-index: 10;
   }
-  #mobile-nav-logo {
-    display: flex; align-items: center; gap: 10px;
-    font-family: 'Orbitron', sans-serif; font-weight: 900;
-    font-size: var(--fs-md); letter-spacing: 3px; color: var(--bright);
-    text-decoration: none;
+  #rv-mobile-top a {
+    display: flex; align-items: center;
+    padding: 12px 14px;
+    color: #4a6080; text-decoration: none;
+    font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 2px;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
   }
-  #mobile-nav-menu {
-    background: none; border: none; cursor: pointer;
-    color: #5a7090; font-size: 24px; line-height: 1;
-    padding: 4px 8px; border-radius: 4px;
+  #rv-mobile-top a:hover { color: var(--bright); }
+  #rv-mobile-title {
+    flex: 1; text-align: center;
+    font-family: 'Orbitron', sans-serif; font-size: 11px;
+    letter-spacing: 3px; color: var(--bright); padding: 12px 8px;
   }
 
-  /* 1 · Profiles — vertical stack (like desktop) */
-  #mobile-profiles {
-    order: 1;
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    border-bottom: 1px solid var(--border);
-  }
-  #mobile-profiles .player-card {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+  /* Reorder sections */
+  #sidebar   { order: 2; width: 100%; height: auto !important; overflow: visible !important; border-right: none; flex: none; }
+  #board     { order: 3; width: 100%; height: auto !important; overflow: visible !important; padding: 12px; border-bottom: 1px solid var(--border); }
+  #right-panel { order: 4; width: 100% !important; height: auto !important; border-left: none; border-top: 1px solid var(--border); display: flex !important; flex-direction: column; }
+
+  /* Nav controls — make buttons big and tappable */
+  #review-top { padding: 10px 14px; }
+  #review-title { font-size: 13px; }
+  #nav-section { padding: 10px 14px; }
+  #nav-buttons { gap: 8px; }
+  .nav-btn { padding: 14px 0; font-size: 18px; border-radius: 6px; }
+  #nav-hint { display: none; } /* hide keyboard hint on mobile */
+  #turn-indicator { font-size: 12px; padding: 6px 0 10px; }
+
+  /* Players section — horizontal row (players appended directly to section) */
+  #players-section {
     padding: 10px 14px;
-  }
-  #mobile-profiles #pcard-1m { border-bottom: none; }
-
-  /* 2 · Stash — right under profiles */
-  #bank-section {
-    order: 2;
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    padding: 12px;
-  }
-  #bank-grid {
-    grid-template-columns: 52px repeat(3, min(72px, calc((100vw - 52px - 48px) / 3)));
-  }
-
-  /* 3 · Board */
-  #board {
-    order: 3;
-    width: 100%;
-    height: auto;
-    overflow: visible;
-    padding: 10px 12px;
+    display: flex; gap: 8px; /* players sit side-by-side */
     border-bottom: 1px solid var(--border);
   }
-  #zone-p2, #zone-p1 {
-    flex-wrap: wrap;
-    min-height: 80px;
-    justify-content: center;
-  }
+  .rv-player { flex: 1; flex-direction: column; align-items: center; text-align: center; padding: 10px 8px; margin-bottom: 0; }
+  .rv-player:last-child { margin-bottom: 0; }
+  .rv-avatar { width: 44px; height: 44px; font-size: 16px; }
+  .rv-info-name { font-size: 9px; }
+  .rv-crown { margin-left: 0; margin-top: 2px; }
 
-  /* 4 · Sidebar (guide text + actions) */
-  #sidebar {
-    order: 4;
-    width: 100%;
-    flex: none;
-    height: auto;
-    overflow: visible;
-    border-right: none;
-    min-height: 0;
-  }
-  #action-section {
-    flex-grow: unset;
-    overflow: visible;
-    height: auto;
-  }
+  /* Stash */
+  #bank-section { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  #bank-grid { grid-template-columns: 48px repeat(3, 1fr); }
 
-  /* 5 · Control buttons (forfeit + undo) */
-  #bottom-btns {
-    order: 5;
-    grid-area: unset;
-    border-right: none;
-    border-top: none;
-    border-bottom: 1px solid var(--border);
-    position: static;
-  }
-
-  /* 6 · Log & Chat tabs */
-  #mobile-logchat {
-    order: 6;
-    display: flex;
-    flex-direction: column;
-    background: var(--panel);
-    border-top: 1px solid var(--border);
-    padding-bottom: 32px;
-  }
-  #mobile-tab-bar {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .mobile-tab-btn {
-    flex: 1; padding: 12px;
-    background: none; border: none;
-    font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs);
-    letter-spacing: 2px; text-transform: uppercase;
-    color: #4a6070; cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all 0.15s; margin-bottom: -1px;
-  }
-  .mobile-tab-btn.active { color: var(--bright); border-bottom-color: #4488ff; }
-  #mobile-tab-log, #mobile-tab-chat { display: none; flex-direction: column; }
-  #mobile-tab-log.visible, #mobile-tab-chat.visible { display: flex; }
-  #log-entries-m { min-height: 200px; padding: 4px 0; }
-  #chat-messages-m { min-height: 160px; padding: 8px 12px; }
-  #chat-input-row-m {
-    display: flex; gap: 6px; padding: 8px 12px;
-    border-top: 1px solid var(--border); flex-shrink: 0;
-  }
-  #chat-input-m {
-    flex: 1; padding: 8px 10px;
-    background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
-    border-radius: 3px; color: var(--text);
-    font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs); outline: none;
-  }
-  #chat-send-m {
-    padding: 8px 12px; background: rgba(255,255,255,0.04);
-    border: 1px solid #1c2840; color: #506070;
-    font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
-    cursor: pointer; border-radius: 3px;
-  }
-
-  /* Turn token — larger on mobile for easier tap */
-  .turn-token { width: 68px; height: 68px; }
-
-  /* Misc compact */
-  .pcard-avatar { width: 34px; height: 34px; }
-  .pcard-gear  { font-size: 14px; }
-  .zone-label  { font-size: var(--fs-xs); letter-spacing: 2px; margin-bottom: 4px; }
-  .zone-hw-area { padding: 2px 0 6px; }
+  /* Board */
+  #zone-p2, #zone-p1 { flex-wrap: wrap; min-height: 70px; justify-content: center; gap: 8px; }
+  .zone-label { font-size: 10px; letter-spacing: 2px; margin-bottom: 4px; }
+  .zone-hw-area { padding: 2px 0 8px; }
   .system-card { padding: 8px 10px; }
-  #player-bar { padding: 10px 14px; }
-  #player-title { font-size: var(--fs-xs); }
+  #zone-mid { gap: 8px; flex-wrap: wrap; justify-content: center; padding: 4px 0; }
 
-  /* Pcard left-bar for mobile profiles */
-  #pcard-1m::before { background: #4488ff; box-shadow: 0 0 8px #4488ff; }
-  #pcard-2m::before { background: #ff4455; box-shadow: 0 0 8px #ff4455; }
+  /* Back button in sidebar — hide; we use sticky bottom bar instead */
+  #bottom-area { display: none; }
+
+  /* Log panel — show below board */
+  #log-panel { height: auto !important; min-height: 0; padding-bottom: 72px; }
+  #log-entries { max-height: none; overflow: visible; }
+  .mini-log-line { padding: 10px 14px; font-size: 13px; } /* bigger tap targets */
+
+  /* Unseen overlay */
+  .uo-players { flex-direction: column; gap: 16px; padding: 16px; }
+  .uo-btn-row { flex-direction: column; align-items: stretch; }
+  #right-panel { border-left: none; padding-bottom: 0; }
+
+  /* ── Sticky bottom nav bar (replaces sidebar nav on mobile) ── */
+  #rv-bottom-nav {
+    display: flex !important;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 60;
+    background: rgba(10,15,30,.97);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  #rv-bottom-nav a,
+  #rv-bottom-nav button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 10px 4px 12px;
+    background: none; border: none; border-right: 1px solid var(--border);
+    color: #4a6080; font-family: 'Share Tech Mono', monospace; font-size: 9px;
+    letter-spacing: 1px; text-decoration: none; cursor: pointer; gap: 3px;
+    transition: color .15s, background .15s;
+  }
+  #rv-bottom-nav a:last-child, #rv-bottom-nav button:last-child { border-right: none; }
+  #rv-bottom-nav a:hover, #rv-bottom-nav button:hover,
+  #rv-bottom-nav a:active, #rv-bottom-nav button:active {
+    color: var(--bright); background: rgba(255,255,255,.04);
+  }
+  #rv-bottom-nav .bnav-icon { font-size: 18px; line-height: 1; }
+  #rv-bottom-nav button:disabled { opacity: .2; pointer-events: none; }
+  #rv-bottom-nav #bnav-turn {
+    flex: 1.5; font-family: 'Orbitron', sans-serif; font-size: 10px;
+    color: var(--bright); letter-spacing: 1px; pointer-events: none; cursor: default;
+  }
+  /* Hide the desktop nav section's buttons on mobile (keep for keyboard only) */
+  #nav-section { display: none; }
+  /* Collapse review-top on mobile to just a thin title bar */
+  #review-top { padding: 8px 14px; background: none; border-bottom: none; }
+  #review-title { font-size: 11px; color: #3a5060; }
 }
 
 @media (min-width: 801px) {
   html, body { height: 100%; overflow: hidden; }
-  #mobile-nav { display: none !important; }
-  #mobile-profiles { display: none !important; }
-  #mobile-logchat { display: none !important; }
+  #rv-mobile-top { display: none !important; }
 }
 
 
@@ -1027,6 +971,12 @@ body {
 <div id="loading">
   <div class="spinner"></div>
   <div id="loading-msg">LOADING GAME…</div>
+</div>
+
+<!-- Mobile sticky top bar (hidden on desktop) -->
+<div id="rv-mobile-top" style="display:none">
+  <a href="javascript:history.back()">← BACK</a>
+  <div id="rv-mobile-title">⬡ REVIEW</div>
 </div>
 
 <!-- LEFT: Sidebar with nav + bank -->
@@ -2497,5 +2447,67 @@ function _initArrows() {
   </div>
 </div>
 
+<!-- Mobile bottom nav bar (hidden on desktop) -->
+<div id="rv-bottom-nav" style="display:none">
+  <a href="javascript:history.back()">
+    <span class="bnav-icon">←</span>
+    <span>BACK</span>
+  </a>
+  <button id="bnav-first" title="Go to start" disabled>
+    <span class="bnav-icon">⏮</span>
+    <span>START</span>
+  </button>
+  <button id="bnav-prev" title="Previous turn" disabled>
+    <span class="bnav-icon">◀</span>
+    <span>PREV</span>
+  </button>
+  <div id="bnav-turn">— / —</div>
+  <button id="bnav-next" title="Next turn">
+    <span class="bnav-icon">▶</span>
+    <span>NEXT</span>
+  </button>
+  <button id="bnav-last" title="Go to end">
+    <span class="bnav-icon">⏭</span>
+    <span>END</span>
+  </button>
+</div>
+
+<script>
+// Wire bottom nav buttons to the same navigation functions as desktop
+(function() {
+  function syncBottomNav() {
+    const ind = document.getElementById('turn-indicator');
+    if (ind) document.getElementById('bnav-turn').textContent = ind.textContent;
+    ['first','prev','next','last'].forEach(k => {
+      const src = document.getElementById(`nav-${k}`);
+      const dst = document.getElementById(`bnav-${k}`);
+      if (src && dst) dst.disabled = src.disabled;
+    });
+  }
+  // Delegate clicks to the desktop buttons
+  ['first','prev','next','last'].forEach(k => {
+    const btn = document.getElementById(`bnav-${k}`);
+    if (btn) btn.addEventListener('click', () => {
+      document.getElementById(`nav-${k}`)?.click();
+      setTimeout(syncBottomNav, 50);
+    });
+  });
+  // Sync turn indicator periodically
+  const origIndicator = document.getElementById('turn-indicator');
+  if (origIndicator) {
+    const obs = new MutationObserver(syncBottomNav);
+    obs.observe(origIndicator, { childList: true, characterData: true, subtree: true });
+  }
+  // Also sync on nav button state changes
+  ['first','prev','next','last'].forEach(k => {
+    const src = document.getElementById(`nav-${k}`);
+    if (src) {
+      const obs = new MutationObserver(syncBottomNav);
+      obs.observe(src, { attributes: true });
+    }
+  });
+  syncBottomNav();
+})();
+</script>
 </body>
 </html>
