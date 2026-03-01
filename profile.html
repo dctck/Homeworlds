@@ -35,7 +35,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 
 .profile-info{flex:1;min-width:0}
 /* Name row */
-.name-display{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:700;color:var(--bright);letter-spacing:2px;word-break:break-all}
+.name-display{font-family:'Orbitron',sans-serif;font-size:20px; width: 100%; text-align: left; font-weight:700;color:var(--bright);letter-spacing:2px;word-break:break-all}
 .name-edit-row{display:none;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .name-edit-row.show{display:flex}
 .form-input{padding:9px 12px;background:rgba(255,255,255,.04);border:1px solid #3a5080;border-radius:4px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:14px;outline:none;flex:1;min-width:0;transition:border-color .2s;letter-spacing:1px}
@@ -80,7 +80,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
   .profile-card { flex-direction: column; align-items: center; gap: 16px; padding: 20px 16px; text-align: center; }
   .big-avatar { width: 72px; height: 72px; font-size: 24px; }
   .profile-info { min-width: 0; width: 100%; }
-  .name-display { font-size: 16px; letter-spacing: 1px; }
+  .name-display { font-size: 16px; letter-spacing: 1px; text-align: center; }
   .profile-email { margin: 4px 0 8px; font-size: 11px; }
   .tier-display { padding: 8px 12px; justify-content: center; }
   .star-count-row { justify-content: center; }
@@ -181,7 +181,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
   <div class="profile-card">
     <!-- Avatar -->
     <div class="avatar-wrap">
-      <div class="big-avatar" id="big-avatar" title="Click to change avatar"></div>
+      <div class="big-avatar" id="big-avatar" title=" avatar"></div>
       <div class="avatar-hint" id="avatar-hint">CLICK TO CHANGE</div>
       <input type="file" id="avatar-file-input" accept="image/*">
     </div>
