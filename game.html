@@ -3935,38 +3935,23 @@ function showReportDialog(player) {
                  ]},
   };
 
-  let _ppNpTarget = null;
-  function _ppCloseNp() { const p=document.getElementById('pp-numpad'); if(p)p.remove(); _ppNpTarget=null; }
-  function _ppOpenNp(inp) {
-    _ppCloseNp(); _ppNpTarget = inp;
-    const pad = document.createElement('div'); pad.id='pp-numpad';
-    pad.style.cssText='position:absolute;z-index:9999;background:#0a0f1e;border:1px solid #2a3850;border-radius:8px;padding:10px;box-shadow:0 8px 28px rgba(0,0,0,.9);min-width:168px;';
-    pad.innerHTML=`<div id="pp-np-disp" style="font-family:Orbitron,sans-serif;font-size:18px;font-weight:700;color:#ddeeff;text-align:center;padding:6px;background:rgba(0,0,0,.4);border-radius:4px;margin-bottom:8px;letter-spacing:2px">${inp.value}</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">${[7,8,9,4,5,6,1,2,3].map(n=>`<button data-n="${n}" style="padding:9px;background:rgba(255,255,255,.04);border:1px solid #1c2840;border-radius:4px;color:#a8c0e0;font-family:Share Tech Mono,monospace;font-size:13px;cursor:pointer">${n}</button>`).join('')}<button data-n="0" style="grid-column:1/3;padding:9px;background:rgba(255,255,255,.04);border:1px solid #1c2840;border-radius:4px;color:#a8c0e0;font-family:Share Tech Mono,monospace;font-size:13px;cursor:pointer">0</button><button id="pp-np-del" style="padding:9px;background:rgba(255,68,85,.06);border:1px solid rgba(255,68,85,.2);border-radius:4px;color:#cc4455;cursor:pointer">⌫</button><button id="pp-np-ok" style="grid-column:1/-1;margin-top:3px;padding:8px;background:rgba(34,221,119,.1);border:1px solid rgba(34,221,119,.4);border-radius:4px;color:#22dd77;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:2px;cursor:pointer">OK</button></div>`;
-    const modalBox = inp.closest('div[style*="border-radius:12px"]') || document.body;
-    modalBox.style.position = 'relative';
-    const mRect = modalBox.getBoundingClientRect(); const iRect = inp.getBoundingClientRect();
-    pad.style.top  = (iRect.bottom - mRect.top + 4) + 'px';
-    pad.style.left = (iRect.left  - mRect.left) + 'px';
-    modalBox.appendChild(pad);
-    let cur = inp.value.replace(/^0+/,'') || '';
-    const sync = () => { document.getElementById('pp-np-disp').textContent=cur||'0'; _ppNpTarget.value=cur||'0'; };
-    pad.querySelectorAll('[data-n]').forEach(b => b.onclick=()=>{ if(cur.length<4){cur=(cur+b.dataset.n).replace(/^0+/,'')||'0';sync();} });
-    pad.querySelector('#pp-np-del').onclick = ()=>{ cur=cur.slice(0,-1); sync(); };
-    pad.querySelector('#pp-np-ok').onclick  = ()=>_ppCloseNp();
-  }
   function renderTCInputs(mode) {
-    _ppCloseNp();
     const cfg = TC_MODES[mode];
     document.getElementById('tc-desc').textContent = cfg.desc;
     const inputArea = document.getElementById('tc-inputs');
     inputArea.innerHTML = '';
     cfg.inputs.forEach(inp => {
       const wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex;align-items:center;gap:6px;position:relative;';
+      wrap.style.cssText = 'display:flex;align-items:center;gap:6px;';
+      // Native number input — mobile shows numeric keypad, desktop allows typing
       const inpEl = document.createElement('input');
-      inpEl.id=inp.id; inpEl.type='text'; inpEl.inputMode='none'; inpEl.readOnly=true; inpEl.value=String(inp.default);
-      inpEl.style.cssText='width:64px;padding:6px 8px;background:#060912;border:1px solid #2a4070;border-radius:4px;color:#ddeeff;font-family:Share Tech Mono,monospace;font-size:13px;outline:none;cursor:pointer;text-align:center;';
-      inpEl.onclick = () => _ppOpenNp(inpEl);
+      inpEl.id=inp.id; inpEl.type='number'; inpEl.inputMode='numeric';
+      inpEl.min='1'; inpEl.max='999'; inpEl.step='1'; inpEl.value=String(inp.default);
+      inpEl.style.cssText='width:64px;padding:6px 8px;background:#060912;border:1px solid #2a4070;border-radius:4px;color:#ddeeff;font-family:Share Tech Mono,monospace;font-size:13px;outline:none;text-align:center;';
+      inpEl.addEventListener('focus', () => inpEl.select());
+      inpEl.addEventListener('keydown', e => { if(['.','e','E','+','-'].includes(e.key)) e.preventDefault(); });
+      inpEl.addEventListener('change', () => { const v=parseInt(inpEl.value); inpEl.value=isNaN(v)||v<1?1:v; });
+      // Unit toggle
       const unitWrap = document.createElement('div');
       unitWrap.style.cssText='display:flex;border:1px solid #1c2840;border-radius:3px;overflow:hidden;';
       ['min','sec'].forEach((u,i) => {
@@ -3999,8 +3984,11 @@ function showReportDialog(player) {
 
     function _ppReadMs(fId) {
       const val = parseInt(document.getElementById(fId)?.value)||0;
-      const ub = document.getElementById(fId)?.parentElement?.querySelector('[style*="rgba(68,136,255"]');
-      return ub?.dataset.unit==='sec' ? val*1000 : val*60*1000;
+      // Find the active unit button (has blue background style)
+      const unitBtns = document.getElementById(fId)?.parentElement?.querySelectorAll('button[data-unit]');
+      let unit = 'min';
+      unitBtns?.forEach(b => { if(b.style.background && b.style.background.includes('68,136,255')) unit = b.dataset.unit; });
+      return unit==='sec' ? val*1000 : val*60*1000;
     }
     let timeMs = 0, tcTurnMs = 0;
     if (mode==='blitz')  timeMs  = _ppReadMs('tc-blitz-val')||10*60*1000;
@@ -4403,6 +4391,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       // Timer correction: only for timed games — unlimited has timers[p]=0 which
       // would instantly trigger game-over if we applied this check unconditionally.
       const _hasTimer = PLAYER_CONFIG.timeMs > 0 || PLAYER_CONFIG.tcTurnMs > 0;
+      let _timeoutOnRejoin = false;
       if (g.phase === 'PLAY' && g.timers && saved.ts && _hasTimer) {
         const elapsed = Date.now() - saved.ts;
         const p = g.currentPlayer;
@@ -4410,9 +4399,10 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         g.timers[p] = Math.max(0, g.timers[p] - elapsed);
         console.log(`[HW TIMER] Rejoin correction for player ${p}: ${before}ms → ${g.timers[p]}ms (elapsed ${elapsed}ms)`);
         if (g.timers[p] <= 0) {
-          console.warn(`[HW TIMER] Player ${p} timed out while offline — triggering win`);
+          console.warn(`[HW TIMER] Player ${p} timed out while offline — writing archived state now`);
           g.phase  = 'OVER';
           g.winner = p === 1 ? 2 : 1;
+          _timeoutOnRejoin = true;
         }
       } else if (g.phase === 'PLAY') {
         console.log(`[HW TIMER] No correction needed (${_hasTimer ? 'no saved.ts' : 'unlimited game'})`);
@@ -4427,6 +4417,34 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       window.render();
 
       if (g.phase === 'OVER') {
+        // If timeout was detected on rejoin, write the archived state to Firebase NOW
+        // before showing the win screen. This ensures data is saved even if the player
+        // navigates away immediately — the async gameEnded chain might not finish otherwise.
+        if (_timeoutOnRejoin) {
+          console.log('[HW TIMER] Writing timeout result to Firebase before showing win screen…');
+          try {
+            await saveState(); // write OVER game state
+            const existingArchive = await get(ref(db, `rooms/${ROOM_ID}/archivedGameId`));
+            if (!existingArchive.val()) {
+              await update(ref(db, `rooms/${ROOM_ID}`), {
+                status:     'archived',
+                winner:      g.winner,
+                winnerName:  PLAYER_CONFIG?.names[g.winner] || `Player ${g.winner}`,
+                forfeitedBy: null,
+              });
+              console.log('[HW TIMER] ✓ Timeout archived — room removed from lobby');
+            } else {
+              console.log('[HW TIMER] Already archived by other client — skipping');
+            }
+            // Mark MY unseen result
+            const _tUid = window._ONLINE?.user?.uid;
+            if (_tUid) {
+              await update(ref(db, `players/${_tUid}`), { hasUnseenResult: true });
+            }
+          } catch(_te) {
+            console.error('[HW TIMER] Timeout archive failed:', _te.message);
+          }
+        }
         window.showWin(g.winner);
       } else if (g.currentPlayer === MY_SLOT) {
         window.render();
@@ -4539,10 +4557,16 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         console.log(`[HW RECV] Received OVER state from Firebase — winner=${incoming.winner} log.length=${incoming.log?.length ?? 0}`);
         window.G = incoming;
         window.render();
+        // Mark MY hasUnseenResult when I receive the OVER state from opponent
+        // (the gameEnded handler only fires on the client that triggers the win)
+        try {
+          const _rUid = window._ONLINE?.user?.uid;
+          if (_rUid) update(ref(db, `players/${_rUid}`), { hasUnseenResult: true }).catch(()=>{});
+        } catch(_re) {}
         const alreadyShown = document.getElementById('win-overlay')?.classList.contains('show');
         if (!alreadyShown) {
           if (incoming.winner === 0) {
-            window.triggerDraw(); // draw: no ELO change
+            window.triggerDraw();
           } else {
             window.triggerWin(incoming.winner);
           }
