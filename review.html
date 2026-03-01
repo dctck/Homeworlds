@@ -1083,12 +1083,12 @@ body {
     </defs>
   </svg>
   <div class="zone-hw-area">
-    <div class="zone-label" style="text-align:center">— PLAYER 2 HOMEWORLD —</div>
+    <div class="zone-label" style="text-align:center" data-zone="2">— PLAYER 2 HOMEWORLD —</div>
     <div id="zone-p2"></div>
   </div>
   <div id="zone-mid"></div>
   <div class="zone-hw-area">
-    <div class="zone-label" style="text-align:center">— PLAYER 1 HOMEWORLD —</div>
+    <div class="zone-label" style="text-align:center" data-zone="1">— PLAYER 1 HOMEWORLD —</div>
     <div id="zone-p1"></div>
   </div>
 </div>
@@ -2150,8 +2150,17 @@ function init(record) {
 
   if (!snapshots.length) { setLoading('No move data in this game record.'); return; }
 
+  // Update homeworld zone labels with real player names
+  const _zl1 = document.querySelector('[data-zone="1"]');
+  const _zl2 = document.querySelector('[data-zone="2"]');
+  if (_zl1) _zl1.textContent = `— ${(players[1] || 'Player 1').toUpperCase()} HOMEWORLD —`;
+  if (_zl2) _zl2.textContent = `— ${(players[2] || 'Player 2').toUpperCase()} HOMEWORLD —`;
+
   // Player cards — include avatar image if stored in record.players
-  const rawPlayers = Array.isArray(record.players) ? record.players : ['', null, null];
+  // record.players may be array OR object keyed by "1"/"2" (new CF format)
+  const rawPlayers = Array.isArray(record.players)
+    ? record.players
+    : ['', record.players?.[1] || null, record.players?.[2] || null];
   const ps = document.getElementById('players-section');
   [1, 2].forEach(p => {
     const isW = p === winner;
@@ -2199,7 +2208,9 @@ function init(record) {
 
     // Build player cards
     const uo_ps = document.getElementById('uo-players');
-    const rawPlayersUO = Array.isArray(record.players) ? record.players : ['', null, null];
+    const rawPlayersUO = Array.isArray(record.players)
+      ? record.players
+      : ['', record.players?.[1] || null, record.players?.[2] || null];
     [1, 2].forEach(p => {
       const isW  = p === winner;
       const name = players[p] || `Player ${p}`;

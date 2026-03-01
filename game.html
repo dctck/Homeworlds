@@ -2810,9 +2810,12 @@ function renderSidebar() {
 
   if (resetBtn) resetBtn.disabled = !(G.history || (G._pendingActions && G._pendingActions.length > 0));
 
-  // Show/hide draw button based on phase
+  // Draw button: only show on your own turn (draw = spending your turn)
   const _drawBtn = document.getElementById('btn-draw');
-  if (_drawBtn) { _drawBtn.style.display = G.phase==='PLAY' ? 'block' : 'none'; }
+  if (_drawBtn) {
+    const _isMyTurnForDraw = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
+    _drawBtn.style.display = (G.phase === 'PLAY' && _isMyTurnForDraw) ? 'block' : 'none';
+  }
 
   // ---- SETUP PHASE ----
   if (G.phase === 'SETUP') {
@@ -4857,14 +4860,25 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const drawBtn = document.getElementById('btn-draw');
     if (_drawOfferSent || _drawUsedByMe) return;
     _drawOfferSent = true; _drawUsedByMe = true;
-    if (drawBtn) { drawBtn.textContent = '≈ Offered…'; drawBtn.classList.add('pending'); drawBtn.disabled = true; }
-    // Log the draw offer as a game action so it appears in review
+    if (drawBtn) { drawBtn.style.display = 'none'; } // hide — it's now your turn-ending action
+    // Log draw ? — this IS the turn action (like skip). Commit and save.
     const offererName = window.PLAYER_CONFIG?.names[MY_SLOT] || `Player ${MY_SLOT}`;
     window.logAction(window.Note.drawOffer());
     window.commitTurnLog();
     if (typeof window.renderLog === 'function') window.renderLog();
-    if (typeof window.saveState === 'function') window.saveState().catch(e => console.error('[HW SAVE] draw offer save failed:', e));
+    // Flip turn to opponent (draw offer = end of turn)
+    window.G.currentPlayer = OPP_SLOT;
+    window.G.turnUsed = false;
+    window.G.sacrificePool = { color: null, count: 0 };
+    window.G.selectedShipId = null;
+    window.G.interaction = 'IDLE';
+    window.G._turnStart = null;
+    window.G._turnStart = JSON.stringify(window.G);
+    if (typeof window.saveState === 'function') await window.saveState().catch(e => console.error('[HW SAVE] draw offer save failed:', e));
+    // Signal opponent via Firebase (separate from gJson so it can pop the dialog)
     await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), { from: MY_SLOT, fromName: offererName, ts: Date.now() });
+    showWaiting('Waiting for opponent to respond to draw…');
+    console.log('[HW DRAW] Offer sent — turn passed to opponent');
   };
 
   // Show draw offer dialog (called both from onValue and on rejoin)
@@ -4888,21 +4902,34 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     document.body.appendChild(dlg);
     document.getElementById('_drawAccept').onclick = async () => {
       dlg.remove();
-      const accepterName = window.PLAYER_CONFIG?.names[MY_SLOT] || `Player ${MY_SLOT}`;
+      // Accept = the opponent's turn action — log, commit, end game
       window.logAction(window.Note.drawAccept());
       window.commitTurnLog();
       if (typeof window.renderLog === 'function') window.renderLog();
       window.G.phase = 'OVER'; window.G.winner = 0;
       await window.saveState();
-      window.triggerDraw();
       await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), null);
+      window.triggerDraw();
+      console.log('[HW DRAW] Accepted — game ends as draw');
     };
     document.getElementById('_drawDecline').onclick = async () => {
       dlg.remove();
+      // Decline = the opponent's turn action — log, commit, end their turn
       window.logAction(window.Note.drawDecline());
       window.commitTurnLog();
       if (typeof window.renderLog === 'function') window.renderLog();
+      // Flip back to the draw offerer (their turn again after the decline)
+      const _offererSlot = offer.from;
+      window.G.currentPlayer = _offererSlot;
+      window.G.turnUsed = false;
+      window.G.sacrificePool = { color: null, count: 0 };
+      window.G.selectedShipId = null;
+      window.G.interaction = 'IDLE';
+      window.G._turnStart = null;
+      window.G._turnStart = JSON.stringify(window.G);
+      await window.saveState();
       await set(ref(db, `rooms/${ROOM_ID}/drawOffer`), null);
+      console.log('[HW DRAW] Declined — turn returned to offerer (slot', _offererSlot, ')');
     };
   }
 
@@ -4911,12 +4938,12 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     showDrawOfferDialog(snap.val());
   });
 
-  // If draw offer is cleared (declined), re-enable the draw button for proposer
+  // Draw offer cleared (declined or accepted) — reset sent flag
+  // Button stays hidden — draw was already used as a turn action
   onValue(ref(db, `rooms/${ROOM_ID}/drawOffer`), snap => {
     if (snap.val() === null && _drawOfferSent) {
       _drawOfferSent = false;
-      const drawBtn = document.getElementById('btn-draw');
-      if (drawBtn) { drawBtn.textContent = '≈ Draw Used'; drawBtn.classList.remove('pending'); drawBtn.disabled = true; drawBtn.style.opacity = '0.3'; }
+      // Button will naturally re-hide via render() since it's not our turn now
     }
   });
 
