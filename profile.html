@@ -288,11 +288,13 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 import { initializeApp }      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getAuth,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getDatabase,ref,get,set,update,onValue } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getDatabase(app);
+const fns  = getFunctions(app, 'us-central1');
 
 // ── Tier system ──────────────────────────────────────────────
 const TIERS=[
@@ -507,8 +509,8 @@ function initGmPanel(uid) {
       '⚠️  GAME MASTER RESET\n\n' +
       'Permanently deletes:\n' +
       '  • All rooms\n  • All gamesPlayed records\n' +
-      '  • All player stats, ELO, stars, recentGames\n\n' +
-      'Player accounts are kept.\n\nType RESET in the next prompt to confirm.'
+      '  • ALL player stats, ELO, stars, match history\n\n' +
+      'Player accounts (login) are kept.\n\nType RESET in the next prompt to confirm.'
     );
     if (!confirmed) return;
     if (prompt('Type RESET to confirm:') !== 'RESET') { alert('Cancelled.'); return; }
@@ -516,36 +518,19 @@ function initGmPanel(uid) {
     const btn = document.getElementById('btn-gm-reset');
     const status = document.getElementById('gm-status');
     btn.disabled = true; btn.textContent = '…';
-    status.style.display = 'block'; status.textContent = '1/3 Deleting rooms…';
+    status.style.display = 'block'; status.textContent = 'Calling server reset…';
 
     try {
-      await set(ref(db, 'rooms'), null);
-      status.textContent = '2/3 Deleting game records…';
-      await set(ref(db, 'gamesPlayed'), null);
-      status.textContent = '3/3 Resetting player stats…';
-
-      const allSnap = await get(ref(db, 'players'));
-      if (allSnap.exists()) {
-        const updates = {};
-        Object.keys(allSnap.val()).forEach(puid => {
-          updates[`players/${puid}/elo`]             = 1200;
-          updates[`players/${puid}/stars`]           = 0;
-          updates[`players/${puid}/wins`]            = 0;
-          updates[`players/${puid}/losses`]          = 0;
-          updates[`players/${puid}/draws`]           = 0;
-          updates[`players/${puid}/recentGames`]     = null;
-          updates[`players/${puid}/hasUnseenResult`] = null;
-        });
-        await update(ref(db), updates);
-      }
-
-      status.textContent = '✓ Reset complete — reloading…';
+      // Cloud Function uses admin SDK — bypasses security rules, resets ALL players
+      const gmReset = httpsCallable(fns, 'gmReset');
+      const result  = await gmReset();
+      console.log('[GM] Reset complete:', result.data?.log?.join(', '));
+      status.textContent = '✓ ' + (result.data?.log?.join(' · ') || 'Reset complete') + ' — reloading…';
       btn.textContent = '✓ DONE';
-      console.log('[GM] Full reset complete');
-      setTimeout(() => location.reload(), 1500);
+      setTimeout(() => location.reload(), 1800);
     } catch(e) {
       console.error('[GM] Reset failed:', e);
-      status.textContent = '✗ Error: ' + e.message;
+      status.textContent = '✗ Error: ' + (e.message || String(e));
       btn.disabled = false; btn.textContent = 'RESET';
     }
   };
