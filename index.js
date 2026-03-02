@@ -337,17 +337,17 @@ exports.sendVerifCode = onCall(
     // Send email
     const transport = makeTransport();
     await transport.sendMail({
-      from:    `"Homeworlds Duel" <${process.env.EMAIL_USER}>`,
+      from:    `"Homeworlds Arena" <${process.env.EMAIL_USER}>`,
       to:      email,
-      subject: 'Your Homeworlds Duel verification code',
+      subject: 'Homeworlds Arena verification code',
       text:    `Your verification code is: ${code}\n\nThis code expires in 15 minutes. Do not share it with anyone.`,
       html:    `
         <div style="background:#060912;color:#a8c0e0;font-family:monospace;padding:32px;max-width:480px;border:1px solid #1c2840;border-radius:8px">
-          <div style="font-family:sans-serif;font-size:13px;letter-spacing:3px;color:#4a6080;margin-bottom:8px">HOMEWORLDS DUEL</div>
+          <div style="font-family:sans-serif;font-size:13px;letter-spacing:3px;color:#4a6080;margin-bottom:8px">HOMEWORLDS ARENA</div>
           <h2 style="color:#ddeeff;font-size:28px;letter-spacing:4px;margin:0 0 24px">YOUR CODE</h2>
           <div style="font-size:42px;font-weight:bold;letter-spacing:12px;color:#4488ff;background:#0c1120;padding:20px;border-radius:6px;text-align:center;border:1px solid #1c2840">${code}</div>
           <p style="margin-top:20px;font-size:13px;color:#4a6080;line-height:1.7">
-            Enter this code in Homeworlds Duel to verify your account.<br>
+            Enter this code in Homeworlds Arena to verify your account.<br>
             Expires in <strong style="color:#ddeeff">15 minutes</strong>.<br>
             Do not share this code with anyone.
           </p>
