@@ -800,41 +800,48 @@ body::before {
 }
 
 /* ============================================================
-   NAV BAR — always visible, spans full width
+   NAV BAR — identical to lobby header
    ============================================================ */
 #mobile-nav {
   display: flex; grid-area: nav;
   align-items: center; justify-content: space-between;
-  padding: 0 16px; height: 48px;
-  background: rgba(6,9,18,0.95);
+  padding: 0 20px; height: 48px;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0; position: relative; z-index: 10;
-  backdrop-filter: blur(10px);
 }
-#mobile-nav-logo {
+.nav-logo {
   font-family: 'Orbitron', sans-serif; font-weight: 900;
-  font-size: 13px; letter-spacing: 3px; color: var(--bright);
+  font-size: 14px; letter-spacing: 3px; color: var(--bright);
   text-decoration: none;
 }
-#mobile-nav-logo span { color: #2266ff; }
-#mobile-nav-pill {
+.nav-logo span { color: var(--p1); }
+.player-chip {
   display: flex; align-items: center; gap: 8px;
   padding: 4px 10px 4px 4px;
   background: rgba(255,255,255,.03);
   border: 1px solid var(--border);
   border-radius: 20px; cursor: pointer; transition: border-color .2s;
+  position: relative;
 }
-#mobile-nav-pill:hover { border-color: #3a5080; }
-#mobile-nav-avatar {
+.player-chip:hover { border-color: #3a5080; }
+.nav-avatar {
   width: 28px; height: 28px; border-radius: 50%;
-  background: rgba(68,136,255,.2); border: 1px solid #2266ff;
+  background: rgba(68,136,255,.2); border: 1px solid var(--p1);
   display: flex; align-items: center; justify-content: center;
   font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700;
-  color: #4488ff; overflow: hidden; flex-shrink: 0;
+  color: var(--p1); overflow: hidden; flex-shrink: 0;
 }
-#mobile-nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
-#mobile-nav-name { font-size: 11px; color: var(--bright); letter-spacing: 1px; }
-#mobile-nav-tier { font-size: 9px; letter-spacing: 1px; }
+.nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.nav-pname { font-size: 12px; color: var(--bright); letter-spacing: 1px; }
+.nav-ptier { font-size: 11px; letter-spacing: 1px; }
+.nav-result-dot {
+  position: absolute; top: -3px; right: -3px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #ff3344; border: 2px solid var(--bg);
+  display: none; animation: pulse-dot 1.4s ease-in-out infinite;
+}
+@keyframes pulse-dot { 0%,100%{box-shadow:0 0 0 0 rgba(255,51,68,.6)} 50%{box-shadow:0 0 0 5px rgba(255,51,68,0)} }
 
 /* ============================================================
    MOBILE LOG/CHAT TABS — hidden on desktop
@@ -987,6 +994,7 @@ body::before {
   /* Misc compact */
   .pcard-avatar { width: 34px; height: 34px; }
   .pcard-report { font-size: 13px; }
+  .nav-logo { font-size: 12px; letter-spacing: 2px; }
   .zone-label  { font-size: var(--fs-xs); letter-spacing: 2px; margin-bottom: 4px; }
   .zone-hw-area { padding: 2px 0 6px; }
   .system-card { padding: 8px 10px; }
@@ -1007,15 +1015,16 @@ body::before {
 </head>
 <body>
 
-<!-- MOBILE NAV BAR (hidden on desktop) -->
+<!-- NAV BAR (all screen sizes) -->
 <nav id="mobile-nav">
-  <a id="mobile-nav-logo" href="lobby.html">HOME<span>W</span>ORLDS</a>
-  <div id="mobile-nav-pill" onclick="location.href='profile.html'">
-    <div id="mobile-nav-avatar"></div>
+  <a href="lobby.html" class="nav-logo">HOME<span>W</span>ORLDS DUEL</a>
+  <div class="player-chip" id="nav-chip" onclick="location.href='profile.html'">
+    <div class="nav-avatar" id="nav-avatar"></div>
     <div>
-      <div id="mobile-nav-name">—</div>
-      <div id="mobile-nav-tier"></div>
+      <div class="nav-pname" id="nav-pname">—</div>
+      <div class="nav-ptier" id="nav-ptier"></div>
     </div>
+    <div class="nav-result-dot" id="nav-result-dot" title="New game result!"></div>
   </div>
 </nav>
 
@@ -3904,18 +3913,20 @@ function formatTimer(ms) {
 
 
 function populateMobileNavPill() {
-  // In online mode: fill pill from PLAYER_CONFIG (my slot)
   const mySlot = window._ONLINE?.mySlot || 0;
-  const name = mySlot ? (window.PLAYER_CONFIG?.names[mySlot] || '') : '';
-  const nameEl = document.getElementById('mobile-nav-name');
-  const tierEl = document.getElementById('mobile-nav-tier');
-  const avatarEl = document.getElementById('mobile-nav-avatar');
+  const name   = mySlot ? (window.PLAYER_CONFIG?.names[mySlot] || '') : '';
+  const nameEl   = document.getElementById('nav-pname');
+  const tierEl   = document.getElementById('nav-ptier');
+  const avatarEl = document.getElementById('nav-avatar');
   if (!nameEl) return;
   if (name) {
     nameEl.textContent = name;
-    if (avatarEl) avatarEl.textContent = name.slice(0,2).toUpperCase();
-    // In online mode, try to get tier from room data
     const stars = window.PLAYER_CONFIG?.stars?.[mySlot] || 0;
+    const av    = window.PLAYER_CONFIG?.avatars?.[mySlot] || '';
+    if (avatarEl) {
+      if (av) avatarEl.innerHTML = `<img src="${av}" alt="">`;
+      else    avatarEl.textContent = name.slice(0,2).toUpperCase();
+    }
     if (tierEl && typeof getTier === 'function') {
       const t = getTier(stars);
       tierEl.textContent = t.name.toUpperCase();
