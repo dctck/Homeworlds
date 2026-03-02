@@ -24,8 +24,9 @@ body {
   /* Desktop: 3-col grid — bank sits above sidebar in col 1 */
   display: grid;
   grid-template-columns: 264px 1fr 264px;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: 48px auto 1fr auto;
   grid-template-areas:
+    "nav   nav   nav  "
     "bank  board right"
     "side  board right"
     "btns  board right";
@@ -276,13 +277,14 @@ body::before {
 }
 .pcard-gear:hover { color: #7090b0; }
 .pcard-presence {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #2a3850; border: 1px solid #1c2840;
-  flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s;
-  margin-right: 2px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 3px; flex-shrink: 0;
+  border: 1px solid transparent; transition: color 0.3s, border-color 0.3s;
+  color: #2a3850;
 }
-.pcard-presence.online  { background: #22dd77; box-shadow: 0 0 5px #22dd7799; border-color: #22dd77; }
-.pcard-presence.offline { background: #2a3850; }
+.pcard-presence.online  { color: #22dd77; border-color: rgba(34,221,119,0.4); }
+.pcard-presence.offline { color: #cc3344; border-color: rgba(204,51,68,0.3); }
 .pcard-forfeit {
   background: none; border: none; cursor: pointer; color: #5a3040;
   font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s;
@@ -317,11 +319,12 @@ body::before {
 #chat-toggle.open { transform: rotate(180deg); }
 /* ── Chat new-message toast (mobile top alert) ── */
 #chat-toast {
-  display: none; position: fixed; top: 54px; left: 50%; transform: translateX(-50%);
-  z-index: 300; background: rgba(8,12,28,0.97); border: 1px solid rgba(68,136,255,0.5);
-  border-radius: 22px; padding: 8px 18px 8px 12px;
+  display: none; position: fixed; top: 0; left: 0; right: 0; height: 48px;
+  z-index: 400;
+  background: rgba(6,9,18,0.97); border-bottom: 1px solid rgba(68,136,255,0.4);
+  display: none; align-items: center; justify-content: center; gap: 10px;
   font-family: 'Share Tech Mono', monospace; font-size: 12px; color: #88bbff;
-  letter-spacing: 0.5px; white-space: nowrap; pointer-events: none;
+  letter-spacing: 0.5px; pointer-events: none;
   box-shadow: 0 4px 20px rgba(0,0,0,0.7);
   animation: _toast-in 0.25s ease;
 }
@@ -795,10 +798,10 @@ body::before {
 }
 
 /* ============================================================
-   MOBILE NAV BAR — hidden on desktop
+   NAV BAR — always visible, spans full width
    ============================================================ */
-#mobile-nav { display: none; }
-#mobile-nav-pill { display: none; }
+#mobile-nav { display: flex; grid-area: nav; }
+#mobile-nav-pill { display: flex; }
 
 /* ============================================================
    MOBILE LOG/CHAT TABS — hidden on desktop
@@ -1007,7 +1010,6 @@ body::before {
 
 @media (min-width: 801px) {
   html, body { height: 100%; overflow: hidden; }
-  #mobile-nav { display: none !important; }
   #mobile-profiles { display: none !important; }
   #mobile-logchat { display: none !important; }
 }
@@ -1028,7 +1030,7 @@ body::before {
 </nav>
 
 <!-- CHAT TOAST (mobile new message alert) -->
-<div id="chat-toast"><span class="toast-dot"></span><span id="chat-toast-text">New message</span></div>
+<div id="chat-toast"><span id="chat-toast-text">New message</span></div>
 
 <!-- MOBILE PLAYER PROFILES (hidden on desktop) -->
 <div id="mobile-profiles">
@@ -3746,7 +3748,7 @@ window._receiveChatMsg = function _receiveChatMsg(player, text, fromSelf) {
         const sender = PLAYER_CONFIG?.names?.[player] || `Player ${player}`;
         const preview = text.length > 28 ? text.slice(0, 28) + '…' : text;
         toastTxt.textContent = `${sender}: ${preview}`;
-        toast.style.display = 'block';
+        toast.style.display = 'flex';
         clearTimeout(window._toastTimer);
         window._toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 3500);
       }
@@ -3966,15 +3968,18 @@ function renderPlayerCards() {
       gearEl.onclick = (e) => { e.stopPropagation(); showReportDialog(p); };
     }
 
+    // Update avatar — both desktop and mobile cards from one place
+    const _setAvatar = (el, name, av) => {
+      if (!el) return;
+      if (av) el.innerHTML = `<img src="${av}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+      else el.textContent = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+    };
     if (avatarEl) {
       const name = PLAYER_CONFIG.names[p] || `P${p}`;
       const av   = PLAYER_CONFIG.avatars?.[p] || '';
-      if (av) {
-        avatarEl.innerHTML = `<img src="${av}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-      } else {
-        const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-        avatarEl.textContent = initials;
-      }
+      _setAvatar(avatarEl, name, av);
+      // Also sync mobile card avatar so both views always match
+      _setAvatar(document.getElementById(`pcard-avatar-${p}m`), name, av);
     }
     // Update zone homeworld label with real username
     const zoneLabel = document.getElementById(`zone-label-${p}`);
@@ -4751,7 +4756,8 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
         if (!dot) return;
         dot.classList.toggle('online',  online);
         dot.classList.toggle('offline', !online);
-        dot.title = online ? 'Online' : 'Offline';
+        dot.textContent = online ? 'Online' : 'Offline';
+        dot.title = '';
       });
     }
     // Reveal presence dots — desktop + mobile, only in online mode
@@ -5235,7 +5241,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     }
     // Non-blocking: thin banner at top, game remains interactive for arrows/chat
     _waitEl = document.createElement('div');
-    _waitEl.style.cssText = 'position:fixed;top:48px;left:0;right:0;height:32px;background:rgba(6,9,18,0.94);border-bottom:1px solid #1c2840;z-index:89;display:flex;align-items:center;justify-content:center;gap:12px;animation:_waitfade 0.3s ease;pointer-events:none;';
+    _waitEl.style.cssText = 'position:fixed;top:0;left:0;right:0;height:48px;background:rgba(6,9,18,0.96);border-bottom:1px solid #1c2840;z-index:200;display:flex;align-items:center;justify-content:center;gap:12px;animation:_waitfade 0.3s ease;pointer-events:none;';
     _waitEl.innerHTML = `
       <div style="width:16px;height:16px;border:2px solid #1c2840;border-top-color:#2266ff;border-radius:50%;animation:_spin 0.9s linear infinite;flex-shrink:0"></div>
       <span style="font-family:Orbitron,sans-serif;font-size:12px;color:#3a5878;letter-spacing:2px">${msg}</span>`;
