@@ -251,13 +251,21 @@ body::before {
 .pcard-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .pcard-avatar.p1 { border-color: rgba(68,136,255,0.5); color: #4488ff; }
 .pcard-avatar.p2 { border-color: rgba(255,68,85,0.5); color: #ff4455; }
-.pcard-info { flex: 1; min-width: 0; }
+.pcard-info { flex: 1; min-width: 0; overflow: hidden; }
+.pcard-name-row { display: flex; align-items: center; gap: 6px; }
 .pcard-name {
   font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs); font-weight: 700;
   letter-spacing: 1px; color: var(--bright);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.pcard-elo { font-size: var(--fs-xs); color: #506070; margin-top: 2px; }
+.pcard-report {
+  background: none; border: none; cursor: pointer;
+  color: #2a3850; font-size: 13px; padding: 0 2px;
+  line-height: 1; flex-shrink: 0; transition: color 0.15s;
+}
+.pcard-report:hover { color: #cc5544; }
+.pcard-tier-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.pcard-elo { font-size: var(--fs-xs); color: #506070; }
 .pcard-timer-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .pcard-timer {
   font-family: 'Orbitron', sans-serif; font-size: var(--fs-lg); font-weight: 700;
@@ -269,13 +277,7 @@ body::before {
 .pcard-timer.urgent { animation: timer-low 0.7s ease-in-out infinite; }
 @keyframes timer-low { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-/* Gear + forfeit icons on player cards */
-.pcard-gear {
-  background: none; border: none; cursor: pointer; color: #3a5070;
-  font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s;
-  flex-shrink: 0; line-height: 1;
-}
-.pcard-gear:hover { color: #7090b0; }
+/* pcard-gear removed — replaced by pcard-report inline with name */
 .pcard-presence {
   font-family: 'Share Tech Mono', monospace;
   font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
@@ -984,7 +986,7 @@ body::before {
 
   /* Misc compact */
   .pcard-avatar { width: 34px; height: 34px; }
-  .pcard-gear  { font-size: 14px; }
+  .pcard-report { font-size: 13px; }
   .zone-label  { font-size: var(--fs-xs); letter-spacing: 2px; margin-bottom: 4px; }
   .zone-hw-area { padding: 2px 0 6px; }
   .system-card { padding: 8px 10px; }
@@ -1025,24 +1027,32 @@ body::before {
   <div class="player-card" id="pcard-2m">
     <div class="pcard-avatar p2" id="pcard-avatar-2m">P2</div>
     <div class="pcard-info">
-      <div class="pcard-name" id="pcard-name-2m">Player 2</div>
-      <div class="pcard-elo" id="pcard-elo-2m">◆ 1200</div>
+      <div class="pcard-name-row">
+        <div class="pcard-name" id="pcard-name-2m">Player 2</div>
+        <button class="pcard-report" id="pcard-report-2m" style="display:none" onclick="showReportDialog(2)">⚑</button>
+      </div>
+      <div class="pcard-tier-row">
+        <div class="pcard-elo" id="pcard-elo-2m">IRON</div>
+        <div class="pcard-presence offline" id="pcard-presence-2m" style="display:none"></div>
+      </div>
     </div>
     <div class="pcard-timer-wrap">
-      <div class="pcard-presence offline" id="pcard-presence-2m" title="Offline" style="display:none"></div>
-      <span class="pcard-timer" id="timer-display-2m">—</span>
+      <span class="pcard-timer" id="timer-display-2m"></span>
     </div>
-    <button class="pcard-gear" id="pcard-gear-2m" title="Report" onclick="showReportDialog(2)">⚙</button>
   </div>
   <div class="player-card" id="pcard-1m">
     <div class="pcard-avatar p1" id="pcard-avatar-1m">P1</div>
     <div class="pcard-info">
-      <div class="pcard-name" id="pcard-name-1m">Player 1</div>
-      <div class="pcard-elo" id="pcard-elo-1m">◆ 1200</div>
+      <div class="pcard-name-row">
+        <div class="pcard-name" id="pcard-name-1m">Player 1</div>
+      </div>
+      <div class="pcard-tier-row">
+        <div class="pcard-elo" id="pcard-elo-1m">IRON</div>
+        <div class="pcard-presence offline" id="pcard-presence-1m" style="display:none"></div>
+      </div>
     </div>
     <div class="pcard-timer-wrap">
-      <div class="pcard-presence offline" id="pcard-presence-1m" title="Online" style="display:none"></div>
-      <span class="pcard-timer" id="timer-display-1m">—</span>
+      <span class="pcard-timer" id="timer-display-1m"></span>
     </div>
   </div>
 </div>
@@ -1128,29 +1138,37 @@ body::before {
 
 <!-- RIGHT PANEL -->
 <div id="right-panel">
-  <!-- P2 at top (opponent) — gear icon for report -->
+  <!-- P2 (opponent) -->
   <div class="player-card" id="pcard-2">
     <div class="pcard-avatar p2" id="pcard-avatar-2">P2</div>
     <div class="pcard-info">
-      <div class="pcard-name" id="pcard-name-2">Player 2</div>
-      <div class="pcard-elo" id="pcard-elo-2">◆ 1200</div>
+      <div class="pcard-name-row">
+        <div class="pcard-name" id="pcard-name-2">Player 2</div>
+        <button class="pcard-report" id="pcard-report-2" style="display:none" onclick="showReportDialog(2)">⚑</button>
+      </div>
+      <div class="pcard-tier-row">
+        <div class="pcard-elo" id="pcard-elo-2">IRON</div>
+        <div class="pcard-presence offline" id="pcard-presence-2" style="display:none"></div>
+      </div>
     </div>
     <div class="pcard-timer-wrap">
-      <div class="pcard-presence offline" id="pcard-presence-2" title="Offline" style="display:none"></div>
-      <span class="pcard-timer" id="timer-display-2">—</span>
+      <span class="pcard-timer" id="timer-display-2"></span>
     </div>
-    <button class="pcard-gear" id="pcard-gear-2" title="Options" onclick="showReportDialog(2)">⚙</button>
   </div>
   <!-- P1 (you) -->
   <div class="player-card" id="pcard-1">
     <div class="pcard-avatar p1" id="pcard-avatar-1">P1</div>
     <div class="pcard-info">
-      <div class="pcard-name" id="pcard-name-1">Player 1</div>
-      <div class="pcard-elo" id="pcard-elo-1">◆ 1200</div>
+      <div class="pcard-name-row">
+        <div class="pcard-name" id="pcard-name-1">Player 1</div>
+      </div>
+      <div class="pcard-tier-row">
+        <div class="pcard-elo" id="pcard-elo-1">IRON</div>
+        <div class="pcard-presence offline" id="pcard-presence-1" style="display:none"></div>
+      </div>
     </div>
     <div class="pcard-timer-wrap">
-      <div class="pcard-presence offline" id="pcard-presence-1" title="Online" style="display:none"></div>
-      <span class="pcard-timer" id="timer-display-1">—</span>
+      <span class="pcard-timer" id="timer-display-1"></span>
     </div>
   </div>
   <!-- Game log fills remaining space -->
@@ -3912,15 +3930,24 @@ function populateMobileNavPill() {
 function renderPlayerCards() {
   populateMobileNavPill();
   [1, 2].forEach(p => {
+    // Update BOTH desktop and mobile card IDs in one pass — no separate renderMobileProfiles needed
+    const suffixes = ['', 'm'];
     const nameEl   = document.getElementById(`pcard-name-${p}`);
     const eloEl    = document.getElementById(`pcard-elo-${p}`);
     const timerEl  = document.getElementById(`timer-display-${p}`);
     const cardEl   = document.getElementById(`pcard-${p}`);
     const avatarEl = document.getElementById(`pcard-avatar-${p}`);
 
+    const t = getTier(PLAYER_CONFIG.stars?.[p] ?? 0);
+    // Sync name + tier to both desktop and mobile cards
+    suffixes.forEach(sfx => {
+      const nEl = document.getElementById(`pcard-name-${p}${sfx}`);
+      const eEl = document.getElementById(`pcard-elo-${p}${sfx}`);
+      if (nEl) nEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
+      if (eEl) { eEl.textContent = t.name.toUpperCase(); eEl.style.color = t.color; }
+    });
     if (nameEl) nameEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
     if (eloEl) {
-      const t = getTier(PLAYER_CONFIG.stars?.[p] ?? 0);
       eloEl.textContent = t.name.toUpperCase();
       eloEl.style.color = t.color;
     }
@@ -3948,14 +3975,6 @@ function renderPlayerCards() {
       cardEl.onclick = null; // no longer click-to-forfeit
     }
 
-    // Update gear button: only shown on opponent card, updates label with their name
-    const gearEl = document.getElementById(`pcard-gear-${p}`);
-    if (gearEl) {
-      const opponentName = PLAYER_CONFIG.names[p] || `Player ${p}`;
-      gearEl.title = `Report ${opponentName}`;
-      gearEl.onclick = (e) => { e.stopPropagation(); showReportDialog(p); };
-    }
-
     // Update avatar — both desktop and mobile cards from one place
     const _setAvatar = (el, name, av) => {
       if (!el) return;
@@ -3969,11 +3988,35 @@ function renderPlayerCards() {
       // Also sync mobile card avatar so both views always match
       _setAvatar(document.getElementById(`pcard-avatar-${p}m`), name, av);
     }
+    // Sync active-card / blink-bar to mobile card too
+    const cardMEl = document.getElementById(`pcard-${p}m`);
+    if (cardMEl) {
+      cardMEl.classList.toggle('active-card', isActive);
+      cardMEl.classList.toggle('blink-bar', isActive);
+    }
+    // Sync timer to mobile card
+    const timerMEl = document.getElementById(`timer-display-${p}m`);
+    if (timerMEl) {
+      timerMEl.textContent = isUnlimited ? '' : formatTimer(timeMs);
+      timerMEl.className = 'pcard-timer';
+      if (isActivePlay && !isUnlimited) timerMEl.classList.add('active', `p${p}`);
+      if (isActivePlay && isUrgent) timerMEl.classList.add('urgent');
+    }
+    // Show report button only for opponent
+    const opSlot = typeof MY_SLOT !== 'undefined' ? MY_SLOT : null;
+    const isOpponent = opSlot !== null && p !== opSlot;
+    ['', 'm'].forEach(sfx => {
+      const rBtn = document.getElementById(`pcard-report-${p}${sfx}`);
+      if (rBtn) {
+        rBtn.style.display = isOpponent ? 'inline' : 'none';
+        rBtn.onclick = (e) => { e.stopPropagation(); showReportDialog(p); };
+      }
+    });
     // Update zone homeworld label with real username
     const zoneLabel = document.getElementById(`zone-label-${p}`);
     if (zoneLabel) zoneLabel.textContent = `— ${(PLAYER_CONFIG.names[p]||`Player ${p}`).toUpperCase()} HOMEWORLD —`;
   });
-  renderMobileProfiles();
+  // No renderMobileProfiles call needed — both sets of IDs updated above
 }
 
 // ============================================================
@@ -4225,40 +4268,7 @@ function switchMobileTab(tab) {
   }
 }
 
-// Sync mobile profile cards (mirrors renderPlayerCards but for -m elements)
-function renderMobileProfiles() {
-  const isMobile = window.matchMedia('(max-width: 800px)').matches;
-  if (!isMobile) return;
-  [1, 2].forEach(p => {
-    const nameEl  = document.getElementById(`pcard-name-${p}m`);
-    const eloEl   = document.getElementById(`pcard-elo-${p}m`);
-    const timerEl = document.getElementById(`timer-display-${p}m`);
-    const cardEl  = document.getElementById(`pcard-${p}m`);
-    const avatarEl= document.getElementById(`pcard-avatar-${p}m`);
-    if (!nameEl) return;
-    nameEl.textContent = PLAYER_CONFIG.names[p] || `Player ${p}`;
-    const mt = getTier(PLAYER_CONFIG.stars?.[p] ?? 0);
-    eloEl.textContent = mt.name.toUpperCase();
-    eloEl.style.color = mt.color;
-    const isUnlimited = !PLAYER_CONFIG.timeMs && !PLAYER_CONFIG.tcTurnMs;
-    const isActivePlay = G && G.phase === 'PLAY' && G.currentPlayer === p;
-    const timeMs = G ? G.timers[p] : (PLAYER_CONFIG.timeMs || PLAYER_CONFIG.tcTurnMs || 0);
-    if (timerEl) {
-      timerEl.textContent = isUnlimited ? '' : formatTimer(timeMs);
-      timerEl.className = 'pcard-timer';
-      if (isActivePlay && !isUnlimited) timerEl.classList.add('active', `p${p}`);
-    }
-    if (cardEl) {
-      const isActive = G && G.currentPlayer === p;
-      cardEl.classList.toggle('active-card', isActive);
-      cardEl.classList.toggle('blink-bar', isActive);
-    }
-    if (avatarEl) {
-      const name = PLAYER_CONFIG.names[p] || `P${p}`;
-      avatarEl.textContent = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    }
-  });
-}
+// renderMobileProfiles removed — renderPlayerCards now handles both desktop and mobile IDs
 
 // Sync mobile log (mirrors log-entries into log-entries-m)
 function renderMobileLog() {
@@ -4460,16 +4470,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     const drawBtnOnline = document.getElementById('btn-draw');
     if (drawBtnOnline) drawBtnOnline.style.display = 'block';
 
-    // Fix gear icon: always on opponent's card.
-    // HTML has gear only on pcard-2. If I'm P2, move it to pcard-1.
-    if (MY_SLOT === 2) {
-      const gear2 = document.getElementById('pcard-gear-2');
-      const card1 = document.getElementById('pcard-1');
-      if (gear2 && card1) { gear2.id = 'pcard-gear-1'; card1.appendChild(gear2); }
-      const gear2m = document.getElementById('pcard-gear-2m');
-      const card1m = document.getElementById('pcard-1m');
-      if (gear2m && card1m) { gear2m.id = 'pcard-gear-1m'; card1m.appendChild(gear2m); }
-    }
+    // Report buttons are shown/hidden in renderPlayerCards based on MY_SLOT
 
     // Win screen → Lobby
     const winLobbyBtn = document.getElementById('btn-win-lobby');
