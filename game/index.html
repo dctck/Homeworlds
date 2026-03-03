@@ -1509,7 +1509,7 @@ function shipImgHTML(color, size, player, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
   const suffix = window._colorblindMode ? '_cb' : '';
-  const src = `assets/ships/${prefix}${letter}${suffix}.webp`;
+  const src = `/assets/ships/${prefix}${letter}${suffix}.webp`;
   const [w, h] = SHIP_DIMS[size];
   const flip = player === 2 ? 'transform:scaleY(-1);' : '';
   const filter = opts.glow ? `filter:drop-shadow(0 0 6px ${COLOR_HEX[color]}) drop-shadow(0 0 3px #fff);` : '';
@@ -2992,11 +2992,11 @@ function renderSidebar() {
 
       // ── Action buttons ──────────────────────────────────────────────────────
       const ACTION_ICONS = {
-        blue:   'assets/actionIcons/iconb.webp',
-        yellow: 'assets/actionIcons/icony.webp',
-        red:    'assets/actionIcons/iconr.webp',
-        green:  'assets/actionIcons/icong.webp',
-        sac:    'assets/actionIcons/iconp.webp',
+        blue:   '/assets/actionIcons/iconb.webp',
+        yellow: '/assets/actionIcons/icony.webp',
+        red:    '/assets/actionIcons/iconr.webp',
+        green:  '/assets/actionIcons/icong.webp',
+        sac:    '/assets/actionIcons/iconp.webp',
       };
 
       /**
@@ -3121,7 +3121,7 @@ function renderSidebar() {
         }
         // Icon
         const _sacImg = document.createElement('img');
-        _sacImg.src = 'assets/actionIcons/iconp.webp'; _sacImg.className = 'action-icon';
+        _sacImg.src = '/assets/actionIcons/iconp.webp'; _sacImg.className = 'action-icon';
         _sacImg.width = 18; _sacImg.height = 18; _sacImg.draggable = false;
         sacBtn.appendChild(_sacImg);
         // Label
