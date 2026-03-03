@@ -301,7 +301,7 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 import { initializeApp }      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getAuth,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getDatabase,ref,get,set,push,onValue,update } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig } from '/firebase-config.js';
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
