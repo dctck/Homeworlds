@@ -1079,7 +1079,7 @@ function shipImgHTML(color, size, player, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
   const suffix = window._colorblindMode ? '_cb' : '';
-  const src = `assets/ships/${prefix}${letter}${suffix}.webp`;
+  const src = `/assets/ships/${prefix}${letter}${suffix}.webp`;
   const [w, h] = SHIP_DIMS[size];
   // Player 2 ships flip vertically
   const flip = player === 2 ? 'transform:scaleY(-1);' : '';
@@ -1094,7 +1094,7 @@ function starImgHTML(color, size, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
   const suffix = window._colorblindMode ? '_cb' : '';
-  const src = `assets/stars/${prefix}${letter}${suffix}.webp`;
+  const src = `/assets/stars/${prefix}${letter}${suffix}.webp`;
   const [w, h] = STAR_DIMS[size];
   const filter = opts.glow ? `filter:drop-shadow(0 0 8px ${COLOR_HEX[color]});` : '';
   return `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`;
