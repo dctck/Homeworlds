@@ -730,16 +730,21 @@ body::before {
   body {
     display: flex;
     flex-direction: column;
+    grid-template-columns: unset !important;
+    grid-template-rows: unset !important;
+    grid-template-areas: unset !important;
     min-height: 100vh;
     height: auto;
     overflow: visible;
   }
 
+  /* ── Sticky top bar ── */
+  #rv-mobile-top {
+    display: flex !important;
+    position: sticky; top: 0; z-index: 50;
+
   /* ── Hide desktop-only right panel ── */
   #right-panel { display: none !important; }
-
-  /* ── Reset all desktop grid-areas ── */
-  #bank-section, #sidebar, #board, #bottom-btns { grid-area: unset; }
 
   /* ══ ORDER: 0=nav 1=profiles 2=stash 3=board 4=sidebar 5=btns 6=logchat ══ */
 
