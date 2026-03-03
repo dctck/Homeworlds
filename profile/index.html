@@ -479,7 +479,7 @@ async function loadHistory(uid){
         <span class="match-stars" style="color:${deltaColor}">${delta}</span>
         <span class="match-date">${date}</span>
         ${m.unseen ? '<span class="unseen-badge" title="New result"></span>' : ''}
-        ${m.gameId ? `<a class="match-review" href="review.html?game=${encodeURIComponent(m.gameId)}&unseen=${m.unseen?'1':'0'}">▶ REVIEW</a>` : ''}`;
+        ${m.gameId ? `<a class="match-review" href="/review/?game=${encodeURIComponent(m.gameId)}&unseen=${m.unseen?'1':'0'}">▶ REVIEW</a>` : ''}`;
       container.appendChild(row);
     });
 
