@@ -720,133 +720,189 @@ body::before {
    RESPONSIVE — Mobile: single scrollable column
    ============================================================ */
 @media (max-width: 800px) {
-  /* ── Review mobile: single scrollable column ── */
-  html { height: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-x: hidden; }
+  /* ── Simplest possible scroll: let html scroll naturally ── */
+  html {
+    height: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+  }
   body {
-    display: flex !important;
-    flex-direction: column !important;
-    grid-template-columns: unset !important;
-    grid-template-rows: unset !important;
-    grid-template-areas: unset !important;
-    height: auto !important;
-    overflow: visible !important;
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
+    height: auto;
+    overflow: visible;
   }
 
-  /* ── Sticky top bar ── */
-  #rv-mobile-top {
-    display: flex !important;
-    position: sticky; top: 0; z-index: 50;
+  /* ── Hide desktop-only right panel ── */
+  #right-panel { display: none !important; }
+
+  /* ── Reset all desktop grid-areas ── */
+  #bank-section, #sidebar, #board, #bottom-btns { grid-area: unset; }
+
+  /* ══ ORDER: 0=nav 1=profiles 2=stash 3=board 4=sidebar 5=btns 6=logchat ══ */
+
+  /* 0 · Nav bar */
+  #mobile-nav {
+    order: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
-    align-items: center;
-    padding: 0;
     flex-shrink: 0;
+    position: relative;
+    z-index: 10;
   }
-  #rv-mobile-top a {
-    display: flex; align-items: center;
-    padding: 12px 14px;
-    color: #4a6080; text-decoration: none;
-    font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 2px;
-    border-right: 1px solid var(--border);
-    white-space: nowrap;
+  #mobile-nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Orbitron', sans-serif; font-weight: 900;
+    font-size: var(--fs-md); letter-spacing: 3px; color: var(--bright);
+    text-decoration: none;
   }
-  #rv-mobile-top a:hover { color: var(--bright); }
-  #rv-mobile-title {
-    flex: 1; text-align: center;
-    font-family: 'Orbitron', sans-serif; font-size: 11px;
-    letter-spacing: 3px; color: var(--bright); padding: 12px 8px;
+  #mobile-nav-menu {
+    background: none; border: none; cursor: pointer;
+    color: #5a7090; font-size: 24px; line-height: 1;
+    padding: 4px 8px; border-radius: 4px;
   }
 
-  /* Reorder sections */
-  #sidebar   { order: 2; width: 100%; height: auto !important; overflow: visible !important; border-right: none; flex: none; }
-  #board     { order: 3; width: 100%; height: auto !important; overflow: visible !important; padding: 12px; border-bottom: 1px solid var(--border); }
-  #right-panel { order: 4; width: 100% !important; height: auto !important; border-left: none; border-top: 1px solid var(--border); display: flex !important; flex-direction: column; }
-
-  /* Nav controls — make buttons big and tappable */
-  #review-top { padding: 10px 14px; }
-  #review-title { font-size: 13px; }
-  #nav-section { padding: 10px 14px; }
-  #nav-buttons { gap: 8px; }
-  .nav-btn { padding: 14px 0; font-size: 18px; border-radius: 6px; }
-  #nav-hint { display: none; } /* hide keyboard hint on mobile */
-  #turn-indicator { font-size: 12px; padding: 6px 0 10px; }
-
-  /* Players section — horizontal row (players appended directly to section) */
-  #players-section {
-    padding: 10px 14px;
-    display: flex; gap: 8px; /* players sit side-by-side */
+  /* 1 · Profiles — vertical stack (like desktop) */
+  #mobile-profiles {
+    order: 1;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
     border-bottom: 1px solid var(--border);
   }
-  .rv-player { flex: 1; flex-direction: column; align-items: center; text-align: center; padding: 10px 8px; margin-bottom: 0; }
-  .rv-player:last-child { margin-bottom: 0; }
-  .rv-avatar { width: 44px; height: 44px; font-size: 16px; }
-  .rv-info-name { font-size: 9px; }
-  .rv-crown { margin-left: 0; margin-top: 2px; }
+  #mobile-profiles .player-card {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+  }
+  #mobile-profiles #pcard-1m { border-bottom: none; }
 
-  /* Stash */
-  #bank-section { padding: 10px 14px; border-bottom: 1px solid var(--border); }
-  #bank-grid { grid-template-columns: 48px repeat(3, 1fr); }
+  /* 2 · Stash — right under profiles */
+  #bank-section {
+    order: 2;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
+  }
+  #bank-grid {
+    grid-template-columns: 52px repeat(3, min(72px, calc((100vw - 52px - 48px) / 3)));
+  }
 
-  /* Board */
-  #zone-p2, #zone-p1 { flex-wrap: wrap; min-height: 70px; justify-content: center; gap: 8px; }
-  .zone-label { font-size: 10px; letter-spacing: 2px; margin-bottom: 4px; }
-  .zone-hw-area { padding: 2px 0 8px; }
-  .system-card { padding: 8px 10px; }
-  #zone-mid { gap: 8px; flex-wrap: wrap; justify-content: center; padding: 4px 0; }
+  /* 3 · Board */
+  #board {
+    order: 3;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  #zone-p2, #zone-p1 {
+    flex-wrap: wrap;
+    min-height: 80px;
+    justify-content: center;
+  }
 
-  /* Back button in sidebar — hide; we use sticky bottom bar instead */
-  #bottom-area { display: none; }
+  /* 4 · Sidebar (guide text + actions) */
+  #sidebar {
+    order: 4;
+    width: 100%;
+    flex: none;
+    height: auto;
+    overflow: visible;
+    border-right: none;
+    min-height: 0;
+  }
+  #action-section {
+    flex-grow: unset;
+    overflow: visible;
+    height: auto;
+  }
 
-  /* Log panel — show below board */
-  #log-panel { height: auto !important; min-height: 0; padding-bottom: 72px; }
-  #log-entries { max-height: none; overflow: visible; }
-  .mini-log-line { padding: 10px 14px; font-size: 13px; } /* bigger tap targets */
+  /* 5 · Control buttons (forfeit + undo) */
+  #bottom-btns {
+    order: 5;
+    grid-area: unset;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+    position: static;
+  }
 
-  /* Unseen overlay */
-  .uo-players { flex-direction: column; gap: 16px; padding: 16px; }
-  .uo-btn-row { flex-direction: column; align-items: stretch; }
-  #right-panel { border-left: none; padding-bottom: 0; }
-
-  /* ── Sticky bottom nav bar (replaces sidebar nav on mobile) ── */
-  #rv-bottom-nav {
-    display: flex !important;
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 60;
-    background: rgba(10,15,30,.97);
+  /* 6 · Log & Chat tabs */
+  #mobile-logchat {
+    order: 6;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
     border-top: 1px solid var(--border);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    padding-bottom: 32px;
   }
-  #rv-bottom-nav a,
-  #rv-bottom-nav button {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 10px 4px 12px;
-    background: none; border: none; border-right: 1px solid var(--border);
-    color: #4a6080; font-family: 'Share Tech Mono', monospace; font-size: 9px;
-    letter-spacing: 1px; text-decoration: none; cursor: pointer; gap: 3px;
-    transition: color .15s, background .15s;
+  #mobile-tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
   }
-  #rv-bottom-nav a:last-child, #rv-bottom-nav button:last-child { border-right: none; }
-  #rv-bottom-nav a:hover, #rv-bottom-nav button:hover,
-  #rv-bottom-nav a:active, #rv-bottom-nav button:active {
-    color: var(--bright); background: rgba(255,255,255,.04);
+  .mobile-tab-btn {
+    flex: 1; padding: 12px;
+    background: none; border: none;
+    font-family: 'Orbitron', sans-serif; font-size: var(--fs-xs);
+    letter-spacing: 2px; text-transform: uppercase;
+    color: #4a6070; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s; margin-bottom: -1px;
   }
-  #rv-bottom-nav .bnav-icon { font-size: 18px; line-height: 1; }
-  #rv-bottom-nav button:disabled { opacity: .2; pointer-events: none; }
-  #rv-bottom-nav #bnav-turn {
-    flex: 1.5; font-family: 'Orbitron', sans-serif; font-size: 10px;
-    color: var(--bright); letter-spacing: 1px; pointer-events: none; cursor: default;
+  .mobile-tab-btn.active { color: var(--bright); border-bottom-color: #4488ff; }
+  #mobile-tab-log, #mobile-tab-chat { display: none; flex-direction: column; }
+  #mobile-tab-log.visible, #mobile-tab-chat.visible { display: flex; }
+  #log-entries-m { min-height: 200px; padding: 4px 0; }
+  #chat-messages-m { min-height: 160px; padding: 8px 12px; }
+  #chat-input-row-m {
+    display: flex; gap: 6px; padding: 8px 12px;
+    border-top: 1px solid var(--border); flex-shrink: 0;
   }
-  /* Hide the desktop nav section's buttons on mobile (keep for keyboard only) */
-  #nav-section { display: none; }
-  /* Collapse review-top on mobile to just a thin title bar */
-  #review-top { padding: 8px 14px; background: none; border-bottom: none; }
-  #review-title { font-size: 11px; color: #3a5060; }
+  #chat-input-m {
+    flex: 1; padding: 8px 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
+    border-radius: 3px; color: var(--text);
+    font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs); outline: none;
+  }
+  #chat-send-m {
+    padding: 8px 12px; background: rgba(255,255,255,0.04);
+    border: 1px solid #1c2840; color: #506070;
+    font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
+    cursor: pointer; border-radius: 3px;
+  }
+
+  /* Turn token — larger on mobile for easier tap */
+  .turn-token { width: 68px; height: 68px; }
+
+  /* Misc compact */
+  .pcard-avatar { width: 34px; height: 34px; }
+  .pcard-gear  { font-size: 14px; }
+  .zone-label  { font-size: var(--fs-xs); letter-spacing: 2px; margin-bottom: 4px; }
+  .zone-hw-area { padding: 2px 0 6px; }
+  .system-card { padding: 8px 10px; }
+  #player-bar { padding: 10px 14px; }
+  #player-title { font-size: var(--fs-xs); }
+
+  /* Pcard left-bar for mobile profiles */
+  #pcard-1m::before { background: #4488ff; box-shadow: 0 0 8px #4488ff; }
+  #pcard-2m::before { background: #ff4455; box-shadow: 0 0 8px #ff4455; }
 }
 
 @media (min-width: 801px) {
   html, body { height: 100%; overflow: hidden; }
-  #rv-mobile-top { display: none !important; }
+  #mobile-nav { display: none !important; }
+  #mobile-profiles { display: none !important; }
+  #mobile-logchat { display: none !important; }
 }
 
 
@@ -880,70 +936,15 @@ body {
   grid-area: board;
   overflow-y: auto;
 }
-/* Nav controls */
-#review-top {
-  background: linear-gradient(135deg, #0a1428, #0d1835);
-  border-bottom: 2px solid var(--border);
-  padding: 12px 16px;
-  flex-shrink: 0;
-}
-#review-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: var(--fs-md); font-weight: 700; letter-spacing: 2px;
-  color: var(--bright); margin-bottom: 4px;
-}
-#review-sub { display: none; }
-#nav-section {
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-#turn-indicator {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 11px; letter-spacing: 2px; color: var(--bright);
-  text-align: center; padding: 8px 0 6px;
-}
-#nav-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
-.nav-btn {
-  padding: 10px 0; display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 4px;
-  color: var(--text); cursor: pointer; font-size: 16px; transition: all .15s;
-}
-.nav-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); border-color: #3a5080; color: var(--bright); }
-.nav-btn:disabled { opacity: .2; cursor: not-allowed; }
-#nav-hint { font-size: 10px; color: #2a3850; text-align: center; margin-top: 8px; letter-spacing: 1px; }
-/* Players section */
-#players-section { padding: 12px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
-.rv-player {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  border-radius: 6px; margin-bottom: 6px;
-  background: rgba(255,255,255,.02); border: 1px solid var(--border);
-}
-.rv-player:last-child { margin-bottom: 0; }
-.rv-player.winner { border-color: rgba(255,204,0,.35); background: rgba(255,204,0,.04); }
-.rv-avatar {
-  width: 36px; height: 36px; border-radius: 5px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Orbitron', sans-serif; font-size: var(--fs-md); font-weight: 900;
-  border: 2px solid transparent; background: linear-gradient(135deg,#0d1835,#1a2850);
-}
-.rv-avatar.p1 { border-color: rgba(68,136,255,.5); color: #4488ff; }
-.rv-avatar.p2 { border-color: rgba(255,68,85,.5); color: #ff4455; }
-.rv-info-name { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px; color: var(--bright); margin-bottom: 2px; }
-.rv-info-result { font-size: 10px; color: #4a6080; }
-.rv-crown { font-size: 14px; margin-left: auto; flex-shrink: 0; }
-/* Back btn */
-#bottom-area { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
-#btn-back {
-  width: 100%; padding: 10px; background: rgba(255,255,255,.03);
-  border: 1px solid var(--border); color: #4a6080;
-  font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
-  cursor: pointer; border-radius: 4px; letter-spacing: 2px; transition: all .15s;
-}
-#btn-back:hover { color: var(--bright); border-color: #3a5080; background: rgba(255,255,255,.06); }
+/* review-top CSS removed — using rv-mobile-top */
+/* nav-section + nav-btn CSS moved to NEW_CSS block above */
+/* rv-player CSS removed — using pcard style now */
+/* btn-back / bottom-area removed — back button now in rv-mobile-top */
 /* Log active highlight */
 .mini-log-line { cursor: pointer; transition: background .1s; }
 .mini-log-line:hover { background: rgba(255,255,255,.03); }
+.mini-log-line.log-result-row { cursor: default; }
+.mini-log-line.log-result-row:hover { background: transparent; }
 .mini-log-line.active {
   background: rgba(255,204,0,.07);
   border-left: 2px solid rgba(255,204,0,.5);
@@ -964,6 +965,128 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 #loading-msg { font-family: 'Orbitron', sans-serif; font-size: 12px; color: #4a6080; letter-spacing: 2px; text-align: center; padding: 0 24px; }
+
+/* ── Review: unified header (replaces review-top; shown on both breakpoints) ── */
+#rv-mobile-top {
+  background: linear-gradient(135deg, #0a1428, #0d1835);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+#rv-mobile-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 3px;
+  color: #4a6080; text-transform: uppercase;
+}
+#rv-mobile-back {
+  background: none; border: none; cursor: pointer;
+  color: #3a5070; font-family: 'Share Tech Mono', monospace;
+  font-size: var(--fs-xs); letter-spacing: 1px; padding: 4px 8px;
+  border-radius: 3px; border: 1px solid #1c2840; transition: all .15s;
+}
+#rv-mobile-back:hover { color: var(--bright); border-color: #3a5080; }
+
+/* ── Review player cards — gold bar for winner ── */
+.rv-pcard-winner::before {
+  background: #ffcc00 !important;
+  box-shadow: 0 0 8px #ffcc00 !important;
+  opacity: 1 !important;
+}
+.rv-pcard-winner {
+  border-color: rgba(255,204,0,0.2) !important;
+  background: rgba(255,204,0,0.03) !important;
+}
+.rv-winner-badge {
+  font-size: 10px; letter-spacing: 1px; color: #ffcc00;
+  font-family: 'Orbitron', sans-serif;
+}
+
+/* ── Nav section in right panel (desktop) ── */
+#nav-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#turn-indicator {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px; letter-spacing: 2px; color: var(--bright);
+  text-align: center; padding: 4px 0 6px;
+}
+#nav-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
+.nav-btn {
+  padding: 10px 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); cursor: pointer; font-size: 16px; transition: all .15s;
+  position: relative;
+}
+.nav-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); border-color: #3a5080; color: var(--bright); }
+.nav-btn:disabled { opacity: .2; cursor: not-allowed; }
+.nav-btn .nav-shortcut-tip {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,.9); border: 1px solid #2a3850; border-radius: 3px;
+  padding: 3px 7px; font-size: 10px; font-family: 'Share Tech Mono', monospace;
+  color: #4a6080; white-space: nowrap; opacity: 0; pointer-events: none;
+  transition: opacity .15s; z-index: 10;
+}
+.nav-btn:hover .nav-shortcut-tip { opacity: 1; }
+#nav-hint { font-size: 10px; color: #2a3850; text-align: center; margin-top: 8px; letter-spacing: 1px; }
+
+/* ── Mobile bottom nav (review) ── */
+#rv-bottom-nav {
+  display: none;
+  flex-shrink: 0;
+}
+@media (max-width: 800px) {
+  #rv-bottom-nav {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: stretch;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    min-height: 64px;
+    order: 99;
+  }
+  .bnav-side {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  }
+  .bnav-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; padding: 8px 6px;
+    background: none; border: none; border-right: 1px solid var(--border);
+    color: #4a6070; cursor: pointer; transition: color .15s;
+    font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 1px;
+  }
+  .bnav-btn:last-child { border-right: none; }
+  .bnav-btn .bnav-icon { font-size: 16px; }
+  .bnav-btn:disabled { opacity: .25; cursor: not-allowed; }
+  .bnav-btn:not(:disabled):hover { color: var(--bright); }
+  .bnav-right .bnav-btn { border-right: none; border-left: 1px solid var(--border); }
+  #bnav-turn {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 6px 8px; min-width: 90px;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  #bnav-player {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px; font-weight: 900; line-height: 1;
+  }
+  #bnav-move {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: #4a6080; letter-spacing: 1px; margin-top: 2px;
+  }
+}
+
+/* Desktop: right panel holds player cards + nav + log */
+@media (min-width: 801px) {
+  #rv-bottom-nav { display: none !important; }
+  #nav-section { display: block; }
+  /* pcard avatar border-radius square in review like original */
+  .pcard-avatar { border-radius: 6px; }
+}
+
 </style>
 </head>
 <body>
@@ -973,35 +1096,18 @@ body {
   <div id="loading-msg">LOADING GAME…</div>
 </div>
 
-<!-- Mobile sticky top bar (hidden on desktop) -->
-<div id="rv-mobile-top" style="display:none">
-  <a href="javascript:history.back()">← BACK</a>
-  <div id="rv-mobile-title">⬡ REVIEW</div>
-</div>
-
-<!-- LEFT: Sidebar with nav + bank -->
+<!-- LEFT: Sidebar with header + players + bank -->
 <div id="sidebar">
-  <div id="review-top">
-    <div id="review-title">⬡ REVIEW MODE</div>
-    <!-- review-sub removed: info shown in player cards -->
+  <!-- Unified header — shown on both desktop and mobile (mobile shows it at top of flow) -->
+  <div id="rv-mobile-top">
+    <div id="rv-mobile-title">REVIEW MODE</div>
+    <button id="rv-mobile-back">← BACK</button>
   </div>
-  <div id="nav-section">
-    <div id="turn-indicator">— / —</div>
-    <div id="nav-buttons">
-      <button class="nav-btn" id="nav-first" title="Go to start">⏮</button>
-      <button class="nav-btn" id="nav-prev"  title="Previous turn">◀</button>
-      <button class="nav-btn" id="nav-next"  title="Next turn">▶</button>
-      <button class="nav-btn" id="nav-last"  title="Go to end">⏭</button>
-    </div>
-    <div id="nav-hint">← → arrow keys · Home / End</div>
-  </div>
+  <!-- Player cards — populated by JS, reuse pcard classes from game.html -->
   <div id="players-section"></div>
   <div id="bank-section">
     <div id="bank-title">Stash</div>
     <div id="bank-grid"></div>
-  </div>
-  <div id="bottom-area">
-    <button id="btn-back" id="btn-back">← BACK</button>
   </div>
 </div>
 
@@ -1033,24 +1139,51 @@ body {
     </defs>
   </svg>
   <div class="zone-hw-area">
-    <div class="zone-label" style="text-align:center" data-zone="2">— PLAYER 2 HOMEWORLD —</div>
+    <div class="zone-label" style="text-align:center">— PLAYER 2 HOMEWORLD —</div>
     <div id="zone-p2"></div>
   </div>
   <div id="zone-mid"></div>
   <div class="zone-hw-area">
-    <div class="zone-label" style="text-align:center" data-zone="1">— PLAYER 1 HOMEWORLD —</div>
+    <div class="zone-label" style="text-align:center">— PLAYER 1 HOMEWORLD —</div>
     <div id="zone-p1"></div>
   </div>
 </div>
 
-<!-- RIGHT: Log panel (identical structure to game.html) -->
+<!-- RIGHT: Nav + Log panel -->
 <div id="right-panel">
+  <!-- Nav controls — desktop only (mobile uses rv-bottom-nav) -->
+  <div id="nav-section">
+    <div id="turn-indicator">— / —</div>
+    <div id="nav-buttons">
+      <button class="nav-btn" id="nav-first" title="Start(⇧ ←)">|<<</button>
+      <button class="nav-btn" id="nav-prev"  title="Previous(←)"><</button>
+      <button class="nav-btn" id="nav-next"  title="Next(→)">></button>
+      <button class="nav-btn" id="nav-last"  title="End(⇧ →)">>>|</button>
+    </div>
+    <div id="nav-hint">Start(⇧ ←) · Prev(←) · Next(→) · End(⇧ →)</div>
+  </div>
   <div id="log-panel">
     <div id="log-header">
       <span>Game Log</span>
       <span id="log-turn-count">—</span>
     </div>
     <div id="log-entries"></div>
+  </div>
+</div>
+
+<!-- MOBILE BOTTOM NAV -->
+<div id="rv-bottom-nav">
+  <div class="bnav-side bnav-left">
+    <button class="bnav-btn" id="bnav-first"><span class="bnav-icon">⏮</span>START</button>
+    <button class="bnav-btn" id="bnav-prev"><span class="bnav-icon">◀</span>PREV</button>
+  </div>
+  <div id="bnav-turn">
+    <div id="bnav-player" style="color:#4477dd">N</div>
+    <div id="bnav-move">MOVE — / —</div>
+  </div>
+  <div class="bnav-side bnav-right">
+    <button class="bnav-btn" id="bnav-next"><span class="bnav-icon">▶</span>NEXT</button>
+    <button class="bnav-btn" id="bnav-last"><span class="bnav-icon">⏭</span>END</button>
   </div>
 </div>
 
@@ -1078,8 +1211,7 @@ const SHIP_DIMS = { 1:[24,40], 2:[32,56], 3:[40,72] };
 function shipImgHTML(color, size, player, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
-  const suffix = window._colorblindMode ? '_cb' : '';
-  const src = `assets/ships/${prefix}${letter}${suffix}.webp`;
+  const src = `assets/ships/${prefix}${letter}.webp`;
   const [w, h] = SHIP_DIMS[size];
   // Player 2 ships flip vertically
   const flip = player === 2 ? 'transform:scaleY(-1);' : '';
@@ -1093,8 +1225,7 @@ const STAR_DIMS = { 1:[28,28], 2:[36,36], 3:[46,46] };
 function starImgHTML(color, size, opts = {}) {
   const prefix = SIZE_PREFIX[size];
   const letter = COLOR_LETTER_MAP[color];
-  const suffix = window._colorblindMode ? '_cb' : '';
-  const src = `assets/stars/${prefix}${letter}${suffix}.webp`;
+  const src = `assets/stars/${prefix}${letter}.webp`;
   const [w, h] = STAR_DIMS[size];
   const filter = opts.glow ? `filter:drop-shadow(0 0 8px ${COLOR_HEX[color]});` : '';
   return `<img src="${src}" width="${w}" height="${h}" style="display:block;${filter}" draggable="false">`;
@@ -1166,10 +1297,6 @@ function isConnected(s1, s2) {
 // In review mode, G.interaction is always IDLE — no interactive branches fire.
 // We still need these functions defined to avoid ReferenceErrors.
 let G = null; // set to current snapshot before every render
-// ── Colorblind mode ─────────────────────────────────────────
-// Read from localStorage (same key game.html uses)
-window._colorblindMode = localStorage.getItem('hw_colorblind') === '1';
-
 let _arrowPid = 0;   // arrow system piece counter, reset on each goTo
 function findShip(id) {
   if (!G) return null;
@@ -1719,6 +1846,7 @@ function parseNotation(str) {
     case 'pass':
       return { type:'skip' };
 
+
     // Non-game-state notations — visible in log but don't change board
     case 'draw':
       // "draw ?"  → offer sent
@@ -1938,24 +2066,6 @@ function buildFromRecord(record) {
 
     const player = mv.player;
 
-    // Annotations (draw ?, draw Yes, draw No, forfeit) — show in log but don't change board
-    if (parsed.type === 'annotation') {
-      const pc = player === 1 ? 'ml-p1' : 'ml-p2';
-      const pLabel = hwLabels[player] || `P${player}`;
-      const prevRow = rows[rows.length - 1];
-      const sameT = prevRow && prevRow.turn === mv.turn;
-      const turnLabel = sameT
-        ? `<span class="ml-turn ml-turn-cont">·</span>`
-        : `<span class="ml-turn">${mv.turn}.</span>`;
-      rows.push({
-        snapIdx: snaps.length - 1, // point to last real board state
-        turn: mv.turn, player,
-        html: `<span class="mini-log-prefix">${turnLabel}<span class="${pc}">${pLabel}</span>\xa0</span>` +
-              `<span class="mini-log-body">${highlightLog(mv.action)}</span>`
-      });
-      return;
-    }
-
     // Apply the action
     st = applyParsed(st, parsed, player);
 
@@ -1970,11 +2080,6 @@ function buildFromRecord(record) {
         st.currentPlayer = 1;
       }
     }
-
-    // Stamp currentPlayer = the player who made this move so homeworld glow is correct.
-    // The replay engine doesn't flip currentPlayer between turns (no explicit end-turn
-    // notation), so we set it explicitly here from mv.player.
-    st.currentPlayer = player;
 
     // Take a snapshot after every action
     const snap = JSON.parse(JSON.stringify(st));
@@ -2105,39 +2210,38 @@ function init(record) {
 
   if (!snapshots.length) { setLoading('No move data in this game record.'); return; }
 
-  // Update homeworld zone labels with real player names
-  const _zl1 = document.querySelector('[data-zone="1"]');
-  const _zl2 = document.querySelector('[data-zone="2"]');
-  if (_zl1) _zl1.textContent = `— ${(players[1] || 'Player 1').toUpperCase()} HOMEWORLD —`;
-  if (_zl2) _zl2.textContent = `— ${(players[2] || 'Player 2').toUpperCase()} HOMEWORLD —`;
-
-  // Player cards — include avatar image if stored in record.players
-  // record.players may be array OR object keyed by "1"/"2" (new CF format)
-  const rawPlayers = Array.isArray(record.players)
-    ? record.players
-    : ['', record.players?.[1] || null, record.players?.[2] || null];
+  // Player cards — pcard style (same as game.html right panel), no timer/presence
+  const rawPlayers = Array.isArray(record.players) ? record.players : ['', null, null];
   const ps = document.getElementById('players-section');
   [1, 2].forEach(p => {
-    const isW = p === winner;
+    const isW  = p === winner;
     const name = players[p] || `Player ${p}`;
     const raw  = rawPlayers[p];
     const avatarSrc = (typeof raw === 'object' && raw) ? (raw.avatarBase64 || raw.avatarUrl || '') : '';
-    const initial = name[0].toUpperCase();
+    const initial   = name[0].toUpperCase();
     const avatarInner = avatarSrc
       ? `<img src="${avatarSrc}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : initial;
-    const d = document.createElement('div');
-    d.className = 'rv-player' + (isW ? ' winner' : '');
-    d.innerHTML = `
-      <div class="rv-avatar p${p}">${avatarInner}</div>
-      <div>
-        <div class="rv-info-name">${esc(name)}</div>
-        <div class="rv-info-result">${isW ? '🏆 Winner' : 'Defeated'}</div>
-      </div>
-      ${isW ? '<div class="rv-crown">⭐</div>' : ''}`;
-    ps.appendChild(d);
+    // Show homeworld label (N / V / P1 / P2) so user can match game log
+    const hwLabel = hwLabels[p] || `P${p}`;
+    const hwColor = p === 1 ? '#4477dd' : '#cc4455';
+    const card = document.createElement('div');
+    card.className = 'player-card' + (isW ? ' rv-pcard-winner' : '');
+    card.id = `rv-pcard-${p}`;
+    card.innerHTML = `
+      <div class="pcard-avatar p${p}">${avatarInner}</div>
+      <div class="pcard-info">
+        <div class="pcard-name-row">
+          <div class="pcard-name">${esc(name)}</div>
+          <span style="font-family:'Orbitron',sans-serif;font-size:11px;font-weight:900;
+            color:${hwColor};margin-left:6px">${hwLabel}</span>
+        </div>
+        <div class="pcard-tier-row">
+          ${isW ? '<span class="rv-winner-badge">★ WINNER</span>' : '<span style="font-size:10px;color:#3a5060">Defeated</span>'}
+        </div>
+      </div>`;
+    ps.appendChild(card);
   });
-  // review-sub removed
 
   // ── Unseen result overlay (arrives from profile via ?unseen=1) ──
   const _urlParams = new URLSearchParams(location.search);
@@ -2163,9 +2267,7 @@ function init(record) {
 
     // Build player cards
     const uo_ps = document.getElementById('uo-players');
-    const rawPlayersUO = Array.isArray(record.players)
-      ? record.players
-      : ['', record.players?.[1] || null, record.players?.[2] || null];
+    const rawPlayersUO = Array.isArray(record.players) ? record.players : ['', null, null];
     [1, 2].forEach(p => {
       const isW  = p === winner;
       const name = players[p] || `Player ${p}`;
@@ -2198,7 +2300,7 @@ function init(record) {
   // Render log panel (clickable)
   const logContainer = document.getElementById('log-entries');
   logContainer.innerHTML = logRows.map((r, i) =>
-    `<div class="mini-log-line" data-i="${i}">${r.html}</div>`
+    `<div class="mini-log-line${r.isResult ? ' log-result-row' : ''}" data-i="${i}">${r.html}</div>`
   ).join('');
   logContainer.querySelectorAll('.mini-log-line').forEach(el => {
     el.onclick = () => {
@@ -2211,27 +2313,53 @@ function init(record) {
 
   // Nav buttons
   function navToSnap(idx) {
-    currentLogRow = logRows.findIndex(r => r.snapIdx === idx);
+    // Find the first non-result logRow pointing to this snap (or nearest)
+    const rowIdx = logRows.findIndex(r => r.snapIdx === idx && !r.isResult);
+    currentLogRow = rowIdx >= 0 ? rowIdx : logRows.findIndex(r => r.snapIdx === idx);
     goTo(idx);
   }
   function navDelta(delta) {
-    const newIdx = Math.max(0, Math.min(snapshots.length - 1, currentIdx + delta));
-    navToSnap(newIdx);
+    // Step through logRows (not raw snap indices) so draw/forfeit lines are visited
+    const nonResultRows = logRows.filter(r => !r.isResult);
+    const curRowInFiltered = nonResultRows.findIndex(r =>
+      currentLogRow >= 0 ? logRows.indexOf(r) === currentLogRow : r.snapIdx === currentIdx
+    );
+    const nextFiltered = Math.max(0, Math.min(nonResultRows.length - 1,
+      (curRowInFiltered >= 0 ? curRowInFiltered : nonResultRows.length - 1) + delta));
+    const targetRow = nonResultRows[nextFiltered];
+    if (!targetRow) return;
+    currentLogRow = logRows.indexOf(targetRow);
+    goTo(targetRow.snapIdx);
   }
-  document.getElementById('nav-first').onclick = () => navToSnap(0);
-  document.getElementById('nav-prev').onclick  = () => navDelta(-1);
-  document.getElementById('nav-next').onclick  = () => navDelta(1);
-  document.getElementById('nav-last').onclick  = () => navToSnap(snapshots.length - 1);
+  function _navClick(fn) { return (e) => { e.preventDefault(); fn(); }; }
+  document.getElementById('nav-first').onclick = _navClick(() => navToSnap(0));
+  document.getElementById('nav-prev').onclick  = _navClick(() => navDelta(-1));
+  document.getElementById('nav-next').onclick  = _navClick(() => navDelta(1));
+  document.getElementById('nav-last').onclick  = _navClick(() => navToSnap(snapshots.length - 1));
+  // Mobile bottom nav buttons
+  const bnavFirst = document.getElementById('bnav-first');
+  const bnavPrev  = document.getElementById('bnav-prev');
+  const bnavNext  = document.getElementById('bnav-next');
+  const bnavLast  = document.getElementById('bnav-last');
+  if (bnavFirst) bnavFirst.onclick = _navClick(() => navToSnap(0));
+  if (bnavPrev)  bnavPrev.onclick  = _navClick(() => navDelta(-1));
+  if (bnavNext)  bnavNext.onclick  = _navClick(() => navDelta(1));
+  if (bnavLast)  bnavLast.onclick  = _navClick(() => navToSnap(snapshots.length - 1));
   document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   navDelta(-1);
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') navDelta(1);
-    if (e.key === 'Home') navToSnap(0);
-    if (e.key === 'End')  navToSnap(snapshots.length - 1);
+    // Prevent left/right arrows and shift+left/right from scrolling the page
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault();
+    if (e.shiftKey && e.key === 'ArrowLeft')  { navToSnap(0); return; }
+    if (e.shiftKey && e.key === 'ArrowRight') { navToSnap(snapshots.length - 1); return; }
+    if (e.key === 'ArrowLeft')  navDelta(-1);
+    if (e.key === 'ArrowRight') navDelta(1);
+    // Up/down: allow natural page scroll (no preventDefault)
   });
 
   document.getElementById('loading').style.display = 'none';
-  currentLogRow = logRows.length - 1;
-  goTo(snapshots.length - 1);
+  // Start at last real move (skip result row which is display-only)
+  const lastMoveRow = [...logRows].reverse().findIndex(r => !r.isResult);
+  currentLogRow = lastMoveRow >= 0 ? (logRows.length - 1 - lastMoveRow) : 0;
+  goTo(logRows[currentLogRow]?.snapIdx ?? snapshots.length - 1);
 }
 
 function goTo(idx) {
@@ -2254,18 +2382,44 @@ function goTo(idx) {
 
 function updateNav() {
   const n = snapshots.length;
-  document.getElementById('nav-first').disabled = currentIdx === 0;
-  document.getElementById('nav-prev').disabled  = currentIdx === 0;
-  document.getElementById('nav-next').disabled  = currentIdx >= n - 1;
-  document.getElementById('nav-last').disabled  = currentIdx >= n - 1;
-  // Show whose move this was via color
+  // Non-result row count for display numbering
+  const nonResultRows = logRows.filter(r => !r.isResult);
+  const curNRIdx = nonResultRows.findIndex(r => logRows.indexOf(r) === currentLogRow);
+  const displayIdx = curNRIdx >= 0 ? curNRIdx + 1 : currentIdx + 1;
+  const displayTotal = nonResultRows.length;
+
+  const atStart = curNRIdx <= 0;
+  const atEnd   = curNRIdx >= nonResultRows.length - 1;
+
+  // Desktop nav
+  document.getElementById('nav-first').disabled = atStart;
+  document.getElementById('nav-prev').disabled  = atStart;
+  document.getElementById('nav-next').disabled  = atEnd;
+  document.getElementById('nav-last').disabled  = atEnd;
+  // Mobile bottom nav
+  const bF=document.getElementById('bnav-first'), bP=document.getElementById('bnav-prev');
+  const bN=document.getElementById('bnav-next'),  bL=document.getElementById('bnav-last');
+  if (bF) bF.disabled = atStart;
+  if (bP) bP.disabled = atStart;
+  if (bN) bN.disabled = atEnd;
+  if (bL) bL.disabled = atEnd;
+
+  // Whose move
   const row = logRows[currentLogRow >= 0 ? currentLogRow : logRows.findIndex(r => r.snapIdx === currentIdx)];
   const moverP = row?.player || (G.currentPlayer === 1 ? 2 : 1);
   const moverColor = moverP === 1 ? '#4477dd' : '#cc4455';
   const moverLabel = hwLabels[moverP] || `P${moverP}`;
+
+  // Desktop turn indicator
   const ti = document.getElementById('turn-indicator');
-  ti.innerHTML = `<span style="color:${moverColor};font-weight:bold">${moverLabel}</span>&nbsp;MOVE ${currentIdx + 1} / ${n}`;
-  document.getElementById('log-turn-count').textContent = `${currentIdx + 1}/${n}`;
+  ti.innerHTML = `<span style="color:${moverColor};font-weight:bold">${moverLabel}</span>&nbsp;MOVE ${displayIdx} / ${displayTotal}`;
+  document.getElementById('log-turn-count').textContent = `${displayIdx}/${displayTotal}`;
+
+  // Mobile bnav-turn: 2-line (large letter + MOVE x/y)
+  const bnavPlayer = document.getElementById('bnav-player');
+  const bnavMove   = document.getElementById('bnav-move');
+  if (bnavPlayer) { bnavPlayer.textContent = moverLabel; bnavPlayer.style.color = moverColor; }
+  if (bnavMove)   bnavMove.textContent = `MOVE ${displayIdx} / ${displayTotal}`;
 }
 
 function updateLogHighlight() {
@@ -2283,25 +2437,23 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// Smart back button — go to profile if came from there, else lobby
+// Smart back button — rv-mobile-top back button
 (function() {
-  const backBtn = document.getElementById('btn-back');
+  const backBtn = document.getElementById('rv-mobile-back');
   if (!backBtn) return;
-  const ref = document.referrer;
-  const fromProfile = ref && ref.includes('profile.html');
-  backBtn.textContent = fromProfile ? '← BACK TO PROFILE' : '← BACK TO LOBBY';
+  const fromProfile = document.referrer && document.referrer.includes('profile.html');
+  backBtn.textContent = fromProfile ? '← PROFILE' : '← LOBBY';
   backBtn.onclick = () => {
     if (fromProfile) location.href = 'profile.html';
     else location.href = 'lobby.html';
   };
 })();
 
+load();
+
 // ── Arrow drawing (identical to game.html) ──────────────────
-// Declared BEFORE load() so goTo() can access them (const is not hoisted)
 const _arrows   = [];   // { fromPid, toPid, color }
 let   _arrowDrag = null; // { fromPid, fromEl, alt }
-
-load();
 /** Called by renderSystem to stamp a unique ID on each piece element */
 function _stampPid(el) {
   const pid = 'p' + (++_arrowPid);
@@ -2447,67 +2599,5 @@ function _initArrows() {
   </div>
 </div>
 
-<!-- Mobile bottom nav bar (hidden on desktop) -->
-<div id="rv-bottom-nav" style="display:none">
-  <a href="javascript:history.back()">
-    <span class="bnav-icon">←</span>
-    <span>BACK</span>
-  </a>
-  <button id="bnav-first" title="Go to start" disabled>
-    <span class="bnav-icon">⏮</span>
-    <span>START</span>
-  </button>
-  <button id="bnav-prev" title="Previous turn" disabled>
-    <span class="bnav-icon">◀</span>
-    <span>PREV</span>
-  </button>
-  <div id="bnav-turn">— / —</div>
-  <button id="bnav-next" title="Next turn">
-    <span class="bnav-icon">▶</span>
-    <span>NEXT</span>
-  </button>
-  <button id="bnav-last" title="Go to end">
-    <span class="bnav-icon">⏭</span>
-    <span>END</span>
-  </button>
-</div>
-
-<script>
-// Wire bottom nav buttons to the same navigation functions as desktop
-(function() {
-  function syncBottomNav() {
-    const ind = document.getElementById('turn-indicator');
-    if (ind) document.getElementById('bnav-turn').textContent = ind.textContent;
-    ['first','prev','next','last'].forEach(k => {
-      const src = document.getElementById(`nav-${k}`);
-      const dst = document.getElementById(`bnav-${k}`);
-      if (src && dst) dst.disabled = src.disabled;
-    });
-  }
-  // Delegate clicks to the desktop buttons
-  ['first','prev','next','last'].forEach(k => {
-    const btn = document.getElementById(`bnav-${k}`);
-    if (btn) btn.addEventListener('click', () => {
-      document.getElementById(`nav-${k}`)?.click();
-      setTimeout(syncBottomNav, 50);
-    });
-  });
-  // Sync turn indicator periodically
-  const origIndicator = document.getElementById('turn-indicator');
-  if (origIndicator) {
-    const obs = new MutationObserver(syncBottomNav);
-    obs.observe(origIndicator, { childList: true, characterData: true, subtree: true });
-  }
-  // Also sync on nav button state changes
-  ['first','prev','next','last'].forEach(k => {
-    const src = document.getElementById(`nav-${k}`);
-    if (src) {
-      const obs = new MutationObserver(syncBottomNav);
-      obs.observe(src, { attributes: true });
-    }
-  });
-  syncBottomNav();
-})();
-</script>
 </body>
 </html>
