@@ -70,9 +70,9 @@ export async function signInWithGoogle() {
 }
 export async function signOutUser() {
   await fbSignOut(auth);
-  window.location.href = 'index.html';
+  window.location.href = '/index.html';
 }
-export function requireAuth(redirect = 'index.html') {
+export function requireAuth(redirect = '/index.html') {
   return new Promise(resolve => {
     const unsub = onAuthStateChanged(auth, async user => {
       unsub();
