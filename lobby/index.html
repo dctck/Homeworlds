@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lobby — HW ARENA</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#060912;--panel:#0c1120;--border:#1c2840;
+  --text:#a8c0e0;--bright:#ddeeff;--p1:#4488ff;--p2:#ff4455;--green:#22dd77;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{height:100%;background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;overflow:hidden}
+@media(max-width:768px){body{overflow:auto}}
+
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    radial-gradient(circle at 15% 25%,rgba(255,255,255,.5) 1px,transparent 1px),
+    radial-gradient(circle at 40% 70%,rgba(255,255,255,.3) 1px,transparent 1px),
+    radial-gradient(circle at 70% 15%,rgba(255,255,255,.4) 1px,transparent 1px),
+    radial-gradient(circle at 85% 80%,rgba(255,255,255,.5) 1px,transparent 1px),
+    radial-gradient(circle at 55% 45%,rgba(255,255,255,.3) 1px,transparent 1px),
+    radial-gradient(circle at 25% 85%,rgba(255,255,255,.4) 1px,transparent 1px);
+  background-size:800px 800px;
+}
+
+/* ── Desktop grid ── */
+.app{display:grid;grid-template-rows:48px 1fr;grid-template-columns:310px 1fr;grid-template-areas:"hdr hdr" "side main";height:100vh;position:relative;z-index:1}
+@media(max-width:768px){
+  .app{display:flex;flex-direction:column;height:auto;min-height:100vh}
+  body{height:auto}
+}
+
+/* ── Header ── */
+header{grid-area:hdr;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--border)}
+.logo{font-family:'Orbitron',sans-serif;font-weight:900;font-size:14px;letter-spacing:3px;color:var(--bright);text-decoration:none}
+.logo span{color:var(--p1)}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.player-chip{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:20px;position:relative}
+.result-dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#ff3344;border:2px solid var(--bg);display:none;animation:pulse-dot 1.4s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 0 rgba(255,51,68,.6)}50%{box-shadow:0 0 0 5px rgba(255,51,68,0)}}
+.avatar{width:28px;height:28px;border-radius:50%;background:rgba(68,136,255,.2);border:1px solid var(--p1);display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;color:var(--p1);overflow:hidden;flex-shrink:0}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.pname{font-size:12px;color:var(--bright);letter-spacing:1px}
+.ptier{font-size:12px;letter-spacing:1px}
+.nav-link{font-size:12px;letter-spacing:2px;color:#4a6080;text-decoration:none;font-family:'Orbitron',sans-serif;transition:color .2s}
+.nav-link:hover{color:var(--bright)}
+
+/* ── Sidebar ── */
+#sidebar{grid-area:side;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+@media(max-width:768px){#sidebar{border-right:none;border-bottom:1px solid var(--border)}}
+.ss{padding:14px 16px;border-bottom:1px solid var(--border)}
+.ss-label{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;color:#4a6080;margin-bottom:14px;text-transform:uppercase}
+.form-row{margin-bottom:11px}
+.form-label{font-size:12px;color:#506070;letter-spacing:1px;margin-bottom:5px;display:block}
+.form-input{width:100%;padding:8px 10px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:4px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:#3a5080}
+.form-input::placeholder{color:#2a3850}
+
+/* Password with eye toggle */
+.pw-wrap{position:relative}
+.pw-wrap .form-input{padding-right:38px}
+.pw-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#4a6080;font-size:14px;padding:2px 4px;line-height:1;transition:color .15s}
+.pw-eye:hover{color:var(--bright)}
+
+/* Toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+.toggle-label{font-size:12px;color:var(--text)}
+.toggle{position:relative;width:40px;height:22px;display:inline-block;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid var(--border);transition:.2s}
+.toggle input:checked+.toggle-track{background:rgba(68,136,255,.28);border-color:var(--p1)}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#4a6080;transition:.2s}
+.toggle input:checked~.toggle-thumb{background:var(--p1);transform:translateX(18px)}
+
+/* Time control — 3 rows: 2+2+1 */
+.tc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px}
+.tc-full{grid-column:1/-1}
+.tc-btn{padding:6px 6px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:3px;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;transition:all .15s;text-align:center;line-height:1.3}
+.tc-btn:hover{border-color:#3a5080;color:var(--text)}
+.tc-btn.active{background:rgba(68,136,255,.1);border-color:var(--p1);color:var(--p1)}
+.tc-desc{font-size:12px;color:#3a5060;line-height:1.5;min-height:28px;padding:4px 2px;letter-spacing:.3px}
+.tc-custom{margin-top:6px;font-size:12px;color:#4a6080;display:none;align-items:center;gap:6px}
+.tc-custom.show{display:flex}
+.tc-custom input{width:48px;padding:3px 6px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:3px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:12px;text-align:center}
+.tc-numfield{display:flex;align-items:center;gap:6px}
+.tc-numinput{width:64px;padding:4px 8px;background:rgba(255,255,255,.06);border:1px solid #2a4070;border-radius:3px;color:var(--bright);font-family:'Share Tech Mono',monospace;font-size:13px;text-align:center;outline:none;}
+.tc-numinput:focus{border-color:var(--p1)}
+.tc-numinput::-webkit-inner-spin-button,.tc-numinput::-webkit-outer-spin-button{opacity:.4}
+.tc-unit-toggle{display:flex;border:1px solid var(--border);border-radius:3px;overflow:hidden}
+.tc-unit{padding:3px 8px;background:none;border:none;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;transition:all .15s}
+.tc-unit.active{background:rgba(68,136,255,.15);color:var(--p1)}
+
+.fm-row{display:flex;gap:6px;margin-bottom:8px}
+.fm-btn{flex:1;padding:6px 4px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:3px;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;transition:all .15s;text-align:center;line-height:1.3}
+.fm-btn:hover{border-color:#3a5080;color:var(--text)}
+.fm-btn.active{background:rgba(68,170,187,.1);border-color:#44aabb;color:#44aabb}
+.fm-desc{font-size:11px;color:#3a5060;line-height:1.5;min-height:26px;padding:2px 2px 6px;letter-spacing:.3px}
+.btn-create{width:100%;padding:11px;cursor:pointer;background:rgba(34,221,119,.1);border:1px solid rgba(34,221,119,.4);color:var(--green);font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;border-radius:4px;transition:all .15s;margin-top:2px}
+.btn-create:hover{background:rgba(34,221,119,.2);box-shadow:0 0 14px rgba(34,221,119,.2)}
+.btn-create:disabled{opacity:.3;cursor:not-allowed}
+
+.btn-passplay{width:100%;padding:10px;cursor:pointer;background:rgba(255,255,255,.03);border:1px solid var(--border);color:#506070;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;border-radius:4px;transition:all .15s}
+.btn-passplay:hover{border-color:#3a5080;color:var(--text)}
+
+/* ── Main ── */
+#main{grid-area:main;display:flex;flex-direction:column;overflow:hidden}
+@media(max-width:768px){#main{overflow:visible;flex:1}}
+.main-hdr{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.main-title{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;color:#506080}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.4s ease-in-out infinite;display:inline-block;margin-right:6px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.filter-tabs{display:flex;gap:6px}
+.ftab{padding:4px 11px;border-radius:3px;font-size:12px;letter-spacing:1px;cursor:pointer;border:1px solid transparent;transition:all .15s;font-family:'Share Tech Mono',monospace}
+.ftab.active{background:rgba(255,255,255,.06);border-color:var(--border);color:var(--bright)}
+.ftab:not(.active){color:#3a5060}
+.ftab:not(.active):hover{color:var(--text)}
+
+#room-list{flex:1;overflow-y:auto;padding:12px 14px}
+@media(max-width:768px){#room-list{overflow:visible}}
+#room-list::-webkit-scrollbar{width:4px}
+#room-list::-webkit-scrollbar-thumb{background:#1c2840;border-radius:2px}
+
+.room-card{background:rgba(12,17,32,.75);border:1px solid var(--border);border-radius:6px;padding:13px 15px;margin-bottom:9px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;transition:border-color .2s}
+.room-card:hover{border-color:#2a4060}
+.room-name{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;color:var(--bright);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.room-priv{font-size:12px;color:#ff8844;letter-spacing:1px;padding:2px 6px;border-radius:2px;border:1px solid transparent}
+@keyframes pulse-badge{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes _slidein{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.room-meta{font-size:12px;color:#4a6080;line-height:1.9}
+.room-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.btn-join{padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;background:rgba(68,136,255,.12);border:1px solid var(--p1);color:var(--p1);transition:all .15s;white-space:nowrap}
+.btn-join:hover{background:rgba(68,136,255,.25);box-shadow:0 0 10px rgba(68,136,255,.3)}
+.room-status{font-size:12px;letter-spacing:1px;padding:3px 7px;border-radius:2px;white-space:nowrap}
+.s-wait{color:var(--green);border:1px solid rgba(34,221,119,.3);background:rgba(34,221,119,.06)}
+.s-play{color:#ffcc00;border:1px solid rgba(255,204,0,.3);background:rgba(255,204,0,.06)}
+
+/* Tier badge */
+.tier-badge{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;padding:2px 6px;border-radius:2px}
+
+.empty-state{text-align:center;padding:52px 20px;color:#253040}
+.empty-state-icon{font-size:38px;margin-bottom:14px}
+.empty-state-text{font-size:12px;letter-spacing:1px;line-height:2}
+
+/* ── Modal ── */
+#modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.82);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#modal-overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:30px;width:100%;max-width:320px;margin:16px}
+.modal-title{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:var(--bright);margin-bottom:8px}
+.modal-sub{font-size:12px;color:#4a6080;margin-bottom:18px}
+.modal-btns{display:flex;gap:10px;margin-top:18px}
+.btn-cancel{flex:1;padding:10px;cursor:pointer;background:transparent;border:1px solid var(--border);color:#506070;font-family:'Share Tech Mono',monospace;font-size:12px;border-radius:4px;transition:all .15s}
+.btn-cancel:hover{border-color:#3a5080;color:var(--text)}
+.btn-confirm{flex:1;padding:10px;cursor:pointer;background:rgba(68,136,255,.12);border:1px solid var(--p1);color:var(--p1);font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;border-radius:4px;transition:all .15s}
+.btn-confirm:hover{background:rgba(68,136,255,.25)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<header>
+  <a href="/lobby/" class="logo">H<span>W</span> ARENA</a>
+  <div class="hdr-right">
+    <div class="player-chip" id="player-chip" onclick="location.href='/profile/'" style="cursor:pointer;transition:border-color .2s" onmouseenter="this.style.borderColor='#3a5080'" onmouseleave="this.style.borderColor=''">
+      <div class="avatar" id="hdr-avatar"></div>
+      <div>
+        <div class="pname" id="hdr-name">—</div>
+        <div class="ptier" id="hdr-tier"></div>
+      </div>
+      <div class="result-dot" id="result-dot" title="You have a new game result!"></div>
+    </div>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="ss">
+    <div class="ss-label">CREATE ROOM</div>
+
+    <div class="form-row">
+      <label class="form-label">ROOM NAME</label>
+      <input class="form-input" id="room-name" placeholder="My Galaxy" maxlength="32">
+    </div>
+
+    <div class="toggle-row">
+      <span class="toggle-label">PRIVATE ROOM</span>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-private">
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>
+
+    <div class="form-row" id="password-row" style="display:none">
+      <label class="form-label">PASSWORD (VISIBLE)</label>
+      <div class="pw-wrap">
+        <input class="form-input" id="room-password" type="text"
+               placeholder="Set a room password" maxlength="24"
+               autocomplete="off" spellcheck="false">
+        <!-- password is intentionally type="text" so host can see what they're setting -->
+      </div>
+      <div style="font-size:12px;color:#3a5060;margin-top:4px;letter-spacing:.5px">
+        Share this with the player you want to invite.
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">TIME CONTROL</label>
+      <div class="tc-grid">
+        <button class="tc-btn active" data-tc="unlimited">∞ UNLIMITED</button>
+        <button class="tc-btn" data-tc="blitz">⚡ BLITZ</button>
+      </div>
+      <div class="tc-grid">
+        <button class="tc-btn" data-tc="turn">⏱ PER TURN</button>
+        <button class="tc-btn" data-tc="tournament">🏆 TOURNAMENT</button>
+      </div>
+      <div class="tc-desc" id="tc-desc">No time limit — play at your own pace.</div>
+      <div class="tc-custom" id="tc-custom-blitz">
+        <span>Time per player:</span>
+        <div class="tc-numfield">
+          <input type="number" inputmode="numeric" id="tc-blitz-val" value="10" min="1" max="999" step="1" class="tc-numinput">
+          <div class="tc-unit-toggle">
+            <button class="tc-unit active" data-field="blitz" data-unit="min">min</button>
+            <button class="tc-unit" data-field="blitz" data-unit="sec">sec</button>
+          </div>
+        </div>
+      </div>
+      <div class="tc-custom" id="tc-custom-turn">
+        <span>Time per turn:</span>
+        <div class="tc-numfield">
+          <input type="number" inputmode="numeric" id="tc-turn-val" value="5" min="1" max="999" step="1" class="tc-numinput">
+          <div class="tc-unit-toggle">
+            <button class="tc-unit active" data-field="turn" data-unit="min">min</button>
+            <button class="tc-unit" data-field="turn" data-unit="sec">sec</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">WHO GOES FIRST</label>
+      <div class="fm-row">
+        <button class="fm-btn active" data-fm="challenger">Challenger First</button>
+        <button class="fm-btn" data-fm="random">⚄ Random</button>
+      </div>
+      <div class="fm-desc" id="fm-desc">The joiner moves and sets up first.</div>
+    </div>
+
+    <button class="btn-create" id="btn-create">CREATE ROOM</button>
+  </div>
+
+  <div class="ss">
+    <div class="ss-label">QUICK PLAY</div>
+    <button class="btn-passplay" onclick="window.location.href='/game/?mode=passplay'">
+      PASS &amp; PLAY — LOCAL TWO PLAYER
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main id="main">
+  <div class="main-hdr">
+    <div class="main-title"><span class="live-dot"></span>OPEN ROOMS</div>
+    <div class="filter-tabs">
+      <div class="ftab active" data-filter="all">ALL</div>
+      <div class="ftab" data-filter="myturn">MY TURN</div>
+      <div class="ftab" data-filter="waiting">WAITING</div>
+      <div class="ftab" data-filter="playing">IN PROGRESS</div>
+    </div>
+  </div>
+  <div id="room-list">
+    <div class="empty-state">
+      <div class="empty-state-icon">🌌</div>
+      <div class="empty-state-text">No open rooms yet.<br>Create one to challenge the galaxy.</div>
+    </div>
+  </div>
+</main>
+
+</div>
+
+<!-- JOIN PASSWORD MODAL -->
+<div id="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">PRIVATE ROOM</div>
+    <div class="modal-sub">Enter the password to join.</div>
+    <div class="pw-wrap">
+      <input class="form-input" id="modal-password" type="password" placeholder="Password" autocomplete="off">
+      <button class="pw-eye" id="modal-pw-eye" title="Show/hide">👁</button>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="modal-cancel">CANCEL</button>
+      <button class="btn-confirm" id="modal-confirm">JOIN</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp }      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getDatabase,ref,get,set,push,onValue,update } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { firebaseConfig } from './firebase-config.js';
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getDatabase(app);
+
+// ── Tier ────────────────────────────────────────────────────
+const TIERS=[
+  {name:'Iron',min:0,max:4,color:'#8a9bb0'},{name:'Bronze',min:5,max:9,color:'#cd7f32'},
+  {name:'Silver',min:10,max:14,color:'#c0c0c0'},{name:'Gold',min:15,max:19,color:'#ffd700'},
+  {name:'Platinum',min:20,max:24,color:'#00d4ff'},{name:'Emerald',min:25,max:29,color:'#22dd77'},
+  {name:'Diamond',min:30,max:34,color:'#b9f2ff'},{name:'Master',min:35,max:39,color:'#9b59b6'},
+  {name:'Grandmaster',min:40,max:44,color:'#ff6b35'},{name:'Star Captain',min:45,max:Infinity,color:'#ffcc00'},
+];
+function getTier(s=0){return TIERS.find(t=>s>=t.min&&s<=t.max)||TIERS[0]}
+function tierHTML(stars){const t=getTier(stars);return `<span class="tier-badge" style="color:${t.color};border:1px solid ${t.color}40;background:${t.color}12">${t.name.toUpperCase()}</span>`;}
+
+// ── TC descriptions ──────────────────────────────────────────
+const TC_DESC = {
+  unlimited:  'No time limit — play at your own pace.',
+  blitz:      'Time per player. Time runs out = you lose.',
+  turn:       'Each turn has a fixed time limit. Clock resets every turn. Time runs out = you lose.',
+  tournament: '30 min total + 30 sec added per move. Standard competitive format.',
+};
+
+let selectedTc  = 'unlimited';
+let selectedFm  = 'challenger'; // 'challenger' | 'random'
+let ME          = null;
+let lastRooms   = {};
+let currentFilter = 'all';
+let pendingJoin   = null;
+
+// ── Auth guard ───────────────────────────────────────────────
+onAuthStateChanged(auth, async user => {
+  if (!user) { window.location.href = '/'; return; }
+  const snap = await get(ref(db, `players/${user.uid}`));
+  ME = snap.val() || { uid: user.uid, name: 'Pilot', stars: 0 };
+
+  document.getElementById('hdr-name').textContent = ME.name;
+  const t = getTier(ME.stars || 0);
+  document.getElementById('hdr-tier').innerHTML = `<span style="color:${t.color}">${t.name.toUpperCase()}</span>`;
+  const av = document.getElementById('hdr-avatar');
+  const avatar = ME.avatarBase64 || ME.avatarUrl || '';
+  if (avatar) av.innerHTML = `<img src="${avatar}" alt="">`;
+  else av.textContent = ME.name[0].toUpperCase();
+
+  document.getElementById('room-name').value = `${ME.name}'s Room`;
+
+  // Show red dot if player has a game result they haven't seen yet
+  if (ME.hasUnseenResult) {
+    const dot = document.getElementById('result-dot');
+    if (dot) {
+      dot.style.display = 'block';
+      dot.title = 'New game result — click to view on profile';
+    }
+    // Also pulse the chip border
+    const chip = document.getElementById('player-chip');
+    if (chip) chip.style.borderColor = 'rgba(255,51,68,0.5)';
+  }
+
+  // Reconcile any missed game results from rooms that ended while this player was away.
+  // For each room this player was in that is now 'archived' but their recentGames doesn't
+  // have that gameId yet, we add the result. This catches the case where they were in the
+  // lobby when their opponent ended the game.
+  try { await reconcileMissedResults(user.uid); } catch(e) { console.warn('reconcile error:', e); }
+
+  subscribeRooms();
+});
+
+async function reconcileMissedResults(uid) {
+  // Get player's recent games (so we know which gameIds already recorded)
+  const playerSnap = await get(ref(db, `players/${uid}`));
+  const playerRec  = playerSnap.val() || {};
+  const recentGames = playerRec.recentGames || [];
+  const knownIds   = new Set(recentGames.map(g => String(g.gameId)));
+
+  // Find rooms this player was part of that are archived
+  const roomsSnap = await get(ref(db, 'rooms'));
+  if (!roomsSnap.exists()) return;
+  const rooms = roomsSnap.val();
+  let needsUpdate = false;
+  const newEntries = [];
+
+  Object.values(rooms).forEach(room => {
+    if (room.status !== 'archived') return;
+    if (!room.archivedGameId) return;
+    if (knownIds.has(String(room.archivedGameId))) return;
+
+    // Was this player in this room?
+    const isP1 = room.player1?.uid === uid;
+    const isP2 = room.player2?.uid === uid;
+    if (!isP1 && !isP2) return;
+
+    const mySlot  = isP1 ? 1 : 2;
+    const oppSlot = isP1 ? 2 : 1;
+    const iWon    = room.winner === mySlot;
+    const oppName = room[isP1 ? 'player2' : 'player1']?.name || `Player ${oppSlot}`;
+    newEntries.push({
+      gameId:    String(room.archivedGameId),
+      result:    iWon ? 'win' : 'loss',
+      opponent:  oppName,
+      starDelta: iWon ? 3 : -1,
+      playedAt:  room.updatedAt || Date.now(),
+      unseen:    true,   // cleared when player visits profile
+    });
+    needsUpdate = true;
+  });
+
+  if (!needsUpdate) return;
+
+  // Merge new entries with existing, sort newest first, keep 20
+  const merged = [...newEntries, ...recentGames]
+    .sort((a, b) => b.playedAt - a.playedAt)
+    .slice(0, 20);
+
+  // Re-tally wins/losses from the full history
+  const wins   = merged.filter(g => g.result === 'win').length;
+  const losses = merged.filter(g => g.result === 'loss').length;
+
+  await update(ref(db, `players/${uid}`), { wins, losses, hasUnseenResult: true });
+  await set(ref(db, `players/${uid}/recentGames`), merged);
+  console.log('[Lobby] Reconciled', newEntries.length, 'missed result(s) for', uid);
+
+  // Show notification dot immediately (user is on lobby page)
+  const dot = document.getElementById('result-dot');
+  if (dot) dot.style.display = 'block';
+  const chip = document.getElementById('player-chip');
+  if (chip) chip.style.borderColor = 'rgba(255,51,68,0.5)';
+  showNewResultBanner(newEntries);
+}
+
+
+function goToProfile() { location.href = '/profile/'; }
+function showNewResultBanner(entries) {
+  if (!entries || !entries.length) return;
+  if (document.getElementById('_newResultBanner')) return;
+  const entry = entries[0];
+  const isWin = entry.result === 'win';
+  const banner = document.createElement('div');
+  banner.id = '_newResultBanner';
+  banner.style.cssText = 'position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:50;' +
+    'background:#0c1120;border:1px solid ' + (isWin ? '#22dd77' : '#884444') + ';border-radius:8px;' +
+    'padding:12px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 4px 24px rgba(0,0,0,.6);' +
+    'font-family:Share Tech Mono,monospace;font-size:12px;animation:_slidein .3s ease;white-space:nowrap;';
+  banner.innerHTML =
+    '<span style="font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;color:' +
+    (isWin ? '#22dd77' : '#ff5566') + '">' + (isWin ? '★ VICTORY' : '✕ DEFEAT') + '</span>' +
+    '<span style="color:#7090a8">vs ' + esc(entry.opponent || 'Unknown') + '</span>' +
+    '<button onclick="goToProfile()" style="padding:5px 14px;background:rgba(34,102,255,.12);border:1px solid #2266ff;color:#4488ff;font-family:Share Tech Mono,monospace;font-size:12px;cursor:pointer;border-radius:3px;letter-spacing:1px">VIEW RESULT</button>' +
+    '<button onclick="this.parentElement.remove()" style="background:transparent;border:none;color:#4a6080;font-size:18px;cursor:pointer;padding:0 4px;">&times;</button>';
+  document.body.appendChild(banner);
+  setTimeout(() => { if (banner.parentElement) banner.remove(); }, 8000);
+}
+
+
+// ── Private toggle ───────────────────────────────────────────
+document.getElementById('toggle-private').onchange = function() {
+  document.getElementById('password-row').style.display = this.checked ? 'block' : 'none';
+};
+
+// ── TC tabs ──────────────────────────────────────────────────
+document.querySelectorAll('.tc-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tc-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTc = btn.dataset.tc;
+    document.getElementById('tc-desc').textContent = TC_DESC[selectedTc] || '';
+    document.getElementById('tc-custom-blitz').classList.toggle('show', selectedTc === 'blitz');
+    document.getElementById('tc-custom-turn').classList.toggle('show', selectedTc === 'turn');
+  };
+});
+
+// ── Unit toggles ──────────────────────────────────────────────
+document.querySelectorAll('.tc-unit').forEach(btn => {
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const field = btn.dataset.field;
+    document.querySelectorAll(`.tc-unit[data-field="${field}"]`).forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+});
+
+// Clear on focus, restore default on blur if empty
+document.querySelectorAll('.tc-numinput').forEach(inp => {
+  const _default = inp.value;
+  inp.addEventListener('focus', () => { inp.value = ''; });
+  inp.addEventListener('blur',  () => { if (!inp.value || parseInt(inp.value) < 1) inp.value = _default; });
+  inp.addEventListener('keydown', e => {
+    if (['.','e','E','+','-'].includes(e.key)) e.preventDefault();
+  });
+});
+
+// ── First-mover tabs ─────────────────────────────────────────
+const FM_DESC = {
+  challenger: 'The joiner moves and sets up first.',
+  random:     'First player decided randomly when the game starts.',
+};
+document.querySelectorAll('.fm-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.fm-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedFm = btn.dataset.fm;
+    document.getElementById('fm-desc').textContent = FM_DESC[selectedFm] || '';
+  };
+});
+
+// ── Filter tabs ──────────────────────────────────────────────
+document.querySelectorAll('.ftab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentFilter = tab.dataset.filter;
+    renderRooms(lastRooms);
+  };
+});
+
+// ── Create room ──────────────────────────────────────────────
+document.getElementById('btn-create').onclick = async () => {
+  if (!ME) return;
+  const name   = document.getElementById('room-name').value.trim() || `${ME.name}'s Room`;
+  const isPriv = document.getElementById('toggle-private').checked;
+  const pw     = isPriv ? document.getElementById('room-password').value.trim() : '';
+  const isPrivFinal = isPriv && pw.length > 0;  // not private if password left blank
+
+  function _readTcField(fId, uField) {
+    const val = parseInt(document.getElementById(fId)?.value)||0;
+    const unit = document.querySelector(`.tc-unit.active[data-field="${uField}"]`)?.dataset.unit||'min';
+    return unit==='sec' ? val*1000 : val*60*1000;
+  }
+  let timeMs=0, tcTurnMs=0;
+  if (selectedTc==='blitz')      timeMs  = _readTcField('tc-blitz-val','blitz')||10*60*1000;
+  if (selectedTc==='turn')     { tcTurnMs=_readTcField('tc-turn-val','turn')||5*60*1000; timeMs=tcTurnMs; }
+  if (selectedTc==='tournament') { timeMs=30*60*1000; tcTurnMs=30*1000; }
+
+  const roomRef = push(ref(db,'rooms'));
+  await set(roomRef,{
+    id:roomRef.key, name, status:'waiting', isPrivate:isPrivFinal,
+    password: isPrivFinal ? simpleHash(pw) : '',
+    hostUid:ME.uid, guestUid:null,
+    settings:{tcMode:selectedTc,timeMs,tcTurnMs,firstMoverPref:selectedFm,
+      // For random mode, decide first player NOW so both clients see the same value
+      firstPlayer: selectedFm === 'random' ? (Math.random() < 0.5 ? 1 : 2) : 2,
+    },
+    player1:{uid:ME.uid,name:ME.name,stars:ME.stars||0,elo:ME.elo||1200,avatarBase64:ME.avatarBase64||'',avatarUrl:ME.avatarUrl||''},
+    player2:null, currentTurn:1, createdAt:Date.now(),
+  });
+  window.location.href = `/game/?room=${roomRef.key}&player=1`;
+};
+
+// ── Room list ────────────────────────────────────────────────
+// Update MY TURN tab badge count
+function updateMyTurnBadge(rooms) {
+  const tab = document.querySelector('[data-filter="myturn"]');
+  if (!tab || !ME) return;
+  const myUid = ME.uid;
+  let count = 0;
+  Object.values(rooms || {}).forEach(r => {
+    const isHost  = r.hostUid === myUid;
+    const isGuest = r.player2?.uid === myUid;
+    const mySlotN = isHost ? 1 : isGuest ? 2 : 0;
+    if (r.status === 'playing' && r.currentPlayer === mySlotN) count++;
+  });
+  tab.textContent = count > 0 ? `MY TURN (${count})` : 'MY TURN';
+  tab.style.color = count > 0 ? '#ffcc00' : '';
+  tab.style.borderColor = count > 0 ? '#ffcc0040' : '';
+}
+
+function subscribeRooms(){
+  // Use limitToLast to only download recent rooms, reducing Firebase bandwidth
+  // Import query/orderByChild/limitToLast are not imported — use basic ref but add staleness filter
+  onValue(ref(db,'rooms'), snap => {
+    const all = snap.val() || {};
+    // Filter to rooms active in last 7 days to limit memory/rendering
+    const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+    lastRooms = {};
+    Object.entries(all).forEach(([id, room]) => {
+      const ts = room.updatedAt || room.createdAt || 0;
+      // Keep recent rooms or rooms I'm in (regardless of age)
+      const isMine = room.hostUid === ME?.uid || room.player2?.uid === ME?.uid;
+      if (ts > cutoff || isMine) {
+        lastRooms[id] = room;
+      } else if (!room.name && !room.status && room.presence) {
+        // Delete shell rooms (presence only, no actual game data) while we're at it
+        const allOffline = Object.values(room.presence || {}).every(p => !p.online);
+        if (allOffline) set(ref(db, `rooms/${id}`), null).catch(() => {});
+      }
+    });
+    renderRooms(lastRooms);
+  });
+}
+
+function renderRooms(rooms){
+  const list = document.getElementById('room-list');
+  updateMyTurnBadge(rooms);
+  const myUid = ME?.uid;
+  let entries = Object.entries(rooms)
+    .map(([id, r]) => ({ ...r, id }))
+    .filter(r => {
+      if (!r.name || !r.status) return false;
+      if (r.status === 'finished' || r.status === 'deleted') return false;
+      // Hide archived rooms — result shown via notification dot on profile pill
+      if (r.status === 'archived') return false;
+      return true;
+    })
+    .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
+  if (currentFilter !== 'all') {
+    if (currentFilter === 'playing')  entries = entries.filter(r => r.status === 'playing');
+    else if (currentFilter === 'waiting') entries = entries.filter(r => r.status === 'waiting');
+    else if (currentFilter === 'myturn') {
+      entries = entries.filter(r => {
+        const isHost  = r.hostUid === myUid;
+        const isGuest = r.player2?.uid === myUid;
+        const mySlotN = isHost ? 1 : isGuest ? 2 : 0;
+        return r.status === 'playing' && r.currentPlayer === mySlotN;
+      });
+    }
+  }
+  if (!entries.length){
+    const icons = {all:'🌌',waiting:'🌌',playing:'⚔️',myturn:'⚔️'};
+    const msgs  = {all:'No active rooms.<br>Create one to challenge the galaxy.',waiting:'No open rooms yet.<br>Create one to challenge the galaxy.',playing:'No games currently in progress.',myturn:'No games are waiting for your move.'};
+    list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">${icons[currentFilter]||'🌌'}</div><div class="empty-state-text">${msgs[currentFilter]||''}</div></div>`;
+    return;
+  }
+  list.innerHTML='';
+  entries.forEach(room => {
+    const card = document.createElement('div');
+    card.className='room-card';
+    const isHost  = room.hostUid === myUid;
+    const isGuest = room.player2?.uid === myUid;
+    const isParticipant = isHost || isGuest;
+    const mySlot = isHost ? 1 : isGuest ? 2 : 0;
+    const isArchived = room.status === 'archived';
+    const hostTier = tierHTML(room.player1?.stars||0);
+    const tc = formatTc(room.settings);
+
+    // My turn indicator: I'm in this game, it's playing, and it's my slot's turn
+    const isMyTurn = isParticipant && room.status === 'playing' && room.currentPlayer === mySlot;
+
+    // Badges
+    let badges = '';
+    if (isParticipant && !isArchived) badges += '<span class="room-priv" style="color:#22dd77;border-color:#22dd7740;background:#22dd7712">★ YOURS</span>';
+    if (isMyTurn) badges += '<span class="room-priv" style="color:#ffcc00;border-color:#ffcc0040;background:#ffcc0012;animation:pulse-badge .9s ease-in-out infinite">● MY TURN</span>';
+    if (room.isPrivate) badges += '<span class="room-priv">🔒 PRIVATE</span>';
+
+    let statusHtml, actionsHtml;
+    if (isArchived) {
+      const winnerName = room.winnerName || `Player ${room.winner}`;
+      statusHtml = `<span class="room-status" style="color:#4a6080;border-color:#2a3850;background:rgba(255,255,255,.03)">ENDED</span>`;
+      // Anyone can review a finished game (no need to be a participant)
+      actionsHtml = room.archivedGameId
+        ? `<button class="btn-join" style="border-color:#4a6080;color:#6080a0" onclick="location.href='/review/?game=${room.archivedGameId}'">REVIEW</button>`
+        : '';
+      badges += `<span class="room-priv" style="color:#8090a0;border-color:#2a384040;background:transparent">🏆 ${esc(winnerName)}</span>`;
+    } else if (room.status === 'playing') {
+      statusHtml = `<span class="room-status s-play">PLAYING</span>`;
+      actionsHtml = isHost
+        ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='/game/?room=${room.id}&player=1'">REJOIN</button>`
+        : isGuest
+        ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='/game/?room=${room.id}&player=2'">REJOIN</button>`
+        : '';
+    } else {
+      const _isFull = !!room.player2;
+      if (_isFull && !isParticipant) {
+        statusHtml  = `<span class="room-status" style="color:#8855aa;border:1px solid rgba(136,85,170,.3);background:rgba(136,85,170,.06);font-size:12px;letter-spacing:1px;padding:3px 7px;border-radius:2px;white-space:nowrap">FULL</span>`;
+        actionsHtml = '';
+      } else {
+        statusHtml  = `<span class="room-status s-wait">OPEN</span>`;
+        actionsHtml = isHost
+          ? `<button class="btn-join" style="border-color:var(--green);color:var(--green)" onclick="location.href='/game/?room=${room.id}&player=1'">REJOIN</button>`
+          : `<button class="btn-join" data-id="${room.id}" data-priv="${room.isPrivate}" data-hash="${room.password||''}">JOIN</button>`;
+      }
+    }
+
+    card.innerHTML=`
+      <div>
+        <div class="room-name">${esc(room.name)} ${badges}</div>
+        <div class="room-meta">HOST: ${esc(room.player1?.name||'—')} &nbsp;${hostTier}&nbsp; · ${tc} · ${formatFm(room.settings)}</div>
+      </div>
+      <div class="room-actions">
+        ${statusHtml}
+        ${actionsHtml}
+      </div>`;
+    list.appendChild(card);
+  });
+  list.querySelectorAll('.btn-join[data-id]').forEach(btn => {
+    btn.onclick = () => handleJoin(btn.dataset.id, btn.dataset.priv==='true', btn.dataset.hash);
+  });
+}
+
+// ── Join ─────────────────────────────────────────────────────
+async function handleJoin(id, isPriv, hash){
+  if (isPriv){ pendingJoin={id,hash}; document.getElementById('modal-password').value=''; document.getElementById('modal-overlay').classList.add('show'); return; }
+  await doJoin(id);
+}
+document.getElementById('modal-cancel').onclick=()=>{ document.getElementById('modal-overlay').classList.remove('show'); pendingJoin=null; };
+document.getElementById('modal-confirm').onclick=async()=>{
+  const pw=document.getElementById('modal-password').value.trim();
+  if (simpleHash(pw)!==pendingJoin.hash){ alert('Incorrect password.'); return; }
+  document.getElementById('modal-overlay').classList.remove('show');
+  await doJoin(pendingJoin.id); pendingJoin=null;
+};
+// Show/hide join password
+document.getElementById('modal-pw-eye').onclick=()=>{
+  const inp=document.getElementById('modal-password');
+  inp.type = inp.type==='password' ? 'text' : 'password';
+};
+async function doJoin(id){
+  await update(ref(db,`rooms/${id}`),{
+    guestUid: ME.uid,
+    player2:  {uid:ME.uid, name:ME.name, stars:ME.stars||0, elo:ME.elo||1200, avatarBase64:ME.avatarBase64||'', avatarUrl:ME.avatarUrl||''}
+    // status stays 'waiting' until START is clicked in game.html
+  });
+  window.location.href=`/game/?room=${id}&player=2`;
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function formatTc(s){
+  function _fD(ms){if(!ms)return'';return ms%60000===0?ms/60000+'min':ms/1000+'sec';}
+  if (!s||s.tcMode==='unlimited') return '∞ UNLIMITED';
+  if (s.tcMode==='blitz')         return `⚡ BLITZ ${_fD(s.timeMs)}`;
+  if (s.tcMode==='sudden')        return `⚡ BLITZ ${_fD(s.timeMs)}`; // legacy
+  if (s.tcMode==='turn')          return `⏱ PER TURN ${_fD(s.tcTurnMs)}`;
+  if (s.tcMode==='tournament')    return '🏆 TOURNAMENT';
+  return s.tcMode;
+}
+function formatFm(s){
+  if (!s) return '→ Challenger First';
+  if (s.firstMoverPref === 'random') return '⚄ Random First';
+  return '→ Challenger First';
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function simpleHash(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=(h*0x01000193)>>>0;} return h.toString(16); }
+</script>
+</body>
+</html>

@@ -124,8 +124,8 @@ footer em{color:#354050;font-style:normal}
 <body>
 
 <nav>
-  <a href="index.html" class="nav-logo">H<span>W</span> ARENA</a>
-  <a href="lobby.html" id="btn-lobby" style="display:none" class="btn btn-primary">ENTER LOBBY →</a>
+  <a href="/" class="nav-logo">H<span>W</span> ARENA</a>
+  <a href="/lobby/" id="btn-lobby" style="display:none" class="btn btn-primary">ENTER LOBBY →</a>
 </nav>
 
 <section class="hero">
@@ -232,7 +232,7 @@ footer em{color:#354050;font-style:normal}
     <div style="font-size:13px;color:#4a6080;margin-bottom:24px;letter-spacing:1px">
       Welcome back, <span id="hero-name" style="color:var(--bright)"></span>
     </div>
-    <a href="lobby.html" class="btn btn-primary btn-large">ENTER LOBBY →</a>
+    <a href="/lobby/" class="btn btn-primary btn-large">ENTER LOBBY →</a>
   </div>
 
 </section>
@@ -330,7 +330,7 @@ onAuthStateChanged(auth, async user => {
       showUsernamePicker(user);
       return;
     }
-    window.location.href = 'lobby.html';
+    window.location.href = '/lobby/';
   } else {
     showMain();
   }
@@ -592,7 +592,7 @@ umodConfirm.onclick = async () => {
     await set(ref(db, `players/${_pendingUser.uid}`), profile);
     await set(ref(db, `usernames/${username.toLowerCase()}`), _pendingUser.uid);
     document.getElementById('username-overlay').classList.remove('show');
-    window.location.href = 'lobby.html';
+    window.location.href = '/lobby/';
   } catch (e) {
     umodStatus.textContent = e.message; umodStatus.className = 'umod-status err';
     umodConfirm.disabled = false; umodConfirm.textContent = 'CONFIRM CALLSIGN';
