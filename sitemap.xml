@@ -2,18 +2,22 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://hwarena.xyz/</loc>
+    <lastmod>2026-03-03</lastmod>
   </url>
   <url>
     <loc>https://hwarena.xyz/game/</loc>
+    <lastmod>2026-03-03</lastmod>
   </url>
   <url>
     <loc>https://hwarena.xyz/lobby/</loc>
+    <lastmod>2026-03-03</lastmod>
   </url>
   <url>
     <loc>https://hwarena.xyz/review/</loc>
+    <lastmod>2026-03-03</lastmod>
   </url>
-
   <url>
     <loc>https://hwarena.xyz/profile/</loc>
+    <lastmod>2026-03-03</lastmod>
   </url>
 </urlset>
