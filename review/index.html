@@ -7,7 +7,7 @@
 
 <link rel="icon" href="/assets/icons/Favicon1.png" sizes="48x48">
 <link rel="apple-touch-icon" href="/assets/icons/Favicon2.png">
-  
+
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 
@@ -739,6 +739,7 @@ body::before {
 
   /* ── Sticky top bar ── */
   #rv-mobile-top {
+    grid-area: top;
     display: flex !important;
     position: sticky; top: 0; z-index: 50;
     background: var(--panel);
@@ -840,6 +841,13 @@ body::before {
   #rv-bottom-nav #bnav-turn {
     flex: 1.5; font-family: 'Orbitron', sans-serif; font-size: 10px;
     color: var(--bright); letter-spacing: 1px; pointer-events: none; cursor: default;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 6px 4px;
+    gap: 1px;
+    line-height: 1.3;
   }
   /* Hide the desktop nav section's buttons on mobile (keep for keyboard only) */
   #nav-section { display: none; }
@@ -850,7 +858,29 @@ body::before {
 
 @media (min-width: 801px) {
   html, body { height: 100%; overflow: hidden; }
-  #rv-mobile-top { display: none !important; }
+  #rv-mobile-top {
+    display: flex !important;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    padding: 0;
+    flex-shrink: 0;
+    grid-column: 1 / -1;
+  }
+  #rv-mobile-top a {
+    display: flex; align-items: center;
+    padding: 10px 14px;
+    color: #4a6080; text-decoration: none;
+    font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 2px;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  #rv-mobile-top a:hover { color: var(--bright); }
+  #rv-mobile-title {
+    flex: 1; text-align: center;
+    font-family: 'Orbitron', sans-serif; font-size: 11px;
+    letter-spacing: 3px; color: var(--bright); padding: 10px 8px;
+  }
 }
 
 
@@ -859,7 +889,9 @@ body {
   display: grid;
   grid-template-columns: 264px 1fr 264px;
   grid-template-rows: 1fr;
-  grid-template-areas: "side board right";
+  grid-template-areas:
+    "top   top   top"
+    "side  board right";
   overflow: hidden;
   height: 100vh;
 }
@@ -985,21 +1017,7 @@ body {
 
 <!-- LEFT: Sidebar with nav + bank -->
 <div id="sidebar">
-  <div id="review-top">
-    <div id="review-title">⬡ REVIEW MODE</div>
-    <!-- review-sub removed: info shown in player cards -->
-  </div>
-  <div id="nav-section">
-    <div id="turn-indicator">— / —</div>
-    <div id="nav-buttons">
-      <button class="nav-btn" id="nav-first" title="Go to start">⏮</button>
-      <button class="nav-btn" id="nav-prev"  title="Previous turn">◀</button>
-      <button class="nav-btn" id="nav-next"  title="Next turn">▶</button>
-      <button class="nav-btn" id="nav-last"  title="Go to end">⏭</button>
-    </div>
-    <div id="nav-hint">← → arrow keys · Home / End</div>
-  </div>
-  <div id="players-section"></div>
+  <!-- Navesection used to be here -->
   <div id="bank-section">
     <div id="bank-title">Stash</div>
     <div id="bank-grid"></div>
@@ -1049,6 +1067,17 @@ body {
 
 <!-- RIGHT: Log panel (identical structure to game.html) -->
 <div id="right-panel">
+  <div id="players-section"></div>
+  <div id="nav-section">
+    <div id="turn-indicator">— / —</div>
+    <div id="nav-buttons">
+      <button class="nav-btn" id="nav-first" title="Start">|◀</button>
+      <button class="nav-btn" id="nav-prev"  title="Previous">◀</button>
+      <button class="nav-btn" id="nav-next"  title="Next">▶</button>
+      <button class="nav-btn" id="nav-last"  title="End">▶|</button>
+    </div>
+    <div id="nav-hint">Key: ⇧← | ← | → | ⇧→</div>
+  </div>
   <div id="log-panel">
     <div id="log-header">
       <span>Game Log</span>
@@ -2227,11 +2256,15 @@ function init(record) {
   document.getElementById('nav-next').onclick  = () => navDelta(1);
   document.getElementById('nav-last').onclick  = () => navToSnap(snapshots.length - 1);
   document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   navDelta(-1);
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') navDelta(1);
-    if (e.key === 'Home') navToSnap(0);
-    if (e.key === 'End')  navToSnap(snapshots.length - 1);
-  });
+      let handled = false;
+      if (e.shiftKey && e.key === 'ArrowLeft')  { navToSnap(0); handled = true; }
+      else if (e.shiftKey && e.key === 'ArrowRight') { navToSnap(snapshots.length - 1); handled = true; }
+      else if (e.key === 'ArrowLeft')   { navDelta(-1); handled = true; }
+      else if (e.key === 'ArrowRight') { navDelta(1); handled = true; }
+      else if (e.key === 'Home') { navToSnap(0); handled = true; }
+      else if (e.key === 'End')  { navToSnap(snapshots.length - 1); handled = true; }
+      if (handled) e.preventDefault();
+    });
 
   document.getElementById('loading').style.display = 'none';
   currentLogRow = logRows.length - 1;
@@ -2476,8 +2509,21 @@ function _initArrows() {
 // Wire bottom nav buttons to the same navigation functions as desktop
 (function() {
   function syncBottomNav() {
-    const ind = document.getElementById('turn-indicator');
-    if (ind) document.getElementById('bnav-turn').textContent = ind.textContent;
+      const ind = document.getElementById('turn-indicator');
+      if (ind) {
+        // turn-indicator innerHTML is like: <span style="color:#4477dd;font-weight:bold">N</span>&nbsp;MOVE 9 / 11
+        const bnav = document.getElementById('bnav-turn');
+        // Extract player initial span and the rest
+        const match = ind.innerHTML.match(/<span[^>]*color:\s*([^;"]+)[^>]*>([^<]+)<\/span>\s*&nbsp;\s*(.*)/i);
+        if (match) {
+          const color = match[1];
+          const initial = match[2].trim();
+          const rest = match[3].trim(); // e.g. "MOVE 9 / 11"
+          bnav.innerHTML = `<span style="color:${color};font-size:14px;font-weight:900;line-height:1">${initial}</span><span style="font-size:9px;color:#6080a0;letter-spacing:1px">${rest}</span>`;
+        } else {
+          bnav.textContent = ind.textContent;
+        }
+      }
     ['first','prev','next','last'].forEach(k => {
       const src = document.getElementById(`nav-${k}`);
       const dst = document.getElementById(`bnav-${k}`);
