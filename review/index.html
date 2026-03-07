@@ -37,6 +37,19 @@ body {
   overflow: hidden;
 }
 
+#rv-mobile-top {
+    display: flex !important;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    padding: 0;
+    flex-shrink: 0;
+    grid-column: 1 / -1;
+    align-self: start;
+  }
+
+  #rv-mobile-top { display: none; }
+
 /* === UNSEEN RESULT OVERLAY === */
 #unseen-overlay {
   display: none;
@@ -779,15 +792,16 @@ body::before {
 
   /* Players section — horizontal row (players appended directly to section) */
   #players-section {
-    padding: 10px 14px;
-    display: flex; gap: 8px; /* players sit side-by-side */
-    border-bottom: 1px solid var(--border);
-  }
-  .rv-player { flex: 1; flex-direction: column; align-items: center; text-align: center; padding: 10px 8px; margin-bottom: 0; }
-  .rv-player:last-child { margin-bottom: 0; }
-  .rv-avatar { width: 44px; height: 44px; font-size: 16px; }
-  .rv-info-name { font-size: 9px; }
-  .rv-crown { margin-left: 0; margin-top: 2px; }
+      padding: 8px 12px;
+      display: flex; gap: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .rv-player { flex: 1; flex-direction: row; align-items: center; text-align: left; padding: 8px 10px; margin-bottom: 0; gap: 8px; }
+    .rv-player:last-child { margin-bottom: 0; }
+    .rv-avatar { width: 32px; height: 32px; font-size: 13px; }
+    .rv-info-name { font-size: 9px; }
+    .rv-info-result { font-size: 9px; }
+    .rv-crown { margin-left: auto; margin-top: 0; font-size: 12px; }
 
   /* Stash */
   #bank-section { padding: 10px 14px; border-bottom: 1px solid var(--border); }
@@ -1010,7 +1024,7 @@ body {
 </div>
 
 <!-- Mobile sticky top bar (hidden on desktop) -->
-<div id="rv-mobile-top" style="display:none">
+<div id="rv-mobile-top">
   <a href="javascript:history.back()">← BACK</a>
   <div id="rv-mobile-title">⬡ REVIEW</div>
 </div>
@@ -2155,7 +2169,7 @@ function init(record) {
     const name = players[p] || `Player ${p}`;
     const raw  = rawPlayers[p];
     const avatarSrc = (typeof raw === 'object' && raw) ? (raw.avatarBase64 || raw.avatarUrl || '') : '';
-    const initial = name[0].toUpperCase();
+    const initial = hwLabels[p] || name[0].toUpperCase();
     const avatarInner = avatarSrc
       ? `<img src="${avatarSrc}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : initial;
@@ -2204,7 +2218,7 @@ function init(record) {
       const name = players[p] || `Player ${p}`;
       const raw  = rawPlayersUO[p];
       const av   = (typeof raw === 'object' && raw) ? (raw.avatarBase64 || raw.avatarUrl || '') : '';
-      const avContent = av ? `<img src="${av}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : name[0].toUpperCase();
+      const avContent = av ? `<img src="${av}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : (hwLabels[p] || name[0].toUpperCase());
       const borderColor = isW ? (isDraw ? '#88bbcc' : '#ffcc00') : '#1c2840';
       const resultLabel = isDraw ? 'DRAW' : (isW ? '★ WINNER' : 'DEFEATED');
       const resultColor = isDraw ? '#6090a0' : (isW ? '#ffcc00' : '#884444');
@@ -2267,7 +2281,9 @@ function init(record) {
     });
 
   document.getElementById('loading').style.display = 'none';
-  currentLogRow = logRows.length - 1;
+  // Highlight last actual move, not the result summary line
+  const lastMoveRow = logRows.reduce((best, r, i) => (!r.isResult ? i : best), logRows.length - 1);
+  currentLogRow = lastMoveRow;
   goTo(snapshots.length - 1);
 }
 
@@ -2312,7 +2328,15 @@ function updateLogHighlight() {
     // Highlight only the single row that corresponds to the current navigation point
     const active = (currentLogRow >= 0) ? i === currentLogRow : logRows[i]?.snapIdx === currentIdx && i === logRows.findIndex(r => r.snapIdx === currentIdx);
     el.classList.toggle('active', active);
-    if (active) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (active) {
+      const container = document.getElementById('log-entries');
+      const elTop = el.offsetTop - container.offsetTop;
+      const elBot = elTop + el.offsetHeight;
+      const scrollTop = container.scrollTop;
+      const viewH = container.clientHeight;
+      if (elTop < scrollTop) container.scrollTop = elTop;
+      else if (elBot > scrollTop + viewH) container.scrollTop = elBot - viewH;
+    }
   });
 }
 
