@@ -803,9 +803,6 @@ body::before {
   .system-card { padding: 8px 10px; }
   #zone-mid { gap: 8px; flex-wrap: wrap; justify-content: center; padding: 4px 0; }
 
-  /* Back button in sidebar — hide; we use sticky bottom bar instead */
-  #bottom-area { display: none; }
-
   /* Log panel — show below board */
   #log-panel { height: auto !important; min-height: 0; padding-bottom: 72px; }
   #log-entries { max-height: none; overflow: visible; }
@@ -978,14 +975,9 @@ body {
 .rv-info-result { font-size: 10px; color: #4a6080; }
 .rv-crown { font-size: 14px; margin-left: auto; flex-shrink: 0; }
 /* Back btn */
-#bottom-area { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
-#btn-back {
-  width: 100%; padding: 10px; background: rgba(255,255,255,.03);
-  border: 1px solid var(--border); color: #4a6080;
-  font-family: 'Share Tech Mono', monospace; font-size: var(--fs-xs);
-  cursor: pointer; border-radius: 4px; letter-spacing: 2px; transition: all .15s;
-}
-#btn-back:hover { color: var(--bright); border-color: #3a5080; background: rgba(255,255,255,.06); }
+
+
+
 /* Log active highlight */
 .mini-log-line { cursor: pointer; transition: background .1s; }
 .mini-log-line:hover { background: rgba(255,255,255,.03); }
@@ -1031,9 +1023,7 @@ body {
     <div id="bank-title">Stash</div>
     <div id="bank-grid"></div>
   </div>
-  <div id="bottom-area">
-    <button id="btn-back" id="btn-back">← BACK</button>
-  </div>
+  
 </div>
 
 <!-- CENTER: Board -->
@@ -2268,8 +2258,13 @@ function init(record) {
   document.getElementById('loading').style.display = 'none';
   // Highlight last actual move, not the result summary line
   const lastMoveRow = logRows.reduce((best, r, i) => (!r.isResult ? i : best), logRows.length - 1);
-  currentLogRow = lastMoveRow;
-  goTo(snapshots.length - 1);
+    currentLogRow = lastMoveRow;
+    goTo(snapshots.length - 1);
+    // After initial render, scroll log to very bottom so result line is visible
+    requestAnimationFrame(() => {
+      const logEl = document.getElementById('log-entries');
+      if (logEl) logEl.scrollTop = logEl.scrollHeight;
+    });
 }
 
 function goTo(idx) {
@@ -2329,18 +2324,7 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// Smart back button — go to profile if came from there, else lobby
-(function() {
-  const backBtn = document.getElementById('btn-back');
-  if (!backBtn) return;
-  const ref = document.referrer;
-  const fromProfile = ref && ref.includes('/profile/');
-  backBtn.textContent = fromProfile ? '← BACK TO PROFILE' : '← BACK TO LOBBY';
-  backBtn.onclick = () => {
-    if (fromProfile) location.href = '/profile/';
-    else location.href = '/lobby/';
-  };
-})();
+
 
 // ── Arrow drawing (identical to game.html) ──────────────────
 // Declared BEFORE load() so goTo() can access them (const is not hoisted)
@@ -2496,7 +2480,7 @@ function _initArrows() {
 <!-- Mobile bottom nav bar (hidden on desktop) -->
 <div id="rv-bottom-nav" style="display:none">
   <button id="bnav-first" title="Go to start" disabled>
-    <span class="bnav-icon">⏮</span>
+    <span class="bnav-icon">|◀</span>
     <span>START</span>
   </button>
   <button id="bnav-prev" title="Previous turn" disabled>
@@ -2509,7 +2493,7 @@ function _initArrows() {
     <span>NEXT</span>
   </button>
   <button id="bnav-last" title="Go to end">
-    <span class="bnav-icon">⏭</span>
+    <span class="bnav-icon">▶|</span>
     <span>END</span>
   </button>
 </div>
