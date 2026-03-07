@@ -1528,9 +1528,7 @@ function renderSystem(sys) {
 
     // Insert image FIRST so any previously appended children (power-tip) are not overwritten
     wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, { glow: isSelected }));
-    const ownerDot = document.createElement('div');
-    ownerDot.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
-    wrap.appendChild(ownerDot);
+    
     _stampPid(wrap);
     return wrap;
   }
