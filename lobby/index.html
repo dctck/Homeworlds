@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lobby — HW ARENA</title>
-
-<link rel="icon" href="/assets/icons/Favicon1.png" sizes="48x48">
-<link rel="apple-touch-icon" href="/assets/icons/Favicon2.png">  
-  
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -258,9 +254,18 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 
   <div class="ss">
     <div class="ss-label">QUICK PLAY</div>
-    <button class="btn-passplay" onclick="window.location.href='/game/?mode=passplay'">
+    <button class="btn-passplay" onclick="window.location.href='/game/?mode=passplay'" style="margin-bottom: 12px;">
       PASS &amp; PLAY — LOCAL TWO PLAYER
     </button>
+
+    <a href="/review/?sandbox=1">
+      <button class="btn-passplay">
+        Sandbox Mode
+      </button>
+    </a>
+
+
+
   </div>
 </aside>
 
