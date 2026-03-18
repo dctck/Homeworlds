@@ -1341,6 +1341,7 @@ function render() {
   renderBank();
   renderBoard();
   renderSidebar();
+  renderLog();
 }
 
 function checkWin() {
@@ -1999,7 +2000,7 @@ function renderBoard() {
         e.target.classList.contains('dist-row') ||
         e.target.classList.contains('zone-hw-area') ||
         e.target.classList.contains('zone-label');
-      if (!onBg || G.phase !== 'PLAY') return;
+      if (!onBg) return;
       if (['SHIP_SELECTED','MOVING','DISCOVERING','TRADING','ATTACKING','BUILDING'].includes(G.interaction)) {
         G.interaction = 'IDLE'; G.selectedShipId = null; G.movingFromSysId = null; render();
       }
@@ -2064,7 +2065,6 @@ function doEndTurn() {
   if (G.phase === 'SETUP' && G.setupDone) {
     const p = G.currentPlayer;
     commitTurnLog();
-    renderLog();
     G.setupDone = false;
     G.history = null;
     // firstMover: who sets up first AND takes first turn in play phase (default: 1)
@@ -2080,6 +2080,7 @@ function doEndTurn() {
       G.currentPlayer = firstSetup;
       //showPassBanner(`PLAYER ${firstSetup}'S TURN`, 'The game begins — good luck!');
     }
+    render();
     return;
   }
   if (G.phase !== 'PLAY') return;
@@ -2087,7 +2088,6 @@ function doEndTurn() {
     logAction(Note.skip());
   }
   commitTurnLog();
-  renderLog();
 
   // Timer adjustments on end turn
   const prevPlayer = G.currentPlayer;
@@ -2392,6 +2392,7 @@ function startBuild(ship, sys) {
     setGuide(`⚠ Cannot build: bank has no ${targetColor} pieces left.`);
     return;
   }
+  G.interaction = 'SHIP_SELECTED'; // ensure doBuild guard passes
   doBuild(sys, targetColor);
 }
 
@@ -3532,13 +3533,30 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   uid = 0;
   G = fromCurrentSnapshot ? JSON.parse(JSON.stringify(snapshots[currentIdx])) : makeInitialState();
   G.interaction = 'IDLE'; G.selectedShipId = null;
-  G._pendingActions = [];
-  if (!fromCurrentSnapshot) { G.log = []; G.currentTurn = 1; }
-  // G.log already trimmed to current snapshot when forking
+  G._pendingActions = []; G.log = []; G.currentTurn = 1;
+  G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
+  G.setupDone = false; G.setupStep = 0; G.setupCache = { stars: [] };
+  G.firstMover = G.firstMover || 1;
+
+  if (fromCurrentSnapshot) {
+    const existingHWs = G.systems.filter(s => s.isHomeworld);
+    if (G.phase === 'SETUP') {
+      if (existingHWs.length === 0) {
+        G.currentPlayer = 1; G.firstMover = 1;
+      } else if (existingHWs.length === 1) {
+        G.firstMover = existingHWs[0].isHomeworld;
+        G.currentPlayer = 3 - G.firstMover;
+      }
+      // 2 HWs but still SETUP shouldn't happen in replay snaps
+    } else if (G.phase === 'PLAY') {
+      // Snapshot stamps last mover; flip to next
+      G.currentPlayer = 3 - G.currentPlayer;
+    }
+  }
   // show/hide sandbox UI elements
   document.getElementById('sandbox-toolbar').style.display = 'flex';
   document.getElementById('rv-controls').style.display = 'none';
-  renderBank(); renderBoard(); renderSidebar();
+  renderBank(); renderBoard(); renderSidebar(); renderLog();
   document.getElementById('log-turn-count').textContent = '—';
 }
 window.exitSandbox = function exitSandbox() {
