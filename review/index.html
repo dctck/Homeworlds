@@ -3581,18 +3581,23 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
 
   if (fromCurrentSnapshot) {
     const existingHWs = G.systems.filter(s => s.isHomeworld);
-    if (G.phase === 'SETUP') {
+    if (existingHWs.length < 2 || G.phase === 'SETUP') {
+      // Still in setup — fix who goes next
       if (existingHWs.length === 0) {
-        G.currentPlayer = 1; G.firstMover = 1;
+        G.phase = 'SETUP'; G.currentPlayer = 1; G.firstMover = 1;
       } else if (existingHWs.length === 1) {
+        G.phase = 'SETUP';
         G.firstMover = existingHWs[0].isHomeworld;
         G.currentPlayer = 3 - G.firstMover;
       }
-      // 2 HWs but still SETUP shouldn't happen in replay snaps
-    } else if (G.phase === 'PLAY') {
-      // Snapshot stamps last mover; flip to next
+    } else {
+      // Both HWs exist — force PLAY phase regardless of OVER/etc
+      G.phase = 'PLAY';
+      // Snapshot stamps last mover; next is the other player
       G.currentPlayer = 3 - G.currentPlayer;
     }
+  } else {
+    G.phase = 'SETUP'; G.currentPlayer = 1; G.firstMover = 1;
   }
   // show/hide sandbox UI elements
   document.getElementById('sandbox-toolbar').style.display = 'flex';
