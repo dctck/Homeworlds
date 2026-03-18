@@ -1019,7 +1019,17 @@ body {
 
 <!-- LEFT: Sidebar with nav + bank -->
 <div id="sidebar">
-  <!-- Navesection used to be here -->
+  <div id="player-bar">
+    <div id="player-title">REVIEW</div>
+    <div id="guide-text"></div>
+  </div>
+  <div id="action-section">
+    <div id="sac-counter"></div>
+    <div id="catastrophe-panel"></div>
+    <div id="action-buttons"></div>
+    <div id="sub-picker"></div>
+    <button class="action-btn" id="btn-reset" style="display:none">RESET TURN</button>
+  </div>
   <div id="bank-section">
     <div id="bank-title">Stash</div>
     <div id="bank-grid"></div>
@@ -1068,8 +1078,13 @@ body {
 <!-- RIGHT: Log panel (identical structure to game.html) -->
 <div id="right-panel">
   <div id="players-section"></div>
-  <div id="nav-section">
-    <div id="turn-indicator">— / —</div>
+  <div id="sandbox-toolbar" style="display:none;flex-direction:column;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border)">
+      <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#4a8070">⬡ SANDBOX MODE</div>
+      <button onclick="exitSandbox()" style="padding:8px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">EXIT SANDBOX</button>
+    </div>
+    <div id="rv-controls">
+    <div id="nav-section">
+      <div id="turn-indicator">— / —</div>
     <div id="nav-buttons">
       <button class="nav-btn" id="nav-first" title="Start">|◀</button>
       <button class="nav-btn" id="nav-prev"  title="Previous">◀</button>
@@ -1077,7 +1092,10 @@ body {
       <button class="nav-btn" id="nav-last"  title="End">▶|</button>
     </div>
     <div id="nav-hint">Key: ⇧← | ← | → | ⇧→</div>
+    <button onclick="startSandbox(true)" style="margin-top:6px;width:100%;padding:8px;background:rgba(34,102,255,0.08);border:1px solid #1c3060;color:#3a5888;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseenter="this.style.color='#4488ff';this.style.borderColor='#2266ff'" onmouseleave="this.style.color='#3a5888';this.style.borderColor='#1c3060'">⬡ SANDBOX FROM HERE</button>
+    <button onclick="startSandbox(false)" style="width:100%;padding:8px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseenter="this.style.color='#4488ff';this.style.borderColor='#2266ff'" onmouseleave="this.style.color='#304050';this.style.borderColor='#1c2840'">⬡ FRESH SANDBOX</button>
   </div>
+  </div><!-- end rv-controls -->
   <div id="log-panel">
     <div id="log-header">
       <span>Game Log</span>
@@ -1093,6 +1111,16 @@ import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/10.8.0
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { firebaseConfig } from '/firebase-config.js';
 
+let _appMode = 'review'; // 'review' | 'sandbox'
+// Sandbox PLAYER_CONFIG — minimal, no Firebase
+var PLAYER_CONFIG = {
+  names: ['', 'Player 1', 'Player 2'],
+  elos:  ['', '—', '—'],
+  avatars: ['', '', ''],
+  timeMs: 0, tcMode: 'unlimited', tcTurnMs: 0,
+  advancedMode: false,
+};
+
 // ── Constants (identical to game.html) ──────────────────────
 const COLORS = ['red','blue','yellow','green'];
 const COLOR_POWERS = { red:'HIJACK', blue:'TRADE', yellow:'MOVE', green:'BUILD' };
@@ -1101,9 +1129,51 @@ const SIZE_PIPS = ['','·','··','···'];
 const SIZE_NAME = ['','Small','Medium','Large'];
 const COLOR_HEX = { red:'#ff3344', blue:'#2266ff', yellow:'#ffcc00', green:'#22dd77' };
 
+var uid = 0;
+const nextId = () => ++uid;
+
 // ── Piece rendering (identical to game.html) ────────────────
 const SIZE_PREFIX = ['', 'small', 'medium', 'large'];
 const COLOR_LETTER_MAP = { red:'r', blue:'b', yellow:'y', green:'g' };
+const COLOR_LETTER = { red:'r', blue:'b', yellow:'y', green:'g' };
+
+// 40 short evocative star names for discovered systems (no Nexus/Vertex — reserved for homeworlds)
+const STAR_NAMES = [
+  'Aara','Brix','Ceth','Dova','Elix','Forn','Ghal','Hova','Irex','Juno',
+  'Kael','Lyra','Mors','Nox','Orin','Pyre','Qeth','Rael','Sorn','Thal',
+  'Ulex','Vorn','Wex','Xarl','Yova','Zeth','Alph','Bael','Crux','Drex',
+  'Enyx','Fael','Gorn','Helm','Ixar','Jeth','Kova','Luxe','Morx','Nael'
+];
+const _usedStarNames = new Set();
+function randomStarName() {
+  const available = STAR_NAMES.filter(n => !_usedStarNames.has(n));
+  if (available.length === 0) { _usedStarNames.clear(); }
+  const name = available.length > 0
+    ? available[Math.floor(Math.random() * available.length)]
+    : STAR_NAMES[Math.floor(Math.random() * STAR_NAMES.length)];
+  _usedStarNames.add(name);
+  return name;
+}
+
+function pieceNote(color, size) { return `${COLOR_LETTER[color]}${size}`; }
+
+const Note = window.Note = {
+  homeworld: (s1, s2, ship, sysName) =>
+    `set HW ${pieceNote(s1.color,s1.size)} ${pieceNote(s2.color,s2.size)} ship ${pieceNote(ship.color,ship.size)} ${sysName}`,
+  build:      (ship, sysName)                  => `build ${pieceNote(ship.color,ship.size)} ${sysName}`,
+  trade:      (ship, sysName, newColor)        => `trade ${pieceNote(ship.color,ship.size)} ${sysName} ${COLOR_LETTER[newColor]}`,
+  discover:   (ship, fromName, sc, ss, newName)=> `discover ${pieceNote(ship.color,ship.size)} ${fromName} ${pieceNote(sc,ss)} ${newName}`,
+  move:       (ship, fromName, toName)         => `move ${pieceNote(ship.color,ship.size)} ${fromName} ${toName}`,
+  hijack:     (ship, sysName)                  => `hijack ${pieceNote(ship.color,ship.size)} ${sysName}`,
+  sacrifice:  (ship, sysName)                  => `sacrifice ${pieceNote(ship.color,ship.size)} ${sysName}`,
+  catastrophe:(sysName, color)                 => `catastrophe ${sysName} ${COLOR_LETTER[color]}`,
+  catastropheFailed: ()                        => `catastrophe failed`,
+  skip:       ()                               => `skip`,
+  forfeit:    ()                               => `forfeit`,
+  drawOffer:  ()                               => `draw ?`,
+  drawAccept: ()                               => `draw Yes`,
+  drawDecline:()                               => `draw No`,
+};
 
 // Display sizes [width, height] per size
 const SHIP_DIMS = { 1:[24,40], 2:[32,56], 3:[40,72] };
@@ -1195,6 +1265,8 @@ function isConnected(s1, s2) {
   return true;
 }
 
+
+
 // ── Stubs so renderSystem/renderBank work read-only ─────────
 // In review mode, G.interaction is always IDLE — no interactive branches fire.
 // We still need these functions defined to avoid ReferenceErrors.
@@ -1215,22 +1287,348 @@ function getLargestOwnShip(sys, player) {
   const own = sys.ships.filter(s => s.owner === player);
   return own.length ? own.reduce((m, s) => s.size > m.size ? s : m) : null;
 }
-function getSystemPowers()   { return new Set(); }
-function hasActionLeft()     { return false; }
-function isSelectableShip()  { return false; }
-function onMoveTargetClick() {}
-function onAttackTargetClick(){}
-function onPowerClick()      {}
-function directAttack()      {}
-function saveHistory()       {}
-function logAction()         {}
-function setGuide()          {}
-// _stampPid, _initArrows, _renderArrows are defined below the goTo/render functions
-function attachTurnTokenListeners() {}
-const Note = { hijack: () => '', sacrifice: () => '' };
-// Force read-only state flags — renderSystem checks these
-// We override them via the G snapshot but add safe defaults
+function getSystemPowers(sys, player) {
+  const p = new Set();
+  sys.stars.forEach(s => p.add(s.color));
+  sys.ships.forEach(s => { if (s.owner === player) p.add(s.color); });
+  if (G.sacrificePool.count > 0) p.add(G.sacrificePool.color);
+  return p;
+}
+function hasActionLeft(color) {
+  if (G.sacrificePool.count > 0) return G.sacrificePool.color === color && G.sacrificePool.count > 0;
+  return !G.turnUsed;
+}
+function consumeAction() {
+  if (G.sacrificePool.count > 0) G.sacrificePool.count--;
+  else G.turnUsed = true;
+}
+function saveHistory() {
+  G.history = JSON.stringify(G);
+}
 
+function logAction(notation) {
+  if (_appMode !== 'sandbox') return;
+  G._pendingActions = G._pendingActions || [];
+  G._pendingActions.push(notation);
+}
+
+function commitTurnLog() {
+  const actions = G._pendingActions || [];
+  if (actions.length > 0) {
+    G.log.push({ turn: G.currentTurn, player: G.currentPlayer, actions: [...actions] });
+    G.currentTurn++;
+  }
+  G._pendingActions = [];
+}
+
+function renderLog() {
+  const container = document.getElementById('log-entries');
+  if (!container) return;
+  if (!G || !G.log || G.log.length === 0) {
+    container.innerHTML = '<div style="font-size:12px;color:#253040;text-align:center;padding:16px 10px;letter-spacing:1px">No moves yet.</div>';
+    return;
+  }
+  container.innerHTML = G.log.map(e =>
+    e.actions.map(a =>
+      `<div class="mini-log-line"><span class="mini-log-prefix"><span class="ml-turn">${e.turn}.</span><span class="${e.player===1?'ml-p1':'ml-p2'}">${e.player===1?'P1':'P2'}</span>&nbsp;</span><span class="mini-log-body">${a}</span></div>`
+    ).join('')
+  ).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+function render() {
+  if (_appMode !== 'sandbox') return;
+  renderBank();
+  renderBoard();
+  renderSidebar();
+}
+
+function checkWin() {
+  for (let p = 1; p <= 2; p++) {
+    const hw = G.systems.find(s => s.isHomeworld === p);
+    if (!hw || hw.ships.filter(s => s.owner === p).length === 0) {
+      G.phase = 'OVER';
+      setTimeout(() => alert(`Player ${3-p} wins!`), 50);
+      return true;
+    }
+  }
+  return false;
+}
+
+function cleanSystems() {
+  G.systems = G.systems.filter(sys => {
+    if (sys.isHomeworld) return true;
+    if (sys.ships.length === 0) {
+      sys.stars.forEach(st => G.bank[st.color][st.size]++);
+      return false;
+    }
+    return true;
+  });
+}
+
+
+
+function setGuide(msg) {
+  document.getElementById('guide-text').textContent = msg;
+}
+
+function getCatastrophes() {
+  // Returns array of { sys, color, count } for every system+color with 4+ pieces
+  const eligible = [];
+  G.systems.forEach(sys => {
+    COLORS.forEach(c => {
+      let count = 0;
+      sys.stars.forEach(s => { if (s.color === c) count++; });
+      sys.ships.forEach(s => { if (s.color === c) count++; });
+      if (count >= 4) eligible.push({ sys, color: c, count });
+    });
+  });
+  return eligible;
+}
+
+function triggerCatastrophe(sysId, color) {
+  const sys = findSystem(sysId);
+  if (!sys) return;
+  saveHistory();
+  logAction(Note.catastrophe(sys.name, color));
+
+  sys.stars.filter(s => s.color === color).forEach(s => G.bank[s.color][s.size]++);
+  sys.ships.filter(s => s.color === color).forEach(s => G.bank[s.color][s.size]++);
+  sys.stars = sys.stars.filter(s => s.color !== color);
+  sys.ships = sys.ships.filter(s => s.color !== color);
+
+  if (!sys.isHomeworld) {
+    if (sys.ships.length === 0) {
+      sys.stars.forEach(s => G.bank[s.color][s.size]++);
+      sys.stars = [];
+      G.systems = G.systems.filter(s => s.id !== sysId);
+    } else if (sys.stars.length === 0) {
+      sys.ships.forEach(s => G.bank[s.color][s.size]++);
+      sys.ships = [];
+      G.systems = G.systems.filter(s => s.id !== sysId);
+    }
+  } else {
+    if (sys.stars.length === 0) {
+      sys.ships.forEach(s => G.bank[s.color][s.size]++);
+      sys.ships = [];
+    }
+  }
+
+  // Catastrophe does NOT cost the turn — player continues
+  G.selectedShipId = null;
+  G.interaction = 'IDLE';
+  if (!checkWin()) render();
+}
+
+function isSelectableShip(ship, sys) {
+  if (G.turnUsed && G.sacrificePool.count === 0) return false;
+  if (G.sacrificePool.count === 0) return true; // normal turn — all own ships
+
+  const sc = G.sacrificePool.color;
+  if (sc === 'yellow') {
+    // Can move: not the last own ship in its homeworld
+    const isLastInHW = sys.isHomeworld === G.currentPlayer &&
+      sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+    return !isLastInHW;
+  }
+  if (sc === 'red') {
+    // During red sacrifice, player clicks ENEMIES directly — don't bob own ships
+    return false;
+  }
+  if (sc === 'blue') {
+    // Can trade: bank has another color of same size
+    return COLORS.some(col => col !== ship.color && G.bank[col][ship.size] > 0);
+  }
+  if (sc === 'green') {
+    // Can build: bank has any piece of this ship's color
+    return [1,2,3].some(sz => G.bank[ship.color][sz] > 0);
+  }
+  return true;
+}
+
+
+/**
+ * Fired when user clicks a colored star or own-ship in their selected ship's system.
+ * Routes to the appropriate action for that color.
+ */
+function onPowerClick(color, sys, event) {
+  const ship = findShip(G.selectedShipId);
+  if (!ship) return;
+  const shipSys = findSystemByShip(G.selectedShipId);
+  if (!shipSys || shipSys.id !== sys.id) return;
+
+  const sacPool  = G.sacrificePool.count > 0;
+  const powers   = getSystemPowers(sys, G.currentPlayer);
+  const hasPower = sacPool ? G.sacrificePool.color === color : powers.has(color);
+  if (!hasPower || !hasActionLeft(color)) return;
+
+  const _warn = (guide, tip) => {
+    setGuide('⚠ ' + guide);
+    if (event) showClickTooltip(tip, event);
+  };
+
+  if (color === 'yellow') {
+    const isLastInHW = sys.isHomeworld === G.currentPlayer &&
+      sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+    if (isLastInHW) { _warn('Cannot move your last ship away from your Homeworld — you would lose!', 'Cannot abandon HW'); return; }
+    startMove(ship, sys);
+  } else if (color === 'blue') {
+    const avail = COLORS.filter(c => c !== ship.color && G.bank[c][ship.size] > 0);
+    if (avail.length === 0) { _warn('No other colors available to trade into.', 'Stash empty'); return; }
+    startTrade(ship, sys);
+  } else if (color === 'red') {
+    const largest = getLargestOwnShip(sys, G.currentPlayer);
+    const enemies = sys.ships.filter(s => s.owner !== G.currentPlayer);
+    if (!enemies.length) { _warn('No enemy ships in this system.', 'No enemy'); return; }
+    if (!largest || !enemies.some(s => s.size <= largest.size)) {
+      _warn(`All enemies are larger than your biggest ship (Size ${largest?.size ?? '?'}).`, 'Enemy too big'); return;
+    }
+    startAttack(ship, sys);
+  } else if (color === 'green') {
+    const targetColor = ship.color;
+    const smallestSz  = [1,2,3].find(sz => G.bank[targetColor][sz] > 0);
+    if (!smallestSz) { _warn(`Bank has no ${targetColor} pieces left.`, 'Stash empty'); return; }
+    doBuild(sys, targetColor);
+  }
+}
+
+/**
+ * Direct attack — executes without entering ATTACKING mode first.
+ * Used when clicking an attackable enemy in SHIP_SELECTED state.
+ */
+function directAttack(targetShip, sys) {
+  saveHistory();
+  logAction(Note.hijack(targetShip, sys.name));
+  targetShip.owner = G.currentPlayer;
+  consumeAction();
+  G.interaction = 'IDLE';
+  G.selectedShipId = null;
+  if (!checkWin()) render();
+}
+
+// ── Turn token factory ──────────────────────────────────────
+function makeTurnToken(player) {
+  const canEnd = G.turnUsed || (G._pendingActions && G._pendingActions.length > 0) || G.sacrificePool.count > 0;
+  const midAction = G.interaction !== 'IDLE' && G.interaction !== 'SHIP_SELECTED';
+  const disabled = midAction; // can't end turn mid-action; skip is always allowed
+
+  const wrap = document.createElement('div');
+  wrap.className = 'turn-token-wrap';
+
+  const token = document.createElement('div');
+  const pName = (PLAYER_CONFIG.names[player] || `P${player}`);
+  const initials = pName.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  token.className = `turn-token p${player}${disabled ? ' disabled' : ''}`;
+  token.title = disabled ? 'Finish your current action first' : canEnd ? 'End Turn' : 'Skip Turn';
+
+  // Orbiting ring
+  const ring = document.createElement('div');
+  ring.className = 'token-ring';
+  token.appendChild(ring);
+
+  // Ship icon (shown at rest) — SVG filled with current token color
+  const init = document.createElement('div');
+  init.className = 'token-icon';
+  init.innerHTML = `<svg width="18" height="24" viewBox="0 0 28 37" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="${'M28.21 33.3809H21.3701L22 37H6L6.62988 33.3809H0L14.1055 0L28.21 33.3809ZM14.0059 19.8857C11.3909 19.8857 9.27051 22.0061 9.27051 24.6211C9.27073 27.2359 11.391 29.3555 14.0059 29.3555C16.6205 29.3553 18.74 27.2358 18.7402 24.6211C18.7402 22.0062 16.6207 19.8859 14.0059 19.8857Z'}" fill="currentColor"/></svg>`;
+  token.appendChild(init);
+
+  // Label (shown on hover)
+  const lbl = document.createElement('span');
+  lbl.className = 'token-label';
+  lbl.textContent = canEnd ? 'END\nTURN' : 'SKIP\nTURN';
+  token.appendChild(lbl);
+
+  if (!disabled) attachTurnTokenListeners(token);
+  wrap.appendChild(token);
+
+  // Hold-to-reset button: only show when current player has actions to undo (not opponent's token)
+  const isMyTurn = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
+  const canReset = G.phase === 'PLAY' && isMyTurn && (G.history || (G._pendingActions?.length > 0));
+  if (canReset) {
+    const resetBtnEl = document.createElement('button');
+    resetBtnEl.className = 'hold-reset-btn';
+    resetBtnEl.textContent = 'RESET';
+    const fillEl = document.createElement('div');
+    fillEl.className = 'hold-reset-fill';
+    resetBtnEl.appendChild(fillEl);
+
+    let _rTimer = null, _rStart = null;
+    const HOLD_MS = 1000;
+    function startHold(e) {
+      e.preventDefault();
+      resetBtnEl.classList.add('holding');
+      resetBtnEl.childNodes[0].textContent = 'HOLD';
+      _rStart = Date.now();
+      let raf;
+      function tick() {
+        const elapsed = Date.now() - _rStart;
+        const pct = Math.min(100, (elapsed / HOLD_MS) * 100);
+        fillEl.style.width = pct + '%';
+        if (elapsed >= HOLD_MS) {
+          cancelAnimationFrame(raf);
+          doReset();
+        } else {
+          raf = requestAnimationFrame(tick);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+      _rTimer = () => cancelAnimationFrame(raf);
+    }
+    function cancelHold() {
+      if (_rTimer) { _rTimer(); _rTimer = null; }
+      resetBtnEl.classList.remove('holding');
+      resetBtnEl.childNodes[0].textContent = 'RESET';
+      fillEl.style.width = '0%';
+    }
+    function doReset() {
+      cancelHold();
+      if (G.history) {
+        G = JSON.parse(G.history);
+      } else if (G._pendingActions?.length > 0) {
+        G._pendingActions = [];
+        G.turnUsed = false;
+        G.sacrificePool = { color: null, count: 0 };
+      }
+      G.selectedShipId = null; G.movingFromSysId = null; G.interaction = 'IDLE';
+      render();
+    }
+    resetBtnEl.addEventListener('mousedown', startHold);
+    resetBtnEl.addEventListener('touchstart', startHold, { passive: false });
+    resetBtnEl.addEventListener('mouseup', cancelHold);
+    resetBtnEl.addEventListener('mouseleave', cancelHold);
+    resetBtnEl.addEventListener('touchend', cancelHold);
+    resetBtnEl.addEventListener('touchcancel', cancelHold);
+    wrap.appendChild(resetBtnEl);
+  }
+
+  return wrap;
+}
+
+function makeSetupToken(player) {
+  const wrap = document.createElement('div');
+  wrap.className = 'turn-token-wrap';
+  const token = document.createElement('div');
+  token.className = `turn-token p${player}`;
+  token.title = 'Confirm homeworld';
+
+  const ring = document.createElement('div');
+  ring.className = 'token-ring';
+  token.appendChild(ring);
+
+  const init = document.createElement('div');
+  init.className = 'token-icon';
+  init.innerHTML = `<svg width="18" height="24" viewBox="0 0 28 37" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M28.21 33.3809H21.3701L22 37H6L6.62988 33.3809H0L14.1055 0L28.21 33.3809ZM14.0059 19.8857C11.3909 19.8857 9.27051 22.0061 9.27051 24.6211C9.27073 27.2359 11.391 29.3555 14.0059 29.3555C16.6205 29.3553 18.74 27.2358 18.7402 24.6211C18.7402 22.0062 16.6207 19.8859 14.0059 19.8857Z" fill="currentColor"/></svg>`;
+  token.appendChild(init);
+
+  const lbl = document.createElement('span');
+  lbl.className = 'token-label';
+  lbl.textContent = 'CONFIRM';
+  token.appendChild(lbl);
+
+  attachTurnTokenListeners(token);
+  wrap.appendChild(token);
+  return wrap;
+}
 
 function makeEl(tag, cls, text) {
   const el = document.createElement(tag);
@@ -1343,8 +1741,6 @@ function bfsDistances(startSys) {
   }
   return dist;
 }
-
-
 
 function renderSystem(sys) {
   const card = document.createElement('div');
@@ -1628,6 +2024,764 @@ function renderBoard() {
   requestAnimationFrame(_renderArrows);
 }
 
+// ============================================================
+//  CONTROLS
+// ============================================================
+
+function doEndTurn() {
+  if (G.phase === 'SETUP' && G.setupDone) {
+    const p = G.currentPlayer;
+    commitTurnLog();
+    renderLog();
+    G.setupDone = false;
+    G.history = null;
+    // firstMover: who sets up first AND takes first turn in play phase (default: 1)
+    const firstSetup  = G.firstMover || 1;
+    const secondSetup = 3 - firstSetup;
+    if (p === firstSetup) {
+      // First player done with setup — second player now sets up
+      G.currentPlayer = secondSetup;
+      //showPassBanner(`PLAYER ${secondSetup} — SETUP`, 'Choose your homeworld stars and ship');
+    } else {
+      // Second player done — start play phase; firstMover goes first
+      G.phase = 'PLAY';
+      G.currentPlayer = firstSetup;
+      //showPassBanner(`PLAYER ${firstSetup}'S TURN`, 'The game begins — good luck!');
+    }
+    return;
+  }
+  if (G.phase !== 'PLAY') return;
+  if (!G.turnUsed && G.sacrificePool.count === 0 && (!G._pendingActions || G._pendingActions.length === 0)) {
+    logAction(Note.skip());
+  }
+  commitTurnLog();
+  renderLog();
+
+  // Timer adjustments on end turn
+  const prevPlayer = G.currentPlayer;
+
+  G.currentPlayer = G.currentPlayer === 1 ? 2 : 1;
+  G.turnUsed = false;
+  G.sacrificePool = { color: null, count: 0 };
+  G.selectedShipId = null;
+  G.movingFromSysId = null;
+  G.interaction = 'IDLE';
+  G.history = null;
+  G._turnStart = null; // clear before snapshot to prevent exponential nesting
+  G._turnStart = JSON.stringify(G);
+}
+
+function attachTurnTokenListeners(tokenEl) {
+  tokenEl.addEventListener('click', (e) => {
+    if (tokenEl.classList.contains('disabled')) return;
+    doEndTurn();
+  });
+  // Touch: tap anywhere on the token
+  tokenEl.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if (tokenEl.classList.contains('disabled')) return;
+    doEndTurn();
+  });
+}
+
+  function onBankClick(color, size) {
+    if (G.phase === 'SETUP' && !G.setupDone) {
+      if (G.setupStep < 2) {
+        G.bank[color][size]--;
+        G.setupCache.stars.push({ color, size });
+        G.setupStep++;
+        render();
+      } else if (G.setupStep === 2 && size === 3) {
+        finalizeSetup(color);
+      }
+    } else if (G.interaction === 'DISCOVERING' || G.interaction === 'MOVING') {
+      doDiscover(color, size);
+    } else if (G.interaction === 'BUILDING') {
+      const sys = findSystemByShip(G.selectedShipId);
+      if (sys) doBuild(sys, color);
+    } else if (G.interaction === 'TRADING') {
+      const ship = findShip(G.selectedShipId);
+      if (ship) doTrade(ship, color);
+    }
+  }
+
+  function finalizeSetup(shipColor) {
+    G.bank[shipColor][3]--;
+    const p = G.currentPlayer;
+    const stars = G.setupCache.stars;
+    const ship = { color: shipColor, size: 3 };
+    const sysName = p === 1 ? 'Nexus' : 'Vertex';
+    const notation = Note.homeworld(stars[0], stars[1], ship, sysName);
+    G.systems.push({
+      id: nextId(), name: sysName, isHomeworld: p,
+      stars: [...G.setupCache.stars],
+      ships: [{ id: nextId(), color: shipColor, size: 3, owner: p }]
+    });
+    // Stage as pending — will be committed when player clicks End Turn
+    G._pendingActions = [notation];
+    G.setupCache = { stars: [] };
+    G.setupStep = 0;
+    G.setupDone = true;
+    render();
+  }
+
+  function restartSetup() {
+    // If homeworld was already finalized, undo it
+    if (G.setupDone) {
+      const hw = G.systems.find(s => s.isHomeworld === G.currentPlayer);
+      if (hw) {
+        hw.stars.forEach(s => G.bank[s.color][s.size]++);
+        hw.ships.forEach(s => G.bank[s.color][s.size]++);
+        G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
+      }
+      G.setupDone = false;
+    }
+    // Return any partially-picked stars
+    G.setupCache.stars.forEach(s => G.bank[s.color][s.size]++);
+    G.setupCache = { stars: [] };
+    G.setupStep = 0;
+    G._pendingActions = [];  // clear any staged log entry
+    render();
+  }
+
+  // Smart per-piece removal from the finalized homeworld preview.
+  // Clicking the ship only removes the ship; clicking a star removes that star
+  // and all subsequent pieces (ship too), since placement is ordered.
+  function removeSetupPiece(type, starIndex) {
+    if (!G.setupDone) return; // shouldn't happen, but guard
+    const hw = G.systems.find(s => s.isHomeworld === G.currentPlayer);
+    if (!hw) { restartSetup(); return; }
+
+    // Always return the ship
+    const ship = hw.ships.find(s => s.owner === G.currentPlayer);
+
+    if (type === 'ship') {
+      // Remove ship only — keep both stars placed
+      if (ship) G.bank[ship.color][ship.size]++;
+      // Rebuild from the placed stars — move them back to setupCache
+      G.setupCache.stars = hw.stars.map(s => ({ color: s.color, size: s.size }));
+      G.setupStep = 2;
+      G.setupDone = false;
+      G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
+    } else {
+      // type === 'star' at index starIndex
+      // Return ship + all stars from starIndex onwards
+      if (ship) G.bank[ship.color][ship.size]++;
+      for (let i = starIndex; i < hw.stars.length; i++) {
+        G.bank[hw.stars[i].color][hw.stars[i].size]++;
+      }
+      G.setupCache.stars = hw.stars.slice(0, starIndex).map(s => ({ color: s.color, size: s.size }));
+      G.setupStep = starIndex;
+      G.setupDone = false;
+      G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
+    }
+    G._pendingActions = [];
+    render();
+  }
+
+// ============================================================
+//  PLAY ACTIONS
+// ============================================================
+function onShipClick(shipId) {
+  const ship = findShip(shipId);
+  if (!ship) return;
+
+  // MOVING: clicking any ship in a valid destination system → move there
+  if (G.interaction === 'MOVING') {
+    const clickedSys = findSystemByShip(shipId);
+    const fromSys    = findSystemByShip(G.selectedShipId);
+    if (clickedSys && fromSys && clickedSys.id !== fromSys.id && isConnected(fromSys, clickedSys)) {
+      onMoveTargetClick(clickedSys.id);
+    }
+    return;
+  }
+
+  if (ship.owner !== G.currentPlayer) return;
+  const clickedSys = findSystemByShip(shipId);
+
+  // ── SACRIFICE POOL: clicking own ship immediately applies the sacrificed action ──
+  if (G.sacrificePool.count > 0 && G.interaction === 'IDLE') {
+    const sc = G.sacrificePool.color;
+    G.selectedShipId = shipId; // set so actions know which ship
+
+    if (sc === 'blue') {
+      // Trade: go straight to TRADING state for this ship
+      const avail = COLORS.filter(col => col !== ship.color && G.bank[col][ship.size] > 0);
+      if (avail.length === 0) { setGuide('⚠ No other colors available to trade into.'); G.selectedShipId = null; return; }
+      G.interaction = 'TRADING';
+      render();
+      return;
+    }
+
+    if (sc === 'yellow') {
+      // Move: go straight to MOVING state for this ship
+      const isLastInHW = clickedSys && clickedSys.isHomeworld === G.currentPlayer &&
+        clickedSys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+      if (isLastInHW) { setGuide('⚠ Cannot move your last ship away from your Homeworld.'); G.selectedShipId = null; return; }
+      G.interaction = 'MOVING';
+      G.movingFromSysId = clickedSys ? clickedSys.id : null;
+      render();
+      return;
+    }
+
+    if (sc === 'green' && clickedSys) {
+      // Build: use the CLICKED ship's color directly (no picker needed)
+      const targetColor = ship.color;
+      const smallestSz  = [1,2,3].find(sz => G.bank[targetColor][sz] > 0);
+      if (!smallestSz) {
+        setGuide(`⚠ Bank has no ${targetColor} pieces left.`);
+        G.selectedShipId = null;
+        return;
+      }
+      G.interaction = 'SHIP_SELECTED'; // doBuild requires non-IDLE
+      doBuild(clickedSys, targetColor);
+      return;
+    }
+
+    // Fallback: go to SHIP_SELECTED so player can pick manually
+    G.interaction = 'SHIP_SELECTED';
+    render();
+    return;
+  }
+
+  // ── Normal flow (no sacrifice pool) ──
+  // Already have a ship selected
+  if (G.interaction === 'SHIP_SELECTED' && G.selectedShipId) {
+    const selSys = findSystemByShip(G.selectedShipId);
+
+    if (selSys && clickedSys && selSys.id === clickedSys.id) {
+      // Same system → trigger this ship's color as a power
+      onPowerClick(ship.color, clickedSys);
+      return;
+    } else {
+      // Different system → re-select that ship
+      G.selectedShipId = shipId;
+      G.movingFromSysId = null;
+      render();
+      return;
+    }
+  }
+
+  // IDLE → select this ship
+  G.interaction = 'SHIP_SELECTED';
+  G.selectedShipId = shipId;
+  G.movingFromSysId = null;
+  render();
+}
+
+function onAttackTargetClick(targetShipId) {
+  if (G.interaction !== 'ATTACKING') return;
+  const sys = findSystemByShip(targetShipId);
+  const target = findShip(targetShipId);
+  if (!sys || !target) return;
+  if (target.owner === G.currentPlayer) return;
+  const largest = getLargestOwnShip(sys, G.currentPlayer);
+  if (!largest || largest.size < target.size) {
+    setGuide(`⚠ Cannot capture: your largest ship (Size ${largest?.size ?? '?'}) must be ≥ enemy size (${target.size}).`);
+    return;
+  }
+  saveHistory();
+  logAction(Note.hijack(target, sys.name));
+  target.owner = G.currentPlayer;
+  consumeAction();
+  G.interaction = 'IDLE';
+  G.selectedShipId = null;
+  if (!checkWin()) render();
+}
+
+function onMoveTargetClick(sysId) {
+  if (G.interaction !== 'MOVING') return;
+  const ship = findShip(G.selectedShipId);
+  const fromSys = findSystemByShip(G.selectedShipId);
+  const toSys = findSystem(sysId);
+  if (!ship || !fromSys || !toSys) return;
+  if (!isConnected(fromSys, toSys)) return;
+  // Guard: block if would leave own homeworld with no ships
+  const isLastInHW = fromSys.isHomeworld === G.currentPlayer &&
+    fromSys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+  if (isLastInHW) {
+    setGuide('⚠ Cannot move your last ship away from your Homeworld — you would lose!');
+    return;
+  }
+  saveHistory();
+  logAction(Note.move(ship, fromSys.name, toSys.name));
+  fromSys.ships = fromSys.ships.filter(s => s.id !== ship.id);
+  toSys.ships.push(ship);
+  consumeAction();
+  cleanSystems();
+  G.selectedShipId = null;
+  G.movingFromSysId = null;
+  G.interaction = 'IDLE';
+  if (!checkWin()) render();
+}
+
+// ---- START ACTION MODES ----
+function startTrade(ship, sys) {
+  const availColors = COLORS.filter(c => c !== ship.color && G.bank[c][ship.size] > 0);
+  if (availColors.length === 0) { alert('No other colors available in the stash!'); return; }
+  G.interaction = 'TRADING';
+  render();
+}
+
+function startMove(ship, sys) {
+  // Block if this is the player's last ship in their homeworld
+  const isLastInHW = sys.isHomeworld === G.currentPlayer &&
+    sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+  if (isLastInHW) {
+    setGuide('⚠ Cannot move your last ship away from your Homeworld — you would lose!');
+    return;
+  }
+  G.interaction = 'MOVING';
+  G.movingFromSysId = sys.id;
+  render();
+}
+
+function startAttack(ship, sys) {
+  // Per spec: use the LARGEST own ship in the system for size comparison
+  const largest = getLargestOwnShip(sys, G.currentPlayer);
+  if (!largest) return;
+  const enemies = sys.ships.filter(s => s.owner !== G.currentPlayer && s.size <= largest.size);
+  if (enemies.length === 0) {
+    const allEnemies = sys.ships.filter(s => s.owner !== G.currentPlayer);
+    if (allEnemies.length === 0) setGuide('⚠ No enemy ships in this system.');
+    else setGuide(`⚠ Cannot hijack: your largest ship here is Size ${largest.size}, but all enemies are larger.`);
+    return;
+  }
+  G.interaction = 'ATTACKING';
+  render();
+}
+
+function startBuild(ship, sys) {
+  // Build the selected ship's OWN color directly
+  const targetColor = ship.color;
+  const smallestSz  = [1,2,3].find(sz => G.bank[targetColor][sz] > 0);
+  if (!smallestSz) {
+    setGuide(`⚠ Cannot build: bank has no ${targetColor} pieces left.`);
+    return;
+  }
+  doBuild(sys, targetColor);
+}
+
+// ---- EXECUTE ACTIONS ----
+function doTrade(ship, newColor) {
+  if (G.interaction !== 'TRADING' && G.interaction !== 'SHIP_SELECTED') return;
+  G.interaction = 'IDLE';
+  saveHistory();
+  const sys = findSystemByShip(ship.id);
+  logAction(Note.trade(ship, sys?.name ?? '?', newColor));
+  G.bank[ship.color][ship.size]++;
+  G.bank[newColor][ship.size]--;
+  ship.color = newColor;
+  consumeAction();
+  G.interaction = 'IDLE';
+  G.selectedShipId = null;
+  render();
+}
+
+function doBuild(sys, color) {
+  if (G.interaction !== 'BUILDING' && G.interaction !== 'SHIP_SELECTED') return;
+  const sz = [1,2,3].find(s => G.bank[color][s] > 0);
+  if (!sz) { alert('Bank empty for this color!'); return; }
+  G.interaction = 'IDLE'; // set immediately before any async/render
+  saveHistory();
+  G.bank[color][sz]--;
+  const newShip = { id: nextId(), color, size: sz, owner: G.currentPlayer };
+  sys.ships.push(newShip);
+  logAction(Note.build(newShip, sys.name));
+  consumeAction();
+  G.interaction = 'IDLE';
+  G.selectedShipId = null;
+  render();
+}
+
+function doDiscover(starColor, starSize) {
+  const ship = findShip(G.selectedShipId);
+  const fromSys = findSystemByShip(G.selectedShipId);
+  if (!ship || !fromSys) return;
+  // Block if last own ship in homeworld
+  const isLastInHW = fromSys.isHomeworld === G.currentPlayer &&
+    fromSys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+  if (isLastInHW) {
+    setGuide('⚠ Cannot move your last ship away from your Homeworld — you would lose!');
+    G.interaction = 'SHIP_SELECTED';
+    render();
+    return;
+  }
+  // Verify the new star size doesn't overlap with fromSys (connectivity)
+  const taken = systemSizes(fromSys);
+  if (taken.has(starSize)) { setGuide('⚠ Star size overlaps with origin — systems would not be connected!'); return; }
+  saveHistory();
+  G.bank[starColor][starSize]--;
+  const newName = randomStarName();
+  const newSys = {
+    id: nextId(),
+    name: newName,
+    isHomeworld: null,
+    discoveredBy: G.currentPlayer,  // used for row placement
+    stars: [{ color: starColor, size: starSize }],
+    ships: []
+  };
+  logAction(Note.discover(ship, fromSys.name, starColor, starSize, newName));
+  fromSys.ships = fromSys.ships.filter(s => s.id !== ship.id);
+  newSys.ships.push(ship);
+  G.systems.push(newSys);
+  consumeAction();
+  cleanSystems();
+  G.selectedShipId = null;
+  G.movingFromSysId = null;
+  G.interaction = 'IDLE';
+  render();
+}
+
+function doSacrifice(ship, sys) {
+  const isOnlyShipInHW = sys.isHomeworld === G.currentPlayer && sys.ships.filter(s => s.owner === G.currentPlayer).length === 1;
+  if (isOnlyShipInHW) { alert('Cannot sacrifice your only ship in your homeworld!'); return; }
+  if (G.turnUsed) { alert('Already used your action this turn!'); return; }
+  saveHistory();
+  logAction(Note.sacrifice(ship, sys.name));
+  G.bank[ship.color][ship.size]++;
+  sys.ships = sys.ships.filter(s => s.id !== ship.id);
+  G.sacrificePool = { color: ship.color, count: ship.size };
+  G.turnUsed = true;
+  G.selectedShipId = null;
+  G.interaction = 'IDLE';
+  cleanSystems();
+  checkWin();
+  render();
+}
+
+function renderCatastrophePanel() {
+  const panel = document.getElementById('catastrophe-panel');
+  panel.innerHTML = '';
+  if (G.phase !== 'PLAY') return;
+
+  const eligible = getCatastrophes();
+  if (eligible.length === 0) return;  // only show when eligible
+
+  eligible.forEach(({ sys, color }) => {
+    const btn = document.createElement('button');
+    btn.style.cssText = `width:100%;padding:7px 10px;margin-bottom:4px;border-radius:4px;
+      border:1px solid #994400;background:rgba(180,70,0,0.12);
+      color:#cc6622;font-family:'Share Tech Mono',monospace;font-size:12px;
+      letter-spacing:1px;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;
+      transition:all 0.15s;`;
+    const colorDot = `<span style="width:8px;height:8px;border-radius:50%;background:${COLOR_HEX[color]};flex-shrink:0;display:inline-block;"></span>`;
+    btn.innerHTML = `<span style="font-size:12px">☄</span>${colorDot}<span style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;text-transform:uppercase;">Catastrophe · ${sys.name}</span>`;
+    btn.onmouseenter = () => { btn.style.borderColor='#ff6600'; btn.style.color='#ff9933'; btn.style.background='rgba(255,100,0,0.2)'; };
+    btn.onmouseleave = () => { btn.style.borderColor='#994400'; btn.style.color='#cc6622'; btn.style.background='rgba(180,70,0,0.12)'; };
+    btn.onclick = () => triggerCatastrophe(sys.id, color);
+    panel.appendChild(btn);
+  });
+}
+
+function renderSidebar() {
+  const titleEl = document.getElementById('player-title');
+  const guideEl = document.getElementById('guide-text');
+  const actionBtns = document.getElementById('action-buttons');
+  const subPicker = document.getElementById('sub-picker');
+  const sacCounter = document.getElementById('sac-counter');
+  const resetBtn = document.getElementById('btn-reset');
+
+  subPicker.innerHTML = '';
+  actionBtns.innerHTML = '';
+  sacCounter.style.display = 'none';
+
+  if (resetBtn) resetBtn.disabled = !(G.history || (G._pendingActions && G._pendingActions.length > 0));
+
+  // ---- SETUP PHASE ----
+  if (G.phase === 'SETUP') {
+    document.getElementById('catastrophe-panel').innerHTML = '';
+    const _setupName = _setupIsMe ? 'YOUR TURN' : (PLAYER_CONFIG.names[G.currentPlayer] || 'OPPONENT').toUpperCase();
+    titleEl.textContent = `${_setupName} — SETUP`;
+
+    if (G.setupDone) {
+      const _firstSetup = G.firstMover || 1;
+      guideEl.textContent = G.currentPlayer === _firstSetup
+        ? 'Homeworld set! Click the ✓ token on your homeworld to continue.'
+        : 'Homeworld set! Click the ✓ token on your homeworld to begin the game.';
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'action-btn';
+      resetBtn.textContent = '↩ RESTART SELECTION';
+      resetBtn.onclick = restartSetup;
+      actionBtns.appendChild(resetBtn);
+    } else {
+      const stepLabels = [
+        'Click any star in the STASH to choose your 1st homeworld star.',
+        'Click any star in the STASH to choose your 2nd homeworld star.',
+        'Click a Large (size 3) ship in the STASH to choose your starting ship.'
+      ];
+      guideEl.textContent = stepLabels[G.setupStep];
+
+      if (G.setupCache.stars.length > 0) {
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'action-btn';
+        resetBtn.style.marginTop = '4px';
+        resetBtn.textContent = '↩ RESTART SELECTION';
+        resetBtn.onclick = restartSetup;
+        actionBtns.appendChild(resetBtn);
+      }
+    }
+    return;
+  }
+
+  // ---- PLAY PHASE ----
+  const isMyActiveTurn = !window._ONLINE?.active || G.currentPlayer === (window._ONLINE?.mySlot || G.currentPlayer);
+  if (isMyActiveTurn) {
+    titleEl.textContent = 'YOUR TURN';
+  } else {
+    titleEl.textContent = `${(PLAYER_CONFIG.names[G.currentPlayer]||'OPPONENT').toUpperCase()}'S TURN`;
+  }
+
+  // Catastrophe alerts — always check, shown at top of action panel
+  renderCatastrophePanel();
+
+  // Sacrifice pool counter
+  if (G.sacrificePool.count > 0) {
+    sacCounter.style.display = 'block';
+    const _sacColor = G.sacrificePool.color;
+    const _sacPower = {red:'Hijack',blue:'Trade',yellow:'Move',green:'Build'}[_sacColor] || _sacColor;
+    const _sacHex   = {red:'#ff5566',blue:'#4488ff',yellow:'#ffcc00',green:'#22dd77'}[_sacColor] || '#aaa';
+    sacCounter.innerHTML = `<span style="color:${_sacHex};font-weight:bold;letter-spacing:1px">${G.sacrificePool.count} ${_sacPower} action${G.sacrificePool.count !== 1 ? 's' : ''} left</span>`;
+  }
+
+
+  const midAction = ['SHIP_SELECTED','MOVING','DISCOVERING','TRADING','ATTACKING','BUILDING'].includes(G.interaction)
+                    || G.sacrificePool.count > 0;
+  const hasDoneAction = G.turnUsed || (G._pendingActions && G._pendingActions.length > 0);
+
+  if (midAction) {
+    // token handles disabled state
+  } else if (!hasDoneAction) {
+      } else {
+    }
+
+  // Interaction state guide
+  const adv = PLAYER_CONFIG.advancedMode;
+  const guides = {
+    IDLE:          'Select one of your ships.',
+    SHIP_SELECTED: adv ? 'Click a colored star or ship to act. Click board to deselect.' : 'Choose an action — or click a star/ship of that color to act directly.',
+    MOVING:        'Click a destination system or a stash star to discover.',
+    DISCOVERING:   'Click a star in the Stash to create a new system.',
+    TRADING:       'Choose the new color for your ship.',
+    ATTACKING:     'Click a highlighted enemy ship to hijack it.',
+    BUILDING:      'Choose the color of the ship to build.',
+  };
+  guideEl.textContent = guides[G.interaction] || '';
+
+  if (G.interaction === 'IDLE' || G.interaction === 'SHIP_SELECTED') {
+    if (G.interaction === 'SHIP_SELECTED') {
+      const ship = findShip(G.selectedShipId);
+      const sys = findSystemByShip(G.selectedShipId);
+      if (!ship || !sys) { G.interaction = 'IDLE'; return render(); }
+
+      const powers = getSystemPowers(sys, G.currentPlayer);
+      const sacPool = G.sacrificePool.count > 0;
+
+      // ── Action buttons ──────────────────────────────────────────────────────
+      const ACTION_ICONS = {
+        blue:   '/assets/actionIcons/iconb.webp',
+        yellow: '/assets/actionIcons/icony.webp',
+        red:    '/assets/actionIcons/iconr.webp',
+        green:  '/assets/actionIcons/icong.webp',
+        sac:    '/assets/actionIcons/iconp.webp',
+      };
+
+      /**
+       * actionName = default label e.g. "TRADE"
+       * warnText   = short warning that REPLACES label when disabled  e.g. "Stash empty"
+       *              if null and disabled, button is just grayed out with no warning text
+       */
+      const makeActionBtn = (actionName, color, action, canAct, warnText = null) => {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        const hex = COLOR_HEX[color];
+
+        if (canAct && hex) {
+          btn.style.borderColor = hex;
+          btn.style.color       = hex;
+          btn.style.background  = `${hex}10`;
+        } else if (!canAct && warnText) {
+          btn.style.borderColor = 'rgba(28,40,64,0.5)';
+          btn.style.color       = '#cc5544';
+        } else {
+          btn.style.borderColor = 'rgba(28,40,64,0.5)';
+          btn.style.opacity     = '0.28';
+        }
+
+        // Icon
+        const iconSrc = ACTION_ICONS[color];
+        if (iconSrc) {
+          const img = document.createElement('img');
+          img.src = iconSrc; img.className = 'action-icon';
+          img.width = 18; img.height = 18; img.draggable = false;
+          btn.appendChild(img);
+        }
+
+        // Label — becomes the warning when disabled with a reason
+        const lblEl = document.createElement('span');
+        lblEl.className = 'abl';
+        if (!canAct && warnText) {
+          lblEl.textContent = warnText;
+          lblEl.classList.add('is-warn');
+        } else {
+          lblEl.textContent = actionName;
+        }
+        btn.appendChild(lblEl);
+
+        btn.disabled = !canAct;
+        btn.onclick  = action;
+        actionBtns.appendChild(btn);
+      };
+
+      // ── Per-action availability + granular disable reason ────────────────
+      const isLastInHW = sys.isHomeworld === G.currentPlayer &&
+        sys.ships.filter(s => s.owner === G.currentPlayer).length <= 1;
+      const enemyShips = sys.ships.filter(s => s.owner !== G.currentPlayer);
+      const largest    = getLargestOwnShip(sys, G.currentPlayer);
+      const capturable = enemyShips.filter(s => largest && s.size <= largest.size);
+
+      const hasPow = c => sacPool ? G.sacrificePool.color === c : powers.has(c);
+      const actionOk = c => hasPow(c) && hasActionLeft(c);
+
+      // Trade
+      const trdStashOk = COLORS.some(c => c !== ship.color && G.bank[c][ship.size] > 0);
+      const trdWarn = !hasPow('blue') ? null
+        : !hasActionLeft('blue') ? 'Turn done'
+        : !trdStashOk ? 'Stash empty' : null;
+      const canTrdFull = actionOk('blue') && trdStashOk;
+
+      // Move
+      const movWarn = !hasPow('yellow') ? null
+        : !hasActionLeft('yellow') ? 'Turn done'
+        : isLastInHW ? 'Cannot abandon HW' : null;
+      const canMovFull = actionOk('yellow') && !isLastInHW;
+
+      // Hijack
+      const atkWarn = !hasPow('red') ? null
+        : !hasActionLeft('red') ? 'Turn done'
+        : enemyShips.length === 0 ? 'No enemy'
+        : capturable.length === 0 ? 'Enemy too big' : null;
+      const canAtkFull = actionOk('red') && enemyShips.length > 0 && capturable.length > 0;
+
+      // Build
+      const bldStashOk = [1,2,3].some(sz => G.bank[ship.color][sz] > 0);
+      const bldWarn = !hasPow('green') ? null
+        : !hasActionLeft('green') ? 'Turn done'
+        : !bldStashOk ? 'Stash empty' : null;
+      const canBldFull = actionOk('green') && bldStashOk;
+
+      // Keep compat vars used elsewhere (startBuild checks these)
+      const canBld = (powers.has('green') || sacPool) && hasActionLeft('green');
+      const canTrd = (powers.has('blue')  || sacPool) && hasActionLeft('blue');
+      const canMov = (powers.has('yellow')|| sacPool) && hasActionLeft('yellow');
+      const canAtk = (powers.has('red')   || sacPool) && hasActionLeft('red');
+      const effectiveCanBld = sacPool ? (G.sacrificePool.color === 'green' && G.sacrificePool.count > 0) : canBld;
+      const effectiveCanTrd = sacPool ? (G.sacrificePool.color === 'blue'  && G.sacrificePool.count > 0) : canTrd;
+      const effectiveCanMov = sacPool ? (G.sacrificePool.color === 'yellow'&& G.sacrificePool.count > 0) : canMov;
+      const effectiveCanAtk = sacPool ? (G.sacrificePool.color === 'red'   && G.sacrificePool.count > 0) : canAtk;
+
+      if (!PLAYER_CONFIG.advancedMode) {
+        makeActionBtn('TRADE',  'blue',   () => startTrade(ship, sys),  canTrdFull, trdWarn);
+        makeActionBtn('MOVE',   'yellow', () => startMove(ship, sys),   canMovFull, movWarn);
+        makeActionBtn('HIJACK', 'red',    () => startAttack(ship, sys), canAtkFull, atkWarn);
+        makeActionBtn('BUILD',  'green',  () => startBuild(ship, sys),  canBldFull, bldWarn);
+      }
+
+      if (!sacPool) {
+        const sep = document.createElement('div');
+        sep.className = 'sep';
+        actionBtns.appendChild(sep);
+
+        // Sacrifice
+        const isOnlyShipInHW = sys.isHomeworld === G.currentPlayer && sys.ships.filter(s => s.owner === G.currentPlayer).length === 1;
+        const sacBtn = document.createElement('button');
+        sacBtn.className = 'action-btn sac';
+        const _sacDisabled = G.turnUsed || isOnlyShipInHW;
+        sacBtn.disabled = _sacDisabled;
+        // Determine label / warning
+        const _sacWarnText = isOnlyShipInHW ? 'Only ship in HW'
+          : G.turnUsed ? 'Turn done' : null;
+        if (_sacDisabled && _sacWarnText) {
+          sacBtn.style.color = '#cc5544'; sacBtn.style.borderColor = 'rgba(28,40,64,0.5)';
+        } else if (_sacDisabled) {
+          sacBtn.style.opacity = '0.28'; sacBtn.style.borderColor = 'rgba(28,40,64,0.5)';
+        }
+        // Icon
+        const _sacImg = document.createElement('img');
+        _sacImg.src = '/assets/actionIcons/iconp.webp'; _sacImg.className = 'action-icon';
+        _sacImg.width = 18; _sacImg.height = 18; _sacImg.draggable = false;
+        sacBtn.appendChild(_sacImg);
+        // Label
+        const _sacLbl = document.createElement('span'); _sacLbl.className = 'abl';
+        if (_sacWarnText) { _sacLbl.textContent = _sacWarnText; _sacLbl.classList.add('is-warn'); }
+        else { _sacLbl.textContent = 'SACRIFICE'; }
+        sacBtn.appendChild(_sacLbl);
+        sacBtn.onclick = () => doSacrifice(ship, sys);
+        actionBtns.appendChild(sacBtn);
+      }
+
+      // (deselect by clicking board background)
+    }
+  } else if (G.interaction === 'MOVING') {
+    // Show discover button + cancel
+    const fromSys = findSystemByShip(G.selectedShipId);
+    const discoverStars = bankStarsForDiscovery(fromSys);
+    if (discoverStars.length > 0) {
+      const discBtn = document.createElement('button');
+      discBtn.className = 'action-btn';
+      discBtn.style.borderColor = '#ffcc00';
+      discBtn.textContent = '★ DISCOVER NEW SYSTEM';
+      discBtn.onclick = () => { G.interaction = 'DISCOVERING'; render(); };
+      actionBtns.appendChild(discBtn);
+    }
+    addCancelBtn(actionBtns);
+  } else if (G.interaction === 'DISCOVERING') {
+    // Guide to click stash
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:12px;color:#7090b0;line-height:1.5;padding:8px 0';
+    infoDiv.textContent = 'Click a glowing star in the STASH to create a new system.';
+    actionBtns.appendChild(infoDiv);
+    addCancelBtn(actionBtns);
+  } else if (G.interaction === 'TRADING') {
+    const ship = findShip(G.selectedShipId);
+    const avail = ship ? COLORS.filter(col => col !== ship.color && G.bank[col][ship.size] > 0) : [];
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:12px;color:#2266ff;line-height:1.6;padding:4px 0 8px';
+    if (!ship || avail.length === 0) {
+      infoDiv.style.color = '#ff8888';
+      infoDiv.textContent = '⚠ No colors available to trade into at this size.';
+    } else {
+      infoDiv.innerHTML = `Trading your <span style="color:${COLOR_HEX[ship.color]}">${ship.color} ${SIZE_NAME[ship.size]}</span>.<br>Click a highlighted cell in the <b style="color:#ddeeff">Stash</b> to pick new color.`;
+    }
+    actionBtns.appendChild(infoDiv);
+    addCancelBtn(actionBtns);
+  } else if (G.interaction === 'ATTACKING') {
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:12px;color:#ff8888;line-height:1.5';
+    infoDiv.textContent = 'Click a highlighted enemy ship to capture it.';
+    actionBtns.appendChild(infoDiv);
+    addCancelBtn(actionBtns);
+  } else if (G.interaction === 'BUILDING') {
+    const sys = findSystemByShip(G.selectedShipId);
+    const ownColors = sys ? [...new Set(sys.ships.filter(s => s.owner === G.currentPlayer).map(s => s.color))] : [];
+    const buildable = ownColors.filter(col => [1,2,3].some(sz => G.bank[col][sz] > 0));
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'font-size:12px;color:#22dd77;line-height:1.6;padding:4px 0 8px';
+    if (buildable.length === 0) {
+      infoDiv.style.color = '#ff8888';
+      infoDiv.textContent = '⚠ Bank empty for all your ship colors here.';
+    } else {
+      const colorList = buildable.map(col => {
+        const sz = [1,2,3].find(s => G.bank[col][s] > 0);
+        return `<span style="color:${COLOR_HEX[col]}">${SIZE_NAME[sz]} ${col}</span>`;
+      }).join(', ');
+      infoDiv.innerHTML = `Click a highlighted cell in the <b style="color:#ddeeff">Stash</b> to build:<br>${colorList}`;
+    }
+    actionBtns.appendChild(infoDiv);
+    addCancelBtn(actionBtns);
+  }
+}
+
 // ── Log (identical to game.html, but with click-to-jump) ────
 const KEYWORDS_LOG = ['set','build','trade','discover','move','hijack','sacrifice','catastrophe','skip','HW','ship','homeworld','attack','draw','forfeit'];
 function highlightLog(str) {
@@ -1656,8 +2810,8 @@ function highlightLog(str) {
 //  reducing archive size from ~100KB to ~2KB per game.
 // ════════════════════════════════════════════════════════════
 
-const LETTER_COLOR_MAP = { r:'red', b:'blue', y:'yellow', g:'green' };
-const COLOR_LETTER_MAP2 = { red:'r', blue:'b', yellow:'y', green:'g' };
+//const LETTER_COLOR_MAP = { r:'red', b:'blue', y:'yellow', g:'green' };
+//const COLOR_LETTER_MAP2 = { red:'r', blue:'b', yellow:'y', green:'g' };
 
 // ── Make a fresh initial state ───────────────────────────────
 function makeInitialState() {
@@ -2267,6 +3421,7 @@ function init(record) {
 }
 
 function goTo(idx) {
+  if (_appMode === 'sandbox') return;
   currentIdx = idx;
   // Deep-clone snapshot so we can safely override flags
   G = JSON.parse(JSON.stringify(snapshots[idx]));
@@ -2282,6 +3437,24 @@ function goTo(idx) {
   renderBoard();
   updateNav();
   updateLogHighlight();
+}
+
+function startSandbox(fromCurrentSnapshot) {
+  _appMode = 'sandbox';
+  uid = 0;
+  G = fromCurrentSnapshot ? JSON.parse(JSON.stringify(snapshots[currentIdx])) : makeInitialState();
+  G.interaction = 'IDLE'; G.selectedShipId = null;
+  G._pendingActions = []; G.log = []; G.currentTurn = 1;
+  // show/hide sandbox UI elements
+  document.getElementById('sandbox-toolbar').style.display = 'flex';
+  document.getElementById('rv-controls').style.display = 'none';
+  renderBank(); renderBoard(); renderSidebar();
+}
+function exitSandbox() {
+  _appMode = 'review';
+  document.getElementById('sandbox-toolbar').style.display = 'none';
+  document.getElementById('rv-controls').style.display = '';
+  goTo(currentIdx);
 }
 
 function updateNav() {
