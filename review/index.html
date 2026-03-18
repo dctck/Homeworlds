@@ -1760,7 +1760,13 @@ function renderBank() {
 
       // Clickable during certain states
       let clickable = false;
-      if (G.phase === 'SETUP' && !G.setupDone) {
+      const _customStars = G.customPhase === 'HW1_STARS' || G.customPhase === 'HW2_STARS' || (G.customPhase === 'MID' && G.customMidAdding);
+      const _customShips = G.customPhase && !_customStars; // _SHIPS or MID without adding star
+      if (_customShips && G.customShipOwner && count > 0) {
+        clickable = true;
+      } else if (_customStars) {
+        if (count > 0) clickable = true;
+      } else if (G.phase === 'SETUP' && !G.setupDone && !G.customPhase) {
         if ((G.setupStep === 0 || G.setupStep === 1) && count > 0) {
           clickable = true;  // Any size star for homeworld
         } else if (G.setupStep === 2 && sz === 3 && count > 0) {
@@ -2285,6 +2291,15 @@ function attachTurnTokenListeners(tokenEl) {
         G.setupCache.stars.push({ color, size });
         render(); return;
       }
+      if (G.customShipOwner && G.customShipSys) {
+        if (G.bank[color][size] <= 0) return;
+        const sys = findSystem(G.customShipSys);
+        if (!sys) return;
+        G.bank[color][size]--;
+        sys.ships.push({ id: nextId(), color, size, owner: G.customShipOwner });
+        // stay in ship-adding mode for this side (don't clear customShipOwner)
+        render(); return;
+      }
       if (G.customPhase === 'MID' && G.customMidAdding) {
         if (G.bank[color][size] <= 0) return;
         G.bank[color][size]--;
@@ -2743,72 +2758,13 @@ function addCancelBtn(container) {
 // ══════════════════════════════════════════════
 
 function showShipPicker(sys, owner) {
-  document.getElementById('_ship_picker')?.remove();
-  const overlay = document.createElement('div');
-  overlay.id = '_ship_picker';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:250;display:flex;align-items:center;justify-content:center';
-
-  const panel = document.createElement('div');
-  panel.style.cssText = 'background:#0c1120;border:1px solid #1c2840;border-radius:10px;padding:20px;min-width:300px';
-
-  const title = document.createElement('div');
-  title.style.cssText = 'font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:2px;color:#6a8aaa;margin-bottom:12px;text-transform:uppercase';
-  title.textContent = owner === 1 ? 'Add Player 1 Ship  △' : 'Add Player 2 Ship  ▽';
-  panel.appendChild(title);
-
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:80px repeat(3,1fr);gap:4px;margin-bottom:12px';
-
-  // Headers
-  const blank = document.createElement('div');
-  grid.appendChild(blank);
-  ['S','M','L'].forEach(h => {
-    const d = document.createElement('div');
-    d.style.cssText = 'text-align:center;font-size:11px;color:#506080;padding:2px';
-    d.textContent = h; grid.appendChild(d);
-  });
-
-  COLORS.forEach(c => {
-    const lbl = document.createElement('div');
-    lbl.style.cssText = `font-size:11px;letter-spacing:1px;color:${COLOR_HEX[c]};display:flex;align-items:center;padding-left:4px;text-transform:uppercase`;
-    lbl.textContent = COLOR_POWERS[c] || c;
-    grid.appendChild(lbl);
-    [1,2,3].forEach(sz => {
-      const count = G.bank[c][sz];
-      const cell = document.createElement('div');
-      cell.style.cssText = `aspect-ratio:1;display:flex;align-items:flex-end;justify-content:center;border-radius:4px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);padding-bottom:4px;overflow:hidden`;
-      if (count > 0) {
-        cell.style.borderColor = 'rgba(255,255,0,0.4)';
-        cell.style.background = 'rgba(255,255,0,0.05)';
-        cell.style.cursor = 'pointer';
-        cell.onmouseover = () => cell.style.background = 'rgba(255,255,0,0.14)';
-        cell.onmouseout  = () => cell.style.background = 'rgba(255,255,0,0.05)';
-        cell.onclick = () => {
-          G.bank[c][sz]--;
-          sys.ships.push({ id: nextId(), color: c, size: sz, owner });
-          overlay.remove(); render();
-        };
-        const wrap = document.createElement('div'); wrap.className = 'bank-piece-wrap';
-        wrap.innerHTML = shipImgHTML(c, sz, owner); cell.appendChild(wrap);
-      } else {
-        const e = document.createElement('div');
-        e.style.cssText = 'font-size:12px;color:#2a3850;text-align:center;width:100%;padding-bottom:4px';
-        e.textContent = '—'; cell.appendChild(e);
-      }
-      grid.appendChild(cell);
-    });
-  });
-  panel.appendChild(grid);
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.style.cssText = 'width:100%;padding:8px;background:transparent;border:1px solid #2a3850;color:#506070;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px';
-  cancelBtn.textContent = '✕ CANCEL';
-  cancelBtn.onclick = () => overlay.remove();
-  panel.appendChild(cancelBtn);
-
-  overlay.appendChild(panel);
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-  document.body.appendChild(overlay);
+  // Toggle: clicking same side again deselects
+  if (G.customShipOwner === owner && G.customShipSys === sys.id) {
+    G.customShipOwner = null; G.customShipSys = null;
+  } else {
+    G.customShipOwner = owner; G.customShipSys = sys.id;
+  }
+  render();
 }
 
 function makeCustomWrapper(sys) {
@@ -2816,15 +2772,17 @@ function makeCustomWrapper(sys) {
   wrapper.style.cssText = 'display:flex;align-items:center;gap:6px';
 
   const makeBtn = (owner) => {
+    const isActive = G.customShipOwner === owner && G.customShipSys === sys.id;
     const btn = document.createElement('button');
-    btn.style.cssText = 'width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.04);border:1px solid #2a3850;color:#4a6080;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;line-height:1;padding:0';
-    btn.textContent = '+';
+    btn.style.cssText = `width:28px;height:28px;border-radius:50%;border:1px solid ${isActive?'#ffcc00':'#2a3850'};color:${isActive?'#ffcc00':'#4a6080'};background:${isActive?'rgba(255,204,0,0.1)':'rgba(255,255,255,0.04)'};font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;line-height:1;padding:0`;
+    btn.textContent = isActive ? '✓' : '+';
     btn.title = owner === 2 ? 'Add opponent ship (▽)' : 'Add your ship (△)';
-    btn.onmouseover = () => { btn.style.borderColor='#2266ff'; btn.style.color='#4488ff'; };
-    btn.onmouseout  = () => { btn.style.borderColor='#2a3850'; btn.style.color='#4a6080'; };
+    btn.onmouseover = () => { if (!isActive) { btn.style.borderColor='#2266ff'; btn.style.color='#4488ff'; } };
+    btn.onmouseout  = () => { if (!isActive) { btn.style.borderColor='#2a3850'; btn.style.color='#4a6080'; } };
     btn.onclick = (e) => { e.stopPropagation(); showShipPicker(sys, owner); };
     return btn;
   };
+
 
   wrapper.appendChild(makeBtn(2));       // left = P2 ships ▽
   wrapper.appendChild(renderSystem(sys));
@@ -2883,10 +2841,16 @@ function renderSidebar() {
     document.getElementById('catastrophe-panel').innerHTML = '';
     const guides = {
       HW1_STARS: 'Click 1 or 2 stars from the stash for Player 1\'s homeworld. Click ✓ when done.',
-      HW1_SHIPS: 'Click + to add ships to Nexus (Player 1\'s homeworld). Click ✓ when done.',
-      HW2_STARS: 'Click 1 or 2 stars from the stash for Player 2\'s homeworld. Click ✓ when done.',
+      HW1_SHIPS: G.customShipOwner
+        ? `Adding ${G.customShipOwner === 1 ? 'Player 1 △' : 'Player 2 ▽'} ships — click stash. Click + again to stop.`
+        : 'Click + on Nexus to add ships. Click ✓ when done.',
+      HW2_SHIPS: G.customShipOwner
+        ? `Adding ${G.customShipOwner === 1 ? 'Player 1 △' : 'Player 2 ▽'} ships — click stash. Click + again to stop.`
+        : 'Click + on Vertex to add ships. Click ✓ when done.',
       HW2_SHIPS: 'Click + to add ships to Vertex (Player 2\'s homeworld). Click ✓ when done.',
-      MID:       'Add star systems between the homeworlds. Click + to add ships to any system.',
+      MID: G.customShipOwner
+        ? `Adding ${G.customShipOwner === 1 ? 'Player 1 △' : 'Player 2 ▽'} ships — click stash, click ✓ to stop.`
+        : 'Add star systems, or click + on any system to add ships.',
     };
     titleEl.textContent = {
       HW1_STARS:'PLAYER 1 — HOMEWORLD STARS', HW1_SHIPS:'PLAYER 1 — HOMEWORLD SHIPS',
@@ -3898,6 +3862,7 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   G.interaction = 'IDLE'; G.selectedShipId = null;
   G._pendingActions = []; G.log = []; G.currentTurn = 1;
   G.customMidAdding = false;
+  G.customShipOwner = null; G.customShipSys = null;
   G.customPhase = fromCurrentSnapshot ? null : 'HW1_STARS';
   G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
   G.setupDone = false; G.setupStep = 0; G.setupCache = { stars: [] };
