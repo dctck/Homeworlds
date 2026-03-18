@@ -617,6 +617,59 @@ body::before {
   50%     { filter: drop-shadow(0 0 18px rgba(255,68,85,0.9)); }
 }
 
+/* Token ship icon */
+.token-icon {
+  position: absolute;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.15s;
+}
+.turn-token:not(.disabled):hover .token-icon { opacity: 0; }
+
+/* Hold-to-reset button */
+.hold-reset-btn {
+  margin-top: 6px;
+  padding: 5px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid #2a3850;
+  color: #4a6080;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 1px;
+  cursor: pointer; border-radius: 4px;
+  position: relative; overflow: hidden;
+  transition: color 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.hold-reset-btn:hover { color: #cc4455; border-color: #cc4455; }
+.hold-reset-btn.holding { color: #cc4455; border-color: #cc4455; }
+.hold-reset-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+  background: rgba(204,68,85,0.15);
+  transition: none; pointer-events: none;
+}
+
+/* Action button icon */
+.action-icon {
+  flex-shrink: 0; object-fit: contain;
+  opacity: 0.85; pointer-events: none;
+}
+.action-btn { display: flex; align-items: center; gap: 8px; }
+.abl { flex: 1; }
+.is-warn { color: #cc5544 !important; }
+
+/* Click tooltip */
+.click-tooltip {
+  position: fixed; z-index: 999;
+  background: rgba(12,17,32,0.95);
+  border: 1px solid #2a3850;
+  color: #a8c0e0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; letter-spacing: 1px;
+  padding: 5px 10px; border-radius: 4px;
+  pointer-events: none;
+  transition: opacity 0.35s;
+}
+.click-tooltip.fade { opacity: 0; }
+
 
 /* ================================================================
    SHORTCUT INTERACTION — piece-power & direct-attack highlights
