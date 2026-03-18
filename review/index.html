@@ -1379,7 +1379,22 @@ function checkWin() {
     const hw = G.systems.find(s => s.isHomeworld === p);
     if (!hw || hw.ships.filter(s => s.owner === p).length === 0) {
       G.phase = 'OVER';
-      setTimeout(() => alert(`Player ${3-p} wins!`), 50);
+      const winner = 3 - p;
+      const wName = PLAYER_CONFIG.names[winner] || `Player ${winner}`;
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px';
+      overlay.innerHTML = `
+        <div style="font-family:'Orbitron',sans-serif;font-size:32px;font-weight:900;color:#ffcc00;letter-spacing:4px;text-shadow:0 0 40px rgba(255,204,0,0.8)">
+          ${wName.toUpperCase()} WINS
+        </div>
+        <div style="font-size:12px;color:#506070;letter-spacing:2px">SANDBOX GAME OVER</div>
+        <div style="display:flex;gap:12px;margin-top:8px">
+          <button id="_sb_review" style="padding:12px 28px;background:rgba(34,102,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">BACK TO REVIEW</button>
+          <button id="_sb_exit" style="padding:12px 28px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">EXIT</button>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#_sb_review').onclick = () => { overlay.remove(); exitSandbox(); };
+      overlay.querySelector('#_sb_exit').onclick = () => { location.href = '/lobby/'; };
       return true;
     }
   }
@@ -3343,6 +3358,26 @@ let hwLabels   = ['','P1','P2']; // homeworld initials e.g. ['','N','V']
 // ── Load ─────────────────────────────────────────────────────
 async function load() {
   const params = new URLSearchParams(location.search);
+
+  // Standalone sandbox mode — no game needed
+  if (params.get('sandbox') === '1') {
+    document.getElementById('loading').style.display = 'none';
+    // Hide review-only UI, show sandbox toolbar immediately
+    document.getElementById('rv-controls').style.display = 'none';
+    document.getElementById('sandbox-toolbar').style.display = 'flex';
+    // Hide the players section (no real players)
+    const ps = document.getElementById('players-section');
+    if (ps) ps.style.display = 'none';
+    // Start fresh sandbox — _appMode set inside startSandbox
+    _appMode = 'review'; // so startSandbox triggers correctly
+    startSandbox(false);
+    // Override exitSandbox to go to lobby instead of review
+    window.exitSandbox = function() {
+      location.href = '/lobby/';
+    };
+    return;
+  }
+
   const gameId = params.get('game');
   if (!gameId) { setLoading('No game ID provided.'); return; }
 
