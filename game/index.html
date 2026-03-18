@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Homeworlds</title>
-
-<link rel="icon" href="/assets/icons/Favicon1.png" sizes="48x48">
-<link rel="apple-touch-icon" href="/assets/icons/Favicon2.png">
-  
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -1670,7 +1666,7 @@ function triggerCatastrophe(sysId, color) {
   // Catastrophe does NOT cost the turn — player continues
   G.selectedShipId = null;
   G.interaction = 'IDLE';
-  if (!checkWin()) render();
+  render();
 }
 
 function cleanSystems() {
@@ -2467,7 +2463,7 @@ function directAttack(targetShip, sys) {
   consumeAction();
   G.interaction = 'IDLE';
   G.selectedShipId = null;
-  if (!checkWin()) render();
+  render();
 }
 
 
@@ -2711,7 +2707,7 @@ function renderSystem(sys) {
           consumeAction();
           G.interaction = 'IDLE';
           G.selectedShipId = null;
-          if (!checkWin()) render();
+          render();
         };
         wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, {}));
         const od = document.createElement('div');
@@ -3419,7 +3415,7 @@ function onAttackTargetClick(targetShipId) {
   consumeAction();
   G.interaction = 'IDLE';
   G.selectedShipId = null;
-  if (!checkWin()) render();
+  render();
 }
 
 function onMoveTargetClick(sysId) {
@@ -3445,7 +3441,7 @@ function onMoveTargetClick(sysId) {
   G.selectedShipId = null;
   G.movingFromSysId = null;
   G.interaction = 'IDLE';
-  if (!checkWin()) render();
+  render();
 }
 
 // ---- START ACTION MODES ----
@@ -3579,7 +3575,6 @@ function doSacrifice(ship, sys) {
   G.selectedShipId = null;
   G.interaction = 'IDLE';
   cleanSystems();
-  checkWin();
   render();
 }
 
@@ -3686,12 +3681,12 @@ function doEndTurn() {
     G.history = null;
     G._turnStart = null; // clear before snapshot to prevent exponential nesting
     G._turnStart = JSON.stringify(G);
-
+    if (!checkWin()) render();
     // Turn Timer: reset next player's clock to one full turn
     if (PLAYER_CONFIG.tcMode === 'turn' && PLAYER_CONFIG.tcTurnMs) {
       G.timers[G.currentPlayer] = PLAYER_CONFIG.tcTurnMs;
     }
-
+    
     showPassBanner(`PLAYER ${G.currentPlayer}'S TURN`, `Pass the device to Player ${G.currentPlayer}`);
   }
 
