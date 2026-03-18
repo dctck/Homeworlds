@@ -1989,11 +1989,43 @@ function renderBoard() {
   const zP2  = document.getElementById('zone-p2');
   const zMid = document.getElementById('zone-mid');
   [zP1, zP2, zMid].forEach(z => z.innerHTML = '');
+  _arrowPid = 0;
+
+  // Board background click: deselect in sandbox
+  if (_appMode === 'sandbox') {
+    const boardEl = document.getElementById('board');
+    boardEl.onclick = (e) => {
+      const onBg = [boardEl, zP1, zP2, zMid].includes(e.target) ||
+        e.target.classList.contains('dist-row') ||
+        e.target.classList.contains('zone-hw-area') ||
+        e.target.classList.contains('zone-label');
+      if (!onBg || G.phase !== 'PLAY') return;
+      if (['SHIP_SELECTED','MOVING','DISCOVERING','TRADING','ATTACKING','BUILDING'].includes(G.interaction)) {
+        G.interaction = 'IDLE'; G.selectedShipId = null; G.movingFromSysId = null; render();
+      }
+    };
+  }
 
   const hw2 = G.systems.find(s => s.isHomeworld === 2);
   const hw1 = G.systems.find(s => s.isHomeworld === 1);
-  if (hw2) zP2.appendChild(renderSystem(hw2));
-  if (hw1) zP1.appendChild(renderSystem(hw1));
+
+  if (hw2) {
+    zP2.appendChild(renderSystem(hw2));
+    if (_appMode === 'sandbox' && G.phase === 'PLAY' && G.currentPlayer === 2)
+      zP2.appendChild(makeTurnToken(2));
+    if (_appMode === 'sandbox' && G.phase === 'SETUP' && G.setupDone && G.currentPlayer === 2)
+      zP2.appendChild(makeSetupToken(2));
+  }
+  if (hw1) {
+    zP1.appendChild(renderSystem(hw1));
+    if (_appMode === 'sandbox' && G.phase === 'PLAY' && G.currentPlayer === 1)
+      zP1.appendChild(makeTurnToken(1));
+    if (_appMode === 'sandbox' && G.phase === 'SETUP' && G.setupDone && G.currentPlayer === 1)
+      zP1.appendChild(makeSetupToken(1));
+  }
+  if (_appMode === 'sandbox' && G.phase === 'SETUP' && !G.setupDone) {
+    renderSetupPreview(G.currentPlayer === 1 ? zP1 : zP2);
+  }
 
   const midSystems = G.systems.filter(s => !s.isHomeworld);
   if (!midSystems.length) return;
@@ -2069,6 +2101,7 @@ function doEndTurn() {
   G.history = null;
   G._turnStart = null; // clear before snapshot to prevent exponential nesting
   G._turnStart = JSON.stringify(G);
+  render();
 }
 
 function attachTurnTokenListeners(tokenEl) {
@@ -2450,6 +2483,34 @@ function doSacrifice(ship, sys) {
   render();
 }
 
+function renderSetupPreview(zone) {
+  if (!G.setupCache || G.setupCache.stars.length === 0) return;
+  const card = document.createElement('div');
+  card.className = `system-card homeworld-${G.currentPlayer}`;
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'sys-name';
+  nameDiv.textContent = `PLAYER ${G.currentPlayer} — PREVIEW`;
+  card.appendChild(nameDiv);
+  const starsDiv = document.createElement('div');
+  starsDiv.className = 'sys-stars';
+  G.setupCache.stars.forEach((star, idx) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'cursor:pointer;transition:filter 0.15s;';
+    wrap.innerHTML = starImgHTML(star.color, star.size);
+    wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
+    wrap.onmouseleave = () => wrap.style.filter = '';
+    wrap.onclick = () => {
+      G.bank[star.color][star.size]++;
+      G.setupCache.stars.splice(idx, 1);
+      G.setupStep = idx;
+      render();
+    };
+    starsDiv.appendChild(wrap);
+  });
+  card.appendChild(starsDiv);
+  zone.appendChild(card);
+}
+
 function renderCatastrophePanel() {
   const panel = document.getElementById('catastrophe-panel');
   panel.innerHTML = '';
@@ -2474,6 +2535,33 @@ function renderCatastrophePanel() {
   });
 }
 
+// Sandbox: both players are local so setup is always "yours"
+function _setupIsMe() { return true; }
+
+function bankStarsForDiscovery(fromSys) {
+  if (!fromSys) return [];
+  const taken = systemSizes(fromSys);
+  const result = [];
+  COLORS.forEach(c => { SIZES.forEach(sz => {
+    if (!taken.has(sz) && G.bank[c][sz] > 0) result.push({ color: c, size: sz });
+  }); });
+  return result;
+}
+
+function addCancelBtn(container) {
+  const btn = document.createElement('button');
+  btn.className = 'action-btn';
+  btn.textContent = '✕ CANCEL';
+  btn.style.cssText = 'color:#cc4455;border-color:#3a1a22;margin-top:4px';
+  btn.onclick = () => {
+    G.interaction = 'IDLE';
+    G.selectedShipId = null;
+    G.movingFromSysId = null;
+    render();
+  };
+  container.appendChild(btn);
+}
+
 function renderSidebar() {
   const titleEl = document.getElementById('player-title');
   const guideEl = document.getElementById('guide-text');
@@ -2491,7 +2579,7 @@ function renderSidebar() {
   // ---- SETUP PHASE ----
   if (G.phase === 'SETUP') {
     document.getElementById('catastrophe-panel').innerHTML = '';
-    const _setupName = _setupIsMe ? 'YOUR TURN' : (PLAYER_CONFIG.names[G.currentPlayer] || 'OPPONENT').toUpperCase();
+    const _setupName = `PLAYER ${G.currentPlayer} — SETUP`;
     titleEl.textContent = `${_setupName} — SETUP`;
 
     if (G.setupDone) {
@@ -3444,17 +3532,34 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   uid = 0;
   G = fromCurrentSnapshot ? JSON.parse(JSON.stringify(snapshots[currentIdx])) : makeInitialState();
   G.interaction = 'IDLE'; G.selectedShipId = null;
-  G._pendingActions = []; G.log = []; G.currentTurn = 1;
+  G._pendingActions = [];
+  if (!fromCurrentSnapshot) { G.log = []; G.currentTurn = 1; }
+  // G.log already trimmed to current snapshot when forking
   // show/hide sandbox UI elements
   document.getElementById('sandbox-toolbar').style.display = 'flex';
   document.getElementById('rv-controls').style.display = 'none';
   renderBank(); renderBoard(); renderSidebar();
+  document.getElementById('log-turn-count').textContent = '—';
 }
 window.exitSandbox = function exitSandbox() {
   _appMode = 'review';
   document.getElementById('sandbox-toolbar').style.display = 'none';
   document.getElementById('rv-controls').style.display = '';
   goTo(currentIdx);
+  // Restore review log display
+  const logContainer = document.getElementById('log-entries');
+  logContainer.innerHTML = logRows.map((r, i) =>
+    `<div class="mini-log-line" data-i="${i}">${r.html}</div>`
+  ).join('');
+  logContainer.querySelectorAll('.mini-log-line').forEach(el => {
+    el.onclick = () => {
+      const row = logRows[+el.dataset.i];
+      if (!row || row.isResult) return;
+      currentLogRow = +el.dataset.i;
+      goTo(row.snapIdx);
+    };
+  });
+  updateLogHighlight();
 }
 
 function updateNav() {
