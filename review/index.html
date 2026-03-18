@@ -1448,7 +1448,7 @@ function triggerCatastrophe(sysId, color) {
   // Catastrophe does NOT cost the turn — player continues
   G.selectedShipId = null;
   G.interaction = 'IDLE';
-  if (!checkWin()) render();
+  render();
 }
 
 function isSelectableShip(ship, sys) {
@@ -1535,7 +1535,7 @@ function directAttack(targetShip, sys) {
   consumeAction();
   G.interaction = 'IDLE';
   G.selectedShipId = null;
-  if (!checkWin()) render();
+  render();
 }
 
 // ── Turn token factory ──────────────────────────────────────
@@ -1876,7 +1876,7 @@ function renderSystem(sys) {
           consumeAction();
           G.interaction = 'IDLE';
           G.selectedShipId = null;
-          if (!checkWin()) render();
+          render();
         };
         wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, {}));
         
@@ -2136,7 +2136,7 @@ function doEndTurn() {
   G.history = null;
   G._turnStart = null; // clear before snapshot to prevent exponential nesting
   G._turnStart = JSON.stringify(G);
-  render();
+  if (!checkWin()) render();
 }
 
 function attachTurnTokenListeners(tokenEl) {
@@ -2355,7 +2355,7 @@ function onAttackTargetClick(targetShipId) {
   consumeAction();
   G.interaction = 'IDLE';
   G.selectedShipId = null;
-  if (!checkWin()) render();
+  render();
 }
 
 function onMoveTargetClick(sysId) {
@@ -2381,7 +2381,7 @@ function onMoveTargetClick(sysId) {
   G.selectedShipId = null;
   G.movingFromSysId = null;
   G.interaction = 'IDLE';
-  if (!checkWin()) render();
+  render();
 }
 
 // ---- START ACTION MODES ----
@@ -2516,7 +2516,6 @@ function doSacrifice(ship, sys) {
   G.selectedShipId = null;
   G.interaction = 'IDLE';
   cleanSystems();
-  checkWin();
   render();
 }
 
