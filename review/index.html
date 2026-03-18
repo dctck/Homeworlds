@@ -1324,6 +1324,36 @@ function commitTurnLog() {
 function renderLog() {
   const container = document.getElementById('log-entries');
   if (!container) return;
+
+  if (_appMode === 'sandbox') {
+    // Prefix: review log entries up to the fork point (dimmed, read-only)
+    const prefixRows = logRows.filter(r => r.snapIdx <= currentIdx && !r.isResult);
+    const prefixHtml = prefixRows.length
+      ? prefixRows.map(r =>
+          `<div class="mini-log-line" style="opacity:0.35">${r.html}</div>`
+        ).join('')
+      : '';
+
+    // Separator if there's a prefix
+    const sep = prefixRows.length
+      ? `<div style="font-size:10px;color:#1c3040;letter-spacing:2px;text-align:center;padding:4px 0;border-top:1px solid #1c2840;margin:2px 0">— SANDBOX —</div>`
+      : '';
+
+    // Sandbox moves
+    const sandboxHtml = (G.log && G.log.length)
+      ? G.log.map(e =>
+          e.actions.map(a =>
+            `<div class="mini-log-line"><span class="mini-log-prefix"><span class="ml-turn">${e.turn}.</span><span class="${e.player===1?'ml-p1':'ml-p2'}">${e.player===1?'P1':'P2'}</span>&nbsp;</span><span class="mini-log-body">${a}</span></div>`
+          ).join('')
+        ).join('')
+      : `<div style="font-size:12px;color:#253040;text-align:center;padding:8px 10px;letter-spacing:1px">No moves yet.</div>`;
+
+    container.innerHTML = prefixHtml + sep + sandboxHtml;
+    container.scrollTop = container.scrollHeight;
+    return;
+  }
+
+  // Review mode (original behavior)
   if (!G || !G.log || G.log.length === 0) {
     container.innerHTML = '<div style="font-size:12px;color:#253040;text-align:center;padding:16px 10px;letter-spacing:1px">No moves yet.</div>';
     return;
@@ -3530,8 +3560,13 @@ function goTo(idx) {
 
 window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   _appMode = 'sandbox';
-  uid = 0;
   G = fromCurrentSnapshot ? JSON.parse(JSON.stringify(snapshots[currentIdx])) : makeInitialState();
+  // Set uid above all existing IDs to prevent collisions with snapshot ship/system IDs
+  uid = 0;
+  G.systems.forEach(sys => {
+    uid = Math.max(uid, sys.id || 0);
+    sys.ships.forEach(ship => { uid = Math.max(uid, ship.id || 0); });
+  });
   G.interaction = 'IDLE'; G.selectedShipId = null;
   G._pendingActions = []; G.log = []; G.currentTurn = 1;
   G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
