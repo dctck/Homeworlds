@@ -3439,7 +3439,7 @@ function goTo(idx) {
   updateLogHighlight();
 }
 
-function startSandbox(fromCurrentSnapshot) {
+window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   _appMode = 'sandbox';
   uid = 0;
   G = fromCurrentSnapshot ? JSON.parse(JSON.stringify(snapshots[currentIdx])) : makeInitialState();
@@ -3450,7 +3450,7 @@ function startSandbox(fromCurrentSnapshot) {
   document.getElementById('rv-controls').style.display = 'none';
   renderBank(); renderBoard(); renderSidebar();
 }
-function exitSandbox() {
+window.exitSandbox = function exitSandbox() {
   _appMode = 'review';
   document.getElementById('sandbox-toolbar').style.display = 'none';
   document.getElementById('rv-controls').style.display = '';
