@@ -1483,6 +1483,7 @@ function isSelectableShip(ship, sys) {
  * Routes to the appropriate action for that color.
  */
 function onPowerClick(color, sys, event) {
+  console.log('[onPowerClick] color:', color, 'selectedShipId:', G.selectedShipId, 'interaction:', G.interaction); //delete this
   const ship = findShip(G.selectedShipId);
   if (!ship) return;
   const shipSys = findSystemByShip(G.selectedShipId);
@@ -2016,6 +2017,7 @@ function renderSystem(sys) {
 
 // renderBoard adapted for review (no turn token, no setup preview)
 function renderBoard() {
+  console.log('[renderBoard] _appMode:', _appMode, 'phase:', G?.phase, 'currentPlayer:', G?.currentPlayer); //delete this
   const zP1  = document.getElementById('zone-p1');
   const zP2  = document.getElementById('zone-p2');
   const zMid = document.getElementById('zone-mid');
@@ -2040,10 +2042,13 @@ function renderBoard() {
   const hw2 = G.systems.find(s => s.isHomeworld === 2);
   const hw1 = G.systems.find(s => s.isHomeworld === 1);
 
+  console.log('[renderBoard] hw1:', !!hw1, 'hw2:', !!hw2); //delete this
+
   if (hw2) {
     zP2.appendChild(renderSystem(hw2));
     if (_appMode === 'sandbox' && G.phase === 'PLAY' && G.currentPlayer === 2)
       zP2.appendChild(makeTurnToken(2));
+      console.log('[renderBoard] token check p2:', _appMode, G.phase, G.currentPlayer); //delete this
     if (_appMode === 'sandbox' && G.phase === 'SETUP' && G.setupDone && G.currentPlayer === 2)
       zP2.appendChild(makeSetupToken(2));
   }
@@ -2135,6 +2140,7 @@ function doEndTurn() {
 }
 
 function attachTurnTokenListeners(tokenEl) {
+    console.log('[attachTurnTokenListeners] called, disabled:', tokenEl.classList.contains('disabled')); //delete this
   tokenEl.addEventListener('click', (e) => {
     if (tokenEl.classList.contains('disabled')) return;
     doEndTurn();
