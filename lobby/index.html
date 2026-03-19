@@ -278,7 +278,7 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
   <div class="main-hdr">
     <div class="main-title"><span class="live-dot"></span>OPEN ROOMS</div>
     <div class="filter-tabs">
-      <div class="ftab active" data-filter="all">ALL</div>
+      <div class="ftab" data-filter="all">ALL</div>
       <div class="ftab" data-filter="myturn">MY TURN</div>
       <div class="ftab" data-filter="waiting">WAITING</div>
       <div class="ftab" data-filter="playing">IN PROGRESS</div>
@@ -523,6 +523,8 @@ document.querySelectorAll('.fm-btn').forEach(btn => {
 
 // ── Filter tabs ──────────────────────────────────────────────
 document.querySelectorAll('.ftab').forEach(tab => {
+  // Set initial active state from localStorage
+  tab.classList.toggle('active', tab.dataset.filter === currentFilter);
   tab.onclick = () => {
     currentFilter = tab.dataset.filter;
     localStorage.setItem('hw_lobby_filter', currentFilter);
