@@ -3961,7 +3961,7 @@ function esc(s) {
 // Declared BEFORE load() so goTo() can access them (const is not hoisted)
 const _arrows   = [];   // { fromPid, toPid, color }
 let   _arrowDrag = null; // { fromPid, fromEl, alt }
-
+let _arrowsListening = false;
 load();
 /** Called by renderSystem to stamp a unique ID on each piece element */
 function _stampPid(el) {
@@ -4021,7 +4021,6 @@ function _renderArrows() {
   });
 }
 
-let _arrowsListening = false;
 function _initArrows() {
   if (_arrowsListening) return;
   _arrowsListening = true;
