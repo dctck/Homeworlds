@@ -2799,10 +2799,13 @@ function makeCustomWrapper(sys) {
     editBtn.onmouseout  = () => { editBtn.style.color='#3a5070'; editBtn.style.borderColor='#2a3850'; };
     editBtn.onclick = (e) => {
       e.stopPropagation();
+      // Put existing stars into setupCache so user sees them and can click to remove
+      G.setupCache = { stars: sys.stars.map(s => ({ color: s.color, size: s.size })) };
       sys.stars.forEach(s => G.bank[s.color][s.size]++);
-      sys.stars = [];
-      G.setupCache = { stars: [] }; G.setupStep = 0;
+      sys.stars = []; // cleared — will be repopulated on confirm
+      G.setupStep = G.setupCache.stars.length;
       G.customShipOwner = null; G.customShipSys = null;
+      G.customEditingHW = sys.id; // remember which system we're editing
       G.customPhase = sys.isHomeworld === 1 ? 'HW1_STARS' : 'HW2_STARS';
       G.currentPlayer = sys.isHomeworld;
       render();
@@ -2836,6 +2839,13 @@ function doCustomEndTurn() {
   switch (G.customPhase) {
     case 'HW1_STARS': {
       if (G.setupCache.stars.length === 0) return;
+      if (G.customEditingHW) {
+        const existing = findSystem(G.customEditingHW);
+        if (existing) existing.stars = [...G.setupCache.stars];
+        G.customEditingHW = null;
+        G.setupCache = { stars: [] }; G.setupStep = 0;
+        G.customPhase = 'MID'; render(); break;
+      }
       G.systems.push({ id: nextId(), name: 'Nexus', isHomeworld: 1, stars: [...G.setupCache.stars], ships: [] });
       G.setupCache = { stars: [] }; G.setupStep = 0;
       G.customPhase = 'HW1_SHIPS'; render(); break;
@@ -2846,6 +2856,13 @@ function doCustomEndTurn() {
     }
     case 'HW2_STARS': {
       if (G.setupCache.stars.length === 0) return;
+      if (G.customEditingHW) {
+        const existing = findSystem(G.customEditingHW);
+        if (existing) existing.stars = [...G.setupCache.stars];
+        G.customEditingHW = null;
+        G.setupCache = { stars: [] }; G.setupStep = 0;
+        G.customPhase = 'MID'; render(); break;
+      }
       G.systems.push({ id: nextId(), name: 'Vertex', isHomeworld: 2, stars: [...G.setupCache.stars], ships: [] });
       G.setupCache = { stars: [] }; G.setupStep = 0;
       G.customPhase = 'HW2_SHIPS'; render(); break;
@@ -3908,6 +3925,7 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   G._pendingActions = []; G.log = []; G.currentTurn = 1;
   G.customMidAdding = false;
   G.customShipOwner = null; G.customShipSys = null;
+  G.customEditingHW = null;
   G.customPhase = fromCurrentSnapshot ? null : 'HW1_STARS';
   G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
   G.setupDone = false; G.setupStep = 0; G.setupCache = { stars: [] };
