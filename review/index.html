@@ -1132,9 +1132,10 @@ body {
 <div id="right-panel">
   <div id="players-section"></div>
   <div id="sandbox-toolbar" style="display:none;flex-direction:column;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border)">
-      <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#4a8070">⬡ SANDBOX MODE</div>
-      <button onclick="exitSandbox()" style="padding:8px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">EXIT SANDBOX</button>
-    </div>
+    <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#4a8070">⬡ SANDBOX MODE</div>
+    <button onclick="exitSandbox()" style="padding:8px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">EXIT SANDBOX</button>
+    <button id="btn-publish-puzzle" onclick="openPublishPuzzle()" style="display:none;padding:8px;background:rgba(255,204,0,0.08);border:1px solid #4a3800;color:#887030;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseover="this.style.borderColor='#ffcc00';this.style.color='#ffcc00'" onmouseout="this.style.borderColor='#4a3800';this.style.color='#887030'">★ PUBLISH PUZZLE</button>
+  </div>
     <div id="rv-controls">
     <div id="nav-section">
       <div id="turn-indicator">— / —</div>
@@ -1160,7 +1161,7 @@ body {
 
 <script type="module">
 import { initializeApp }   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { getDatabase, ref, get, push, update } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { firebaseConfig } from '/firebase-config.js';
 
@@ -1425,6 +1426,12 @@ function render() {
   renderBoard();
   renderSidebar();
   renderLog();
+  // Show publish button once both HWs exist and we're not in custom setup
+  const publishBtn = document.getElementById('btn-publish-puzzle');
+  if (publishBtn) {
+    const bothHWs = G.systems.filter(s => s.isHomeworld).length === 2;
+    publishBtn.style.display = (bothHWs && !G.customPhase) ? 'block' : 'none';
+  }
 }
 
 function checkWin() {
@@ -1432,6 +1439,7 @@ function checkWin() {
     const hw = G.systems.find(s => s.isHomeworld === p);
     if (!hw || hw.ships.filter(s => s.owner === p).length === 0) {
       G.phase = 'OVER';
+      if (_puzzleMeta) { puzzleCheckResult(true); return true; }
       const winner = 3 - p;
       const wName = PLAYER_CONFIG.names[winner] || `Player ${winner}`;
       const overlay = document.createElement('div');
@@ -1644,6 +1652,53 @@ function makeTurnToken(player) {
   // Hold-to-reset button: only show when current player has actions to undo (not opponent's token)
   const isMyTurn = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
   const canReset = G.phase === 'PLAY' && isMyTurn && (G.history || (G._pendingActions?.length > 0));
+  // Puzzle: Previous Move button (hold)
+  if (_puzzleMeta && _puzzleTurnSnaps.length > 0) {
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'hold-reset-btn';
+    prevBtn.textContent = 'PREV MOVE';
+    const prevFill = document.createElement('div');
+    prevFill.className = 'hold-reset-fill';
+    prevBtn.appendChild(prevFill);
+    let _pt = null, _ps2 = null;
+    const HOLD_MS = 1000;
+    function startPrevHold(e) {
+      e.preventDefault(); prevBtn.classList.add('holding');
+      prevBtn.childNodes[0].textContent = 'HOLD';
+      _ps2 = Date.now();
+      let raf2;
+      function tick2() {
+        const el = Date.now() - _ps2;
+        prevFill.style.width = Math.min(100, (el/HOLD_MS)*100) + '%';
+        if (el >= HOLD_MS) { cancelAnimationFrame(raf2); doPrevMove(); }
+        else raf2 = requestAnimationFrame(tick2);
+      }
+      raf2 = requestAnimationFrame(tick2);
+      _pt = () => cancelAnimationFrame(raf2);
+    }
+    function cancelPrevHold() {
+      if (_pt) { _pt(); _pt = null; }
+      prevBtn.classList.remove('holding');
+      prevBtn.childNodes[0].textContent = 'PREV MOVE';
+      prevFill.style.width = '0%';
+    }
+    function doPrevMove() {
+      cancelPrevHold();
+      if (_puzzleTurnSnaps.length === 0) return;
+      G = JSON.parse(_puzzleTurnSnaps.pop());
+      const moveEl = document.getElementById('puzzle-moves');
+      if (moveEl) moveEl.textContent = `MOVES: ${_puzzleTurnSnaps.length}`;
+      render();
+    }
+    prevBtn.addEventListener('mousedown', startPrevHold);
+    prevBtn.addEventListener('touchstart', startPrevHold, { passive: false });
+    prevBtn.addEventListener('mouseup', cancelPrevHold);
+    prevBtn.addEventListener('mouseleave', cancelPrevHold);
+    prevBtn.addEventListener('touchend', cancelPrevHold);
+    prevBtn.addEventListener('touchcancel', cancelPrevHold);
+    wrap.appendChild(prevBtn);
+  }
+
   if (canReset) {
     const resetBtnEl = document.createElement('button');
     resetBtnEl.className = 'hold-reset-btn';
@@ -2273,12 +2328,14 @@ function doEndTurn() {
 function attachTurnTokenListeners(tokenEl) {
   tokenEl.addEventListener('click', () => {
     if (tokenEl.classList.contains('disabled')) return;
-    if (G.customPhase) doCustomEndTurn(); else doEndTurn();
+    if (_puzzleMeta) puzzleEndTurn(); else if (G.customPhase) doCustomEndTurn(); else doEndTurn();
+
   });
   tokenEl.addEventListener('touchend', (e) => {
     e.preventDefault();
     if (tokenEl.classList.contains('disabled')) return;
-    if (G.customPhase) doCustomEndTurn(); else doEndTurn();
+    if (_puzzleMeta) puzzleEndTurn(); else if (G.customPhase) doCustomEndTurn(); else doEndTurn();
+
   });
 }
 
@@ -2758,11 +2815,11 @@ function addCancelBtn(container) {
 // ══════════════════════════════════════════════
 
 function showShipPicker(sys, owner) {
-  // Toggle: clicking same side again deselects
   if (G.customShipOwner === owner && G.customShipSys === sys.id) {
     G.customShipOwner = null; G.customShipSys = null;
   } else {
     G.customShipOwner = owner; G.customShipSys = sys.id;
+    G.customMidAdding = false; // disable star adding when entering ship mode
   }
   render();
 }
@@ -2884,6 +2941,43 @@ function startGameFromCustom() {
   render();
 }
 
+let _publishPuzzlePlayer = 1;
+window.openPublishPuzzle = function() {
+  document.getElementById('publish-puzzle-overlay').style.display = 'flex';
+  setPuzzlePlayer(1);
+};
+window.setPuzzlePlayer = function(p) {
+  _publishPuzzlePlayer = p;
+  document.getElementById('pp-p1').style.background = p===1 ? 'rgba(68,136,255,0.12)' : 'transparent';
+  document.getElementById('pp-p1').style.borderColor = p===1 ? '#2266ff' : '#2a3850';
+  document.getElementById('pp-p1').style.color = p===1 ? '#4488ff' : '#4a6080';
+  document.getElementById('pp-p2').style.background = p===2 ? 'rgba(255,68,85,0.12)' : 'transparent';
+  document.getElementById('pp-p2').style.borderColor = p===2 ? '#ff4455' : '#2a3850';
+  document.getElementById('pp-p2').style.color = p===2 ? '#ff4455' : '#4a6080';
+};
+window.submitPuzzle = async function() {
+  const goalMoves = parseInt(document.getElementById('pp-goal').value) || 3;
+  const puzzleData = {
+    puzzlePlayer: _publishPuzzlePlayer,
+    goalMoves,
+    systems: JSON.parse(JSON.stringify(G.systems)),
+    bank: JSON.parse(JSON.stringify(G.bank)),
+    createdAt: Date.now(),
+    createdBy: '', // filled below
+    createdByName: 'Pilot',
+  };
+  try {
+    const fbApp = initializeApp(firebaseConfig);
+    const db = getDatabase(fbApp);
+    const auth = getAuth(fbApp);
+    const user = auth.currentUser;
+    if (user) { puzzleData.createdBy = user.uid; puzzleData.createdByName = user.displayName || 'Pilot'; }
+    const newRef = await push(ref(db, 'puzzles'), puzzleData);
+    document.getElementById('publish-puzzle-overlay').style.display = 'none';
+    alert(`Puzzle published! ID: ${newRef.key}`);
+  } catch(e) { alert('Failed to publish: ' + e.message); }
+};
+
 function renderSidebar() {
   const titleEl = document.getElementById('player-title');
   const guideEl = document.getElementById('guide-text');
@@ -2926,7 +3020,11 @@ function renderSidebar() {
       addBtn.className = 'action-btn';
       addBtn.textContent = G.customMidAdding ? '★ CLICK A STAR IN STASH…' : '+ ADD STAR SYSTEM';
       addBtn.style.cssText = `border-color:${G.customMidAdding?'#ffcc00':'#2a3850'};color:${G.customMidAdding?'#ffcc00':'#a8c0e0'}`;
-      addBtn.onclick = () => { G.customMidAdding = !G.customMidAdding; render(); };
+      addBtn.onclick = () => {
+        G.customMidAdding = !G.customMidAdding;
+        if (G.customMidAdding) { G.customShipOwner = null; G.customShipSys = null; }
+        render();
+      };
       actionBtns.appendChild(addBtn);
 
       const sep = document.createElement('div'); sep.className = 'sep';
@@ -3692,6 +3790,23 @@ async function load() {
     return;
   }
 
+  const puzzleId = params.get('puzzle');
+  if (puzzleId) {
+    setLoading('Loading puzzle…');
+    try {
+      const fbApp = initializeApp(firebaseConfig);
+      const db    = getDatabase(fbApp);
+      const auth  = getAuth(fbApp);
+      const user  = await new Promise((res, rej) => {
+        const unsub = onAuthStateChanged(auth, u => { unsub(); u ? res(u) : rej(new Error('Not signed in.')); });
+      });
+      const snap = await get(ref(db, `puzzles/${puzzleId}`));
+      if (!snap.exists()) { setLoading('Puzzle not found.'); return; }
+      startPuzzle(snap.val(), puzzleId, user, db);
+    } catch(e) { setLoading('Failed: ' + e.message); }
+    return;
+  }
+
   const gameId = params.get('game');
   if (!gameId) { setLoading('No game ID provided.'); return; }
 
@@ -3910,6 +4025,160 @@ function goTo(idx) {
   renderBoard();
   updateNav();
   updateLogHighlight();
+}
+
+// ══════════════════════════════════════════════
+//  PUZZLE MODE
+// ══════════════════════════════════════════════
+let _puzzleMeta = null; // { id, player, goalMoves, db, user }
+let _puzzleTurnSnaps = []; // stack of G snapshots for "previous move"
+
+function startPuzzle(data, puzzleId, user, db) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('rv-controls').style.display = 'none';
+  const ps = document.getElementById('players-section');
+  if (ps) ps.style.display = 'none';
+
+  _appMode = 'sandbox';
+  _puzzleMeta = { id: puzzleId, player: data.puzzlePlayer, goalMoves: data.goalMoves, db, user, data };
+  _puzzleTurnSnaps = [];
+
+  // Build G from puzzle's saved board state
+  G = {
+    phase: 'PLAY',
+    currentPlayer: data.puzzlePlayer,
+    systems: JSON.parse(JSON.stringify(data.systems)),
+    bank: JSON.parse(JSON.stringify(data.bank)),
+    interaction: 'IDLE', selectedShipId: null, movingFromSysId: null,
+    sacrificePool: { color: null, count: 0 },
+    turnUsed: false, history: null,
+    log: [], _pendingActions: [], currentTurn: 1,
+    customPhase: null,
+  };
+  uid = 0;
+  G.systems.forEach(sys => {
+    uid = Math.max(uid, sys.id || 0);
+    sys.ships.forEach(s => { uid = Math.max(uid, s.id || 0); });
+  });
+
+  // Show puzzle toolbar
+  const toolbar = document.getElementById('sandbox-toolbar');
+  toolbar.style.display = 'flex';
+  toolbar.innerHTML = `
+    <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#aa8844">⬡ PUZZLE MODE</div>
+    <div id="puzzle-goal" style="font-size:11px;color:#506070;letter-spacing:1px">GOAL: WIN IN ≤ ${data.goalMoves} MOVE${data.goalMoves!==1?'S':''}</div>
+    <div id="puzzle-moves" style="font-size:11px;color:#4488ff;letter-spacing:1px">MOVES: 0</div>
+    <button onclick="location.href='/lobby/'" style="padding:6px 10px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;margin-top:4px">← LOBBY</button>`;
+
+  // Render solvers below log
+  renderPuzzleSolvers(data);
+
+  renderBank(); renderBoard(); renderSidebar(); renderLog();
+}
+
+function renderPuzzleSolvers(data) {
+  const logPanel = document.getElementById('log-panel');
+  if (!logPanel) return;
+  document.getElementById('_puzzle_solvers')?.remove();
+  const solvers = data.solvers ? Object.values(data.solvers) : [];
+  solvers.sort((a, b) => a.moves !== b.moves ? a.moves - b.moves : a.solvedAt - b.solvedAt);
+  const div = document.createElement('div');
+  div.id = '_puzzle_solvers';
+  div.style.cssText = 'border-top:1px solid #1c2840;padding:8px 10px;flex-shrink:0';
+  const title = document.createElement('div');
+  title.style.cssText = 'font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;color:#4a6080;margin-bottom:6px';
+  title.textContent = 'SOLVERS';
+  div.appendChild(title);
+  if (!solvers.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:11px;color:#253040;text-align:center;padding:6px 0';
+    empty.textContent = 'No solvers yet. Be the first!';
+    div.appendChild(empty);
+  } else {
+    solvers.slice(0, 10).forEach((s, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:#4a6080';
+      row.innerHTML = `<span style="color:${i===0?'#ffcc00':'#4a6080'}">${i===0?'🏆 ':''}${esc(s.name)}</span><span style="color:#2a4060">${s.moves} move${s.moves!==1?'s':''}</span>`;
+      div.appendChild(row);
+    });
+  }
+  logPanel.after(div);
+}
+
+function puzzleEndTurn() {
+  if (!_puzzleMeta) return;
+  if (G.phase !== 'PLAY') return;
+
+  // Save snapshot for "previous move"
+  _puzzleTurnSnaps.push(JSON.stringify(G));
+
+  // Log and commit puzzle player's turn
+  if (!G.turnUsed && G.sacrificePool.count === 0 && (!G._pendingActions?.length)) {
+    logAction(Note.skip());
+  }
+  commitTurnLog();
+
+  // Check win BEFORE auto-passing (player just moved)
+  const won = checkWin();
+  if (won) return; // checkWin() shows popup
+
+  // Auto-pass opponent
+  G.currentPlayer = 3 - _puzzleMeta.player;
+  G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
+  G.selectedShipId = null; G.interaction = 'IDLE';
+  logAction(Note.skip());
+  commitTurnLog();
+
+  // Back to puzzle player
+  G.currentPlayer = _puzzleMeta.player;
+  G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
+  G.selectedShipId = null; G.movingFromSysId = null; G.interaction = 'IDLE';
+  G.history = null; G._turnStart = null; G._turnStart = JSON.stringify(G);
+
+  // Update move counter display
+  const moveCount = _puzzleTurnSnaps.length;
+  const moveEl = document.getElementById('puzzle-moves');
+  if (moveEl) moveEl.textContent = `MOVES: ${moveCount}`;
+
+  render();
+}
+
+function puzzleCheckResult(won) {
+  if (!_puzzleMeta || !won) return;
+  const moveCount = _puzzleTurnSnaps.length;
+  const solved = moveCount <= _puzzleMeta.goalMoves;
+  const { id, user, db, data } = _puzzleMeta;
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
+
+  if (solved) {
+    // Write solver record (only if better than existing)
+    const solverRef = `puzzles/${id}/solvers/${user.uid}`;
+    get(ref(db, solverRef)).then(snap => {
+      const existing = snap.val();
+      if (!existing || moveCount < existing.moves) {
+        update(ref(db, solverRef), { name: user.displayName || 'Pilot', moves: moveCount, solvedAt: Date.now() });
+      }
+    });
+    overlay.innerHTML = `
+      <div style="font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;color:#22dd77;letter-spacing:4px;text-shadow:0 0 30px rgba(34,221,119,0.6)">PUZZLE SOLVED!</div>
+      <div style="font-size:13px;color:#4a8060;letter-spacing:2px">Completed in ${moveCount} move${moveCount!==1?'s':''} · Goal was ${_puzzleMeta.goalMoves}</div>
+      <div style="display:flex;gap:12px;margin-top:8px">
+        <button onclick="location.reload()" style="padding:11px 24px;background:rgba(34,221,119,0.12);border:1px solid #22dd77;color:#22dd77;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">TRY AGAIN</button>
+        <button onclick="location.href='/lobby/'" style="padding:11px 24px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">LOBBY</button>
+      </div>`;
+  } else {
+    overlay.innerHTML = `
+      <div style="font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;color:#ffcc00;letter-spacing:4px">YOU WIN</div>
+      <div style="font-size:13px;color:#6a5020;letter-spacing:2px">But used ${moveCount} moves — goal was ${_puzzleMeta.goalMoves}</div>
+      <div style="font-size:12px;color:#3a4050;letter-spacing:1px;margin-top:-4px">Not counted as a solve. Try fewer moves!</div>
+      <div style="display:flex;gap:12px;margin-top:8px">
+        <button onclick="location.reload()" style="padding:11px 24px;background:rgba(255,204,0,0.1);border:1px solid #ffcc00;color:#ffcc00;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">TRY AGAIN</button>
+        <button onclick="location.href='/lobby/'" style="padding:11px 24px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">LOBBY</button>
+      </div>`;
+  }
+  document.body.appendChild(overlay);
 }
 
 window.startSandbox = function startSandbox(fromCurrentSnapshot) {
@@ -4241,5 +4510,23 @@ function _initArrows() {
   syncBottomNav();
 })();
 </script>
+
+<div id="publish-puzzle-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:300;align-items:center;justify-content:center">
+  <div style="background:#0c1120;border:1px solid #1c2840;border-radius:10px;padding:28px;width:320px;font-family:'Share Tech Mono',monospace">
+    <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:#ddeeff;margin-bottom:16px">PUBLISH PUZZLE</div>
+    <div style="font-size:12px;color:#506070;margin-bottom:8px;letter-spacing:.5px">Puzzle player</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button id="pp-p1" onclick="setPuzzlePlayer(1)" style="flex:1;padding:9px;background:rgba(68,136,255,0.12);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">PLAYER 1</button>
+      <button id="pp-p2" onclick="setPuzzlePlayer(2)" style="flex:1;padding:9px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">PLAYER 2</button>
+    </div>
+    <div style="font-size:12px;color:#506070;margin-bottom:6px;letter-spacing:.5px">Goal — win in this many moves or fewer</div>
+    <input id="pp-goal" type="number" min="1" max="99" value="3" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.03);border:1px solid #1c2840;border-radius:4px;color:#ddeeff;font-family:'Share Tech Mono',monospace;font-size:14px;text-align:center;outline:none;margin-bottom:16px">
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('publish-puzzle-overlay').style.display='none'" style="flex:1;padding:10px;background:transparent;border:1px solid #2a3850;color:#506070;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;border-radius:4px">CANCEL</button>
+      <button onclick="submitPuzzle()" style="flex:1;padding:10px;background:rgba(255,204,0,0.1);border:1px solid #ffcc00;color:#ffcc00;font-family:'Orbitron',sans-serif;font-size:12px;cursor:pointer;border-radius:4px;letter-spacing:1px">PUBLISH</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
