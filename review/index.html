@@ -1395,11 +1395,13 @@ function renderLog() {
 
     // Sandbox moves
     const sandboxHtml = (G.log && G.log.length)
-      ? G.log.map(e =>
-          e.actions.map(a =>
+      ? G.log.map(e => {
+          // In puzzle mode, hide auto-passed opponent skip lines
+          if (_puzzleMeta && e.player !== _puzzleMeta.player) return '';
+          return e.actions.map(a =>
             `<div class="mini-log-line"><span class="mini-log-prefix"><span class="ml-turn">${e.turn}.</span><span class="${e.player===1?'ml-p1':'ml-p2'}">${e.player===1?'P1':'P2'}</span>&nbsp;</span><span class="mini-log-body">${a}</span></div>`
-          ).join('')
-        ).join('')
+          ).join('');
+        }).join('')
       : `<div style="font-size:12px;color:#253040;text-align:center;padding:8px 10px;letter-spacing:1px">No moves yet.</div>`;
 
     container.innerHTML = prefixHtml + sep + sandboxHtml;
@@ -4087,7 +4089,8 @@ function startPuzzle(data, puzzleId, user, db) {
   toolbar.style.display = 'flex';
   toolbar.innerHTML = `
     <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#aa8844">⬡ PUZZLE MODE</div>
-    <div id="puzzle-goal" style="font-size:11px;color:#506070;letter-spacing:1px">GOAL: WIN IN ≤ ${data.goalMoves} MOVE${data.goalMoves!==1?'S':''}</div>
+    <div style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;color:#ddeeff;letter-spacing:1px;margin-bottom:2px">${esc(data.name||'Untitled Puzzle')}</div>
+    <div id="puzzle-goal" style="font-size:11px;color:#506070;letter-spacing:1px">GOAL: WIN IN ≤ ${data.goalMoves} MOVE${data.goalMoves!==1?'S':''} · PLAY AS P${data.puzzlePlayer}</div>
     <div id="puzzle-moves" style="font-size:11px;color:#4488ff;letter-spacing:1px">MOVES: 0</div>
     <button onclick="location.href='/lobby/'" style="padding:6px 10px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;margin-top:4px">← LOBBY</button>
     <button id="btn-delete-puzzle" style="display:none;padding:6px 10px;background:transparent;border:1px solid #3a1a22;color:#5a3040;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s" onmouseover="this.style.color='#cc3344';this.style.borderColor='#cc3344'" onmouseout="this.style.color='#5a3040';this.style.borderColor='#3a1a22'" onclick="deletePuzzle()">✕ DELETE PUZZLE</button>`;
