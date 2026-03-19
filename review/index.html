@@ -1750,7 +1750,9 @@ function makeTurnToken(player) {
     function doReset() {
       cancelHold();
       if (G._turnStart) {
-        G = JSON.parse(G._turnStart);
+        const saved = G._turnStart; // capture before G is replaced
+        G = JSON.parse(saved);
+        G._turnStart = saved; // restore so next reset still works
       } else {
         G._pendingActions = [];
         G.turnUsed = false;
@@ -1758,7 +1760,11 @@ function makeTurnToken(player) {
         G.history = null;
       }
       G.selectedShipId = null; G.movingFromSysId = null; G.interaction = 'IDLE';
-      render();
+      // Call directly — avoids any guard issues with render()
+      renderBank();
+      renderBoard();
+      renderSidebar();
+      renderLog();
     }
     resetBtnEl.addEventListener('mousedown', startHold);
     resetBtnEl.addEventListener('touchstart', startHold, { passive: false });
