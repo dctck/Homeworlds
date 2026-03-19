@@ -1074,6 +1074,10 @@ body {
 <div id="sidebar">
   <div id="player-bar">
     <div id="player-title">REVIEW</div>
+    <div id="bank-section">
+    <div id="bank-title">Stash</div>
+    <div id="bank-grid"></div>
+  </div>
     <div id="guide-text"></div>
   </div>
   <div id="action-section">
@@ -1082,10 +1086,6 @@ body {
     <div id="action-buttons"></div>
     <div id="sub-picker"></div>
     <button class="action-btn" id="btn-reset" style="display:none">RESET TURN</button>
-  </div>
-  <div id="bank-section">
-    <div id="bank-title">Stash</div>
-    <div id="bank-grid"></div>
   </div>
   
 </div>
@@ -2785,7 +2785,49 @@ function makeCustomWrapper(sys) {
 
 
   wrapper.appendChild(makeBtn(2));       // left = P2 ships ▽
-  wrapper.appendChild(renderSystem(sys));
+
+  const sysCol = document.createElement('div');
+  sysCol.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px';
+  const sysCard = renderSystem(sys);
+  sysCol.appendChild(sysCard);
+  // Edit stars button for HWs in MID phase
+  if (sys.isHomeworld && G.customPhase === 'MID') {
+    const editBtn = document.createElement('button');
+    editBtn.style.cssText = 'font-size:10px;letter-spacing:1px;padding:3px 8px;background:transparent;border:1px solid #2a3850;color:#3a5070;font-family:Share Tech Mono,monospace;cursor:pointer;border-radius:3px;transition:all .15s';
+    editBtn.textContent = '✎ EDIT STARS';
+    editBtn.onmouseover = () => { editBtn.style.color='#4488ff'; editBtn.style.borderColor='#2266ff'; };
+    editBtn.onmouseout  = () => { editBtn.style.color='#3a5070'; editBtn.style.borderColor='#2a3850'; };
+    editBtn.onclick = (e) => {
+      e.stopPropagation();
+      sys.stars.forEach(s => G.bank[s.color][s.size]++);
+      sys.stars = [];
+      G.setupCache = { stars: [] }; G.setupStep = 0;
+      G.customShipOwner = null; G.customShipSys = null;
+      G.customPhase = sys.isHomeworld === 1 ? 'HW1_STARS' : 'HW2_STARS';
+      G.currentPlayer = sys.isHomeworld;
+      render();
+    };
+    sysCol.appendChild(editBtn);
+  }
+  // Remove button only for mid systems (not homeworlds)
+  if (!sys.isHomeworld) {
+    const removeBtn = document.createElement('button');
+    removeBtn.style.cssText = 'font-size:10px;letter-spacing:1px;padding:3px 8px;background:transparent;border:1px solid #3a1a22;color:#5a3040;font-family:Share Tech Mono,monospace;cursor:pointer;border-radius:3px;transition:all .15s';
+    removeBtn.textContent = '✕ REMOVE';
+    removeBtn.onmouseover = () => { removeBtn.style.color='#cc3344'; removeBtn.style.borderColor='#cc3344'; };
+    removeBtn.onmouseout  = () => { removeBtn.style.color='#5a3040'; removeBtn.style.borderColor='#3a1a22'; };
+    removeBtn.onclick = (e) => {
+      e.stopPropagation();
+      // Return pieces to bank
+      sys.stars.forEach(s => G.bank[s.color][s.size]++);
+      sys.ships.forEach(s => G.bank[s.color][s.size]++);
+      G.systems = G.systems.filter(x => x.id !== sys.id);
+      if (G.customShipSys === sys.id) { G.customShipOwner = null; G.customShipSys = null; }
+      render();
+    };
+    sysCol.appendChild(removeBtn);
+  }
+  wrapper.appendChild(sysCol);
   wrapper.appendChild(makeBtn(1));       // right = P1 ships △
   return wrapper;
 }
@@ -2799,6 +2841,7 @@ function doCustomEndTurn() {
       G.customPhase = 'HW1_SHIPS'; render(); break;
     }
     case 'HW1_SHIPS': {
+      G.customShipOwner = null; G.customShipSys = null;
       G.customPhase = 'HW2_STARS'; G.currentPlayer = 2; render(); break;
     }
     case 'HW2_STARS': {
@@ -2808,6 +2851,7 @@ function doCustomEndTurn() {
       G.customPhase = 'HW2_SHIPS'; render(); break;
     }
     case 'HW2_SHIPS': {
+      G.customShipOwner = null; G.customShipSys = null;
       G.customPhase = 'MID'; G.customMidAdding = false; render(); break;
     }
   }
@@ -2815,6 +2859,7 @@ function doCustomEndTurn() {
 
 function startGameFromCustom() {
   G.customPhase = null; G.customMidAdding = false;
+  G.customShipOwner = null; G.customShipSys = null;
   G.phase = 'PLAY'; G.currentPlayer = 1;
   G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
   G.selectedShipId = null; G.interaction = 'IDLE';
