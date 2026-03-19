@@ -2986,19 +2986,23 @@ window.submitPuzzle = async function() {
     createdByName: 'Pilot',
   };
   try {
-    const fbApp = initializeApp(firebaseConfig);
-    const db = getDatabase(fbApp);
-    const auth = getAuth(fbApp);
-    const { ref: _ref, get: _get } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
-    const user = auth.currentUser;
+    // Reuse the already-authenticated Firebase instance from _puzzleMeta if in puzzle mode,
+    // otherwise use the module-level db/auth from the page's existing Firebase init
+    const _fbApp = initializeApp(firebaseConfig);
+    const _db = getDatabase(_fbApp);
+    const _auth = getAuth(_fbApp);
+    // Wait for auth to restore — currentUser is null until onAuthStateChanged fires
+    const user = await new Promise(res => {
+      const unsub = onAuthStateChanged(_auth, u => { unsub(); res(u); });
+    });
     if (user) {
       puzzleData.createdBy = user.uid;
-      const playerSnap = await _get(_ref(db, 'players/' + user.uid));
+      const playerSnap = await get(ref(_db, 'players/' + user.uid));
       puzzleData.createdByName = playerSnap.val()?.name || user.displayName || 'Pilot';
     }
-    const newRef = await push(ref(db, 'puzzles'), puzzleData);
+    const puzzleRef = await push(ref(_db, 'puzzles'), puzzleData);
     document.getElementById('publish-puzzle-overlay').style.display = 'none';
-    alert(`Puzzle published! ID: ${newRef.key}`);
+    alert('Puzzle published! ID: ' + puzzleRef.key);
   } catch(e) { alert('Failed to publish: ' + e.message); }
 };
 
