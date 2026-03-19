@@ -524,10 +524,9 @@ document.querySelectorAll('.fm-btn').forEach(btn => {
 // ── Filter tabs ──────────────────────────────────────────────
 document.querySelectorAll('.ftab').forEach(tab => {
   tab.onclick = () => {
-    document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === currentFilter));
-    tab.classList.add('active');
     currentFilter = tab.dataset.filter;
     localStorage.setItem('hw_lobby_filter', currentFilter);
+    document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === currentFilter));
     renderRooms(lastRooms);
   };
 });
