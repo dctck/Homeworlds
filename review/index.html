@@ -1749,12 +1749,13 @@ function makeTurnToken(player) {
     }
     function doReset() {
       cancelHold();
-      if (G.history) {
-        G = JSON.parse(G.history);
-      } else if (G._pendingActions?.length > 0) {
+      if (G._turnStart) {
+        G = JSON.parse(G._turnStart);
+      } else {
         G._pendingActions = [];
         G.turnUsed = false;
         G.sacrificePool = { color: null, count: 0 };
+        G.history = null;
       }
       G.selectedShipId = null; G.movingFromSysId = null; G.interaction = 'IDLE';
       render();
@@ -4196,7 +4197,7 @@ function puzzleEndTurn() {
   if (G.phase !== 'PLAY') return;
 
   // Save snapshot for "previous move"
-  _puzzleTurnSnaps.push(JSON.stringify(G));
+  _puzzleTurnSnaps.push(G._turnStart || JSON.stringify(G));
 
   // Log and commit puzzle player's turn
   if (!G.turnUsed && G.sacrificePool.count === 0 && (!G._pendingActions?.length)) {
