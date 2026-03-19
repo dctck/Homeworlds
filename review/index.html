@@ -663,7 +663,7 @@ body::before {
   border: 1px solid #2a3850;
   color: #a8c0e0;
   font-family: 'Share Tech Mono', monospace;
-  font-size: 11px; letter-spacing: 1px;
+  font-size: 14px; letter-spacing: 1px;
   padding: 5px 10px; border-radius: 4px;
   pointer-events: none;
   transition: opacity 0.35s;
@@ -807,14 +807,14 @@ body::before {
     display: flex; align-items: center;
     padding: 12px 14px;
     color: #4a6080; text-decoration: none;
-    font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 2px;
+    font-family: 'Orbitron', sans-serif; font-size: 14px; letter-spacing: 2px;
     border-right: 1px solid var(--border);
     white-space: nowrap;
   }
   #rv-mobile-top a:hover { color: var(--bright); }
   #rv-mobile-title {
     flex: 1; text-align: center;
-    font-family: 'Orbitron', sans-serif; font-size: 11px;
+    font-family: 'Orbitron', sans-serif; font-size: 14px;
     letter-spacing: 3px; color: var(--bright); padding: 12px 8px;
   }
 
@@ -906,7 +906,7 @@ body::before {
   #nav-section { display: none; }
   /* Collapse review-top on mobile to just a thin title bar */
   #review-top { padding: 8px 14px; background: none; border-bottom: none; }
-  #review-title { font-size: 11px; color: #3a5060; }
+  #review-title { font-size: 14px; color: #3a5060; }
 }
 
 @media (min-width: 801px) {
@@ -926,14 +926,14 @@ body::before {
     display: flex; align-items: center;
     padding: 10px 14px;
     color: #4a6080; text-decoration: none;
-    font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 2px;
+    font-family: 'Orbitron', sans-serif; font-size: 14px; letter-spacing: 2px;
     border-right: 1px solid var(--border);
     white-space: nowrap;
   }
   #rv-mobile-top a:hover { color: var(--bright); }
   #rv-mobile-title {
     flex: 1; text-align: center;
-    font-family: 'Orbitron', sans-serif; font-size: 11px;
+    font-family: 'Orbitron', sans-serif; font-size: 14px;
     letter-spacing: 3px; color: var(--bright); padding: 10px 8px;
   }
 }
@@ -995,7 +995,7 @@ body {
 }
 #turn-indicator {
   font-family: 'Orbitron', sans-serif;
-  font-size: 11px; letter-spacing: 2px; color: var(--bright);
+  font-size: 14px; letter-spacing: 2px; color: var(--bright);
   text-align: center; padding: 8px 0 6px;
 }
 #nav-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
@@ -1673,7 +1673,7 @@ function makeTurnToken(player) {
     prevFill.className = 'hold-reset-fill';
     prevBtn.appendChild(prevFill);
     let _pt = null, _ps2 = null;
-    const HOLD_MS = 1000;
+    const HOLD_MS = 300;
     function startPrevHold(e) {
       e.preventDefault(); prevBtn.classList.add('holding');
       prevBtn.childNodes[0].textContent = 'HOLD';
@@ -1720,7 +1720,7 @@ function makeTurnToken(player) {
     resetBtnEl.appendChild(fillEl);
 
     let _rTimer = null, _rStart = null;
-    const HOLD_MS = 1000;
+    const HOLD_MS = 300;
     function startHold(e) {
       e.preventDefault();
       resetBtnEl.classList.add('holding');
