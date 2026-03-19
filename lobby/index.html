@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lobby — HW ARENA</title>
+
+<link rel="icon" href="/assets/icons/Favicon1.png" sizes="48x48">
+<link rel="apple-touch-icon" href="/assets/icons/Favicon2.png">
+
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -278,6 +282,7 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
       <div class="ftab" data-filter="myturn">MY TURN</div>
       <div class="ftab" data-filter="waiting">WAITING</div>
       <div class="ftab" data-filter="playing">IN PROGRESS</div>
+      <div class="ftab" data-filter="puzzles">PUZZLES</div>
     </div>
   </div>
   <div id="room-list">
@@ -601,9 +606,47 @@ function subscribeRooms(){
   });
 }
 
+async function renderPuzzles(list) {
+  list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⬡</div><div class="empty-state-text">Loading puzzles…</div></div>';
+  try {
+    const snap = await get(ref(db, 'puzzles'));
+    if (!snap.exists()) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⬡</div><div class="empty-state-text">No puzzles yet.<br>Create one in Sandbox Mode.</div></div>';
+      return;
+    }
+    const puzzles = Object.entries(snap.val())
+      .map(([id, p]) => ({ ...p, id }))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    list.innerHTML = '';
+    puzzles.forEach(p => {
+      const solvers = p.solvers ? Object.values(p.solvers) : [];
+      const best = solvers.sort((a,b) => a.moves - b.moves)[0];
+      const card = document.createElement('div');
+      card.className = 'room-card';
+      card.style.cursor = 'pointer';
+      card.innerHTML = `
+        <div>
+          <div class="room-name">
+            <span style="color:#ffcc00">⬡</span> Puzzle by ${esc(p.createdByName||'Pilot')}
+            <span class="room-priv" style="color:#4488ff;border-color:#2266ff40;background:#2266ff0a">P${p.puzzlePlayer} · ≤${p.goalMoves} MOVE${p.goalMoves!==1?'S':''}</span>
+          </div>
+          <div class="room-meta">${solvers.length} solver${solvers.length!==1?'s':''} · Best: ${best ? best.moves + ' moves by ' + esc(best.name) : 'none yet'}</div>
+        </div>
+        <div class="room-actions">
+          <button class="btn-join" style="border-color:#ffcc00;color:#ffcc00">PLAY</button>
+        </div>`;
+      card.onclick = () => location.href = `/review/?puzzle=${p.id}`;
+      list.appendChild(card);
+    });
+  } catch(e) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-state-text">Failed to load puzzles.</div></div>`;
+  }
+}
+
 function renderRooms(rooms){
   const list = document.getElementById('room-list');
   updateMyTurnBadge(rooms);
+  if (currentFilter === 'puzzles') { renderPuzzles(list); return; }
   const myUid = ME?.uid;
   let entries = Object.entries(rooms)
     .map(([id, r]) => ({ ...r, id }))
@@ -692,6 +735,13 @@ function renderRooms(rooms){
         ${statusHtml}
         ${actionsHtml}
       </div>`;
+    // Make whole card clickable — delegate to the action button inside
+    card.style.cursor = 'pointer';
+    card.onclick = (e) => {
+      if (e.target.closest('.btn-join')) return; // let button handle its own click
+      const btn = card.querySelector('.btn-join');
+      if (btn) btn.click();
+    };
     list.appendChild(card);
   });
   list.querySelectorAll('.btn-join[data-id]').forEach(btn => {
