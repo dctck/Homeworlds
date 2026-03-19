@@ -1699,7 +1699,7 @@ function makeTurnToken(player) {
       if (_puzzleTurnSnaps.length === 0) return;
       G = JSON.parse(_puzzleTurnSnaps.pop());
       const moveEl = document.getElementById('puzzle-moves');
-      if (moveEl) moveEl.textContent = `MOVES: ${_puzzleTurnSnaps.length}`;
+      if (moveEl) moveEl.textContent = _puzzleTurnSnaps.length;
       render();
     }
     prevBtn.addEventListener('mousedown', startPrevHold);
