@@ -344,7 +344,7 @@ let selectedTc  = 'unlimited';
 let selectedFm  = 'challenger'; // 'challenger' | 'random'
 let ME          = null;
 let lastRooms   = {};
-let currentFilter = 'all';
+let currentFilter = localStorage.getItem('hw_lobby_filter') || 'all';
 let pendingJoin   = null;
 
 // ── Auth guard ───────────────────────────────────────────────
@@ -524,9 +524,10 @@ document.querySelectorAll('.fm-btn').forEach(btn => {
 // ── Filter tabs ──────────────────────────────────────────────
 document.querySelectorAll('.ftab').forEach(tab => {
   tab.onclick = () => {
-    document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === currentFilter));
     tab.classList.add('active');
     currentFilter = tab.dataset.filter;
+    localStorage.setItem('hw_lobby_filter', currentFilter);
     renderRooms(lastRooms);
   };
 });
