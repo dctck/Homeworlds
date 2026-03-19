@@ -2989,10 +2989,11 @@ window.submitPuzzle = async function() {
     const fbApp = initializeApp(firebaseConfig);
     const db = getDatabase(fbApp);
     const auth = getAuth(fbApp);
+    const { ref: _ref, get: _get } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
     const user = auth.currentUser;
     if (user) {
       puzzleData.createdBy = user.uid;
-      const playerSnap = await get(ref(db, 'players/' + user.uid));
+      const playerSnap = await _get(_ref(db, 'players/' + user.uid));
       puzzleData.createdByName = playerSnap.val()?.name || user.displayName || 'Pilot';
     }
     const newRef = await push(ref(db, 'puzzles'), puzzleData);
@@ -4239,7 +4240,10 @@ function puzzleCheckResult(won) {
     get(ref(db, solverRef)).then(snap => {
       const existing = snap.val();
       if (!existing || moveCount < existing.moves) {
-        update(ref(db, solverRef), { name: user.displayName || 'Pilot', moves: moveCount, solvedAt: Date.now() });
+        get(ref(db, 'players/' + user.uid)).then(pSnap => {
+          const pName = pSnap.val()?.name || user.displayName || 'Pilot';
+          update(ref(db, solverRef), { name: pName, moves: moveCount, solvedAt: Date.now() });
+        });
       }
     });
     overlay.innerHTML = `
