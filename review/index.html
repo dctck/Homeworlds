@@ -4095,16 +4095,33 @@ function startPuzzle(data, puzzleId, user, db) {
   // Show puzzle toolbar
   const toolbar = document.getElementById('sandbox-toolbar');
   toolbar.style.display = 'flex';
-  const _delBtn = (user && data.createdBy === user.uid)
-    ? '<button onclick="deletePuzzle()" style="padding:6px 10px;background:transparent;border:1px solid #3a1a22;color:#5a3040;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s" onmouseover="this.style.color=\'#cc3344\';this.style.borderColor=\'#cc3344\'" onmouseout="this.style.color=\'#5a3040\';this.style.borderColor=\'#3a1a22\'">✕ DELETE PUZZLE</button>'
-    : '';
-  toolbar.innerHTML = `
-    <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#aa8844">⬡ PUZZLE MODE</div>
-    <div style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;color:#ddeeff;letter-spacing:1px;margin-bottom:2px">${esc(data.name||'Untitled Puzzle')}</div>
-    <div id="puzzle-goal" style="font-size:11px;color:#506070;letter-spacing:1px">GOAL: WIN IN ≤ ${data.goalMoves} MOVE${data.goalMoves!==1?'S':''} · PLAY AS P${data.puzzlePlayer}</div>
-    <div id="puzzle-moves" style="font-size:11px;color:#4488ff;letter-spacing:1px">MOVES: 0</div>
-    ${_delBtn}`;
+  toolbar.innerHTML = '';
 
+  const _tb = (tag, css, text) => {
+    const el = document.createElement(tag);
+    if (css) el.style.cssText = css;
+    if (text) el.textContent = text;
+    return el;
+  };
+  toolbar.appendChild(_tb('div', "font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#aa8844", '\u2B21 PUZZLE MODE'));
+  toolbar.appendChild(_tb('div', "font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;color:#ddeeff;letter-spacing:1px;margin-bottom:2px", data.name || 'Untitled Puzzle'));
+
+  const goalEl = _tb('div', 'font-size:11px;color:#506070;letter-spacing:1px', '');
+  goalEl.id = 'puzzle-goal';
+  goalEl.textContent = 'GOAL: WIN IN ' + data.goalMoves + ' MOVE' + (data.goalMoves !== 1 ? 'S' : '') + ' OR LESS · PLAY AS P' + data.puzzlePlayer;
+  toolbar.appendChild(goalEl);
+
+  const movesEl = _tb('div', 'font-size:11px;color:#4488ff;letter-spacing:1px', 'MOVES: 0');
+  movesEl.id = 'puzzle-moves';
+  toolbar.appendChild(movesEl);
+
+  if (user && data.createdBy === user.uid) {
+    const delBtn = _tb('button', 'padding:6px 10px;background:transparent;border:1px solid #3a1a22;color:#5a3040;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s', '\u2715 DELETE PUZZLE');
+    delBtn.onmouseover = () => { delBtn.style.color='#cc3344'; delBtn.style.borderColor='#cc3344'; };
+    delBtn.onmouseout  = () => { delBtn.style.color='#5a3040'; delBtn.style.borderColor='#3a1a22'; };
+    delBtn.onclick = () => deletePuzzle();
+    toolbar.appendChild(delBtn);
+  }
 
   // Render solvers below log
   renderPuzzleSolvers(data);
