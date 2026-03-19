@@ -632,7 +632,9 @@ async function renderPuzzles(list) {
             <span style="color:#ffcc00">⬡</span> ${esc(p.name||'Untitled Puzzle')}
             <span class="room-priv" style="color:#4488ff;border-color:#2266ff40;background:#2266ff0a">P${p.puzzlePlayer} · ≤${p.goalMoves} MOVE${p.goalMoves!==1?'S':''}</span>
           </div>
-          <div class="room-meta">By ${esc(p.createdByName||'Pilot')} · ${solvers.length} solver${solvers.length!==1?'s':''} · Best: ${best ? best.moves + ' moves by ' + esc(best.name) : 'none yet'}</div>
+          <div class="room-meta">
+            By ${esc(p.createdByName || 'Pilot')} • ${solvers.length} solver${solvers.length !== 1 ? 's' : ''}
+          </div>
         </div>
         <div class="room-actions">
           <button class="btn-join" style="border-color:#ffcc00;color:#ffcc00">PLAY</button>
