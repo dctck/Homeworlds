@@ -381,6 +381,31 @@ body::before {
 }
 #chat-send:hover { border-color: #2a3a5a; color: var(--text); }
 
+/* === PREMOVE PANEL === */
+#premove-panel { flex-shrink:0; border-top:1px solid var(--border); flex-direction:column; }
+#premove-header { padding:8px 12px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; flex-shrink:0; }
+#premove-header.recording { background:rgba(255,204,0,0.06); border-bottom:1px solid rgba(255,204,0,0.25); }
+#premove-hlabel { font-family:'Orbitron',sans-serif; font-size:12px; letter-spacing:2px; color:#6a8aaa; text-transform:uppercase; }
+#premove-header.recording #premove-hlabel { color:#ccaa00; }
+#premove-badge { font-size:10px; background:rgba(255,204,0,0.15); border:1px solid rgba(255,204,0,0.4); color:#ffcc00; padding:1px 6px; border-radius:3px; letter-spacing:1px; }
+#premove-toggle { font-size:12px; color:#5a7090; transition:transform 0.2s; }
+#premove-toggle.open { transform:rotate(180deg); }
+#premove-body { display:none; flex-direction:column; }
+#premove-body.open { display:flex; }
+#premove-entries { padding:4px 8px; overflow-y:auto; max-height:110px; }
+#premove-btns { padding:6px 8px; border-top:1px solid var(--border); display:flex; gap:5px; flex-wrap:wrap; }
+.pm-entry { display:flex; align-items:center; justify-content:space-between; padding:2px 2px; }
+.pm-x { background:none; border:none; color:#3a4a5a; font-size:11px; cursor:pointer; padding:0 3px; line-height:1; flex-shrink:0; transition:color .15s; }
+.pm-x:hover { color:#cc4455; }
+.pm-btn { padding:5px 9px; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; border-radius:3px; transition:all .15s; }
+.pm-add { background:rgba(255,204,0,0.08); border:1px solid rgba(255,204,0,0.3); color:#ccaa00; }
+.pm-add:hover { background:rgba(255,204,0,0.15); color:#ffcc00; border-color:rgba(255,204,0,.6); }
+.pm-reg { background:rgba(34,221,119,0.08); border:1px solid rgba(34,221,119,0.3); color:#22aa66; }
+.pm-reg:hover:not(:disabled) { background:rgba(34,221,119,0.18); color:#22dd77; }
+.pm-reg:disabled { opacity:.4; cursor:not-allowed; }
+.pm-clr { background:transparent; border:1px solid #2a3850; color:#4a6080; }
+.pm-clr:hover { color:#7090b0; border-color:#3a5070; }
+
 /* === GAME BOARD === */
 #board {
   grid-area: board;
@@ -1192,6 +1217,20 @@ body::before {
     </div>
     <div id="log-entries">
       <div style="font-size:12px;color:#253040;text-align:center;padding:16px 10px;letter-spacing:1px;line-height:1.8">No moves yet.<br>Log appears here.</div>
+    </div>
+  </div>
+  <!-- PRE MOVE PANEL -->
+  <div id="premove-panel" style="display:none;">
+    <div id="premove-header">
+      <div style="display:flex;align-items:center;gap:7px;">
+        <span id="premove-hlabel">Pre Move</span>
+        <span id="premove-badge" style="display:none;"></span>
+      </div>
+      <span id="premove-toggle">▲</span>
+    </div>
+    <div id="premove-body">
+      <div id="premove-entries"></div>
+      <div id="premove-btns"></div>
     </div>
   </div>
   <!-- Collapsible chat at bottom -->
@@ -3867,6 +3906,326 @@ function escapeHtml(s) {
 })();
 
 // ============================================================
+//  PREMOVE SYSTEM  (online only)
+// ============================================================
+(function() {
+  window._premoves    = [];
+  window._premoveMode = false;
+  window._pmShadowG   = null;
+  window._pmOrigG     = null;
+
+  const L2C = { r:'red', b:'blue', y:'yellow', g:'green' };
+
+  // ── Panel toggle ────────────────────────────────────────
+  (function _wire() {
+    const hdr  = document.getElementById('premove-header');
+    const body = document.getElementById('premove-body');
+    const tog  = document.getElementById('premove-toggle');
+    if (!hdr) return;
+    hdr.addEventListener('click', () => {
+      const open = body.classList.toggle('open');
+      tog.classList.toggle('open', open);
+    });
+  })();
+
+  // ── Visibility ──────────────────────────────────────────
+  function _vis() {
+    const panel = document.getElementById('premove-panel');
+    if (!panel) return;
+    const on = window._ONLINE?.active && window.G?.phase === 'PLAY';
+    const show = on && (window.G.currentPlayer !== window._ONLINE.mySlot || window._premoves.length > 0 || window._premoveMode);
+    panel.style.display = show ? 'flex' : 'none';
+    if (!show && window._premoveMode) _exit();
+  }
+
+  // ── Render panel ────────────────────────────────────────
+  window.renderPremovePanel = function() {
+    _vis();
+    const entries = document.getElementById('premove-entries');
+    const btns    = document.getElementById('premove-btns');
+    const badge   = document.getElementById('premove-badge');
+    const hdr     = document.getElementById('premove-header');
+    const body    = document.getElementById('premove-body');
+    const tog     = document.getElementById('premove-toggle');
+    if (!entries || !btns) return;
+
+    if (hdr) hdr.classList.toggle('recording', window._premoveMode);
+    if (window._premoveMode && body && !body.classList.contains('open')) {
+      body.classList.add('open');
+      if (tog) tog.classList.add('open');
+    }
+    if (badge) {
+      badge.style.display = window._premoves.length > 0 ? '' : 'none';
+      badge.textContent = window._premoves.length + ' QUEUED';
+    }
+
+    // Highlight function (mirrors renderLog)
+    const KW = ['set','build','trade','discover','move','hijack','sacrifice','catastrophe','skip','failed','HW','ship','draw','forfeit'];
+    const HL = s => s.split(' ').map(t => {
+      if (KW.includes(t)) return `<span class="ml-kw">${t}</span>`;
+      if (/^r\d/.test(t)) return `<span class="piece-r">${t}</span>`;
+      if (/^b\d/.test(t)) return `<span class="piece-b">${t}</span>`;
+      if (/^y\d/.test(t)) return `<span class="piece-y">${t}</span>`;
+      if (/^g\d/.test(t)) return `<span class="piece-g">${t}</span>`;
+      if (t==='r') return `<span class="piece-r">${t}</span>`;
+      if (t==='b') return `<span class="piece-b">${t}</span>`;
+      if (t==='y') return `<span class="piece-y">${t}</span>`;
+      if (t==='g') return `<span class="piece-g">${t}</span>`;
+      return t;
+    }).join(' ');
+
+    // Entries
+    entries.innerHTML = '';
+    if (window._premoves.length === 0 && !window._premoveMode) {
+      entries.innerHTML = '<div style="font-size:12px;color:#253040;text-align:center;padding:8px 4px;letter-spacing:1px;">No premoves queued.</div>';
+    }
+    const pSlot = window._ONLINE?.mySlot || 1;
+    window._premoves.forEach((pm, idx) => {
+      pm.actions.forEach((a, ai) => {
+        const row = document.createElement('div');
+        row.className = 'pm-entry';
+        const isLast = ai === pm.actions.length - 1;
+        row.innerHTML = `
+          <div class="mini-log-line" style="flex:1;margin:0;">
+            <span class="mini-log-prefix"><span class="ml-turn">T${pm.turnFor}.</span><span class="ml-p${pSlot}">▶</span>&nbsp;</span>
+            <span class="mini-log-body">${HL(a)}</span>
+          </div>
+          ${isLast ? `<button class="pm-x" title="Cancel T${pm.turnFor} and all after">✕</button>` : '<div style="width:17px"></div>'}
+        `;
+        if (isLast) row.querySelector('.pm-x').onclick = () => window._cancelFrom(idx);
+        entries.appendChild(row);
+      });
+    });
+
+    // Buttons
+    btns.innerHTML = '';
+    const isOppTurn = window.G && window._ONLINE?.active && window.G.currentPlayer !== window._ONLINE.mySlot;
+    if (window._premoveMode) {
+      const canReg = (window.G?._pendingActions?.length || 0) > 0
+        && window.G?.interaction === 'IDLE';
+      const r = document.createElement('button');
+      r.className = 'pm-btn pm-reg'; r.textContent = '✓ Register Move';
+      r.disabled = !canReg; r.onclick = window._registerPremove;
+      btns.appendChild(r);
+      const c = document.createElement('button');
+      c.className = 'pm-btn pm-clr'; c.textContent = '✕ Cancel';
+      c.onclick = _exit; btns.appendChild(c);
+    } else {
+      if (isOppTurn) {
+        const a = document.createElement('button');
+        a.className = 'pm-btn pm-add'; a.textContent = '+ Add Premove';
+        a.onclick = window._startPremove; btns.appendChild(a);
+      }
+      if (window._premoves.length > 0) {
+        const cl = document.createElement('button');
+        cl.className = 'pm-btn pm-clr'; cl.textContent = '✕ Clear All';
+        cl.onclick = () => window._cancelFrom(0); btns.appendChild(cl);
+      }
+    }
+  };
+
+  // ── Start recording ─────────────────────────────────────
+  window._startPremove = function() {
+    if (!window._ONLINE?.active) return;
+    const MY = window._ONLINE.mySlot;
+    if (!window.G || window.G.currentPlayer === MY) return;
+    window._pmOrigG = window.G;
+    // Build shadow G from accumulator or real G
+    let shadow = window._pmShadowG
+      ? JSON.parse(JSON.stringify(window._pmShadowG))
+      : JSON.parse(JSON.stringify(window.G));
+    shadow.currentPlayer   = MY;
+    shadow.turnUsed        = false;
+    shadow.sacrificePool   = { color:null, count:0 };
+    shadow.selectedShipId  = null;
+    shadow.movingFromSysId = null;
+    shadow.interaction     = 'IDLE';
+    shadow._pendingActions = [];
+    shadow._turnStart      = JSON.stringify(shadow);
+    window._pmShadowG      = shadow;
+    window.G = shadow;
+    window._premoveMode = true;
+    render();
+    window.renderPremovePanel();
+  };
+
+  // ── Register premove ────────────────────────────────────
+  window._registerPremove = function() {
+    if (!window._premoveMode) return;
+    const actions = window.G._pendingActions || [];
+    if (!actions.length) return;
+    const baseG   = window._pmOrigG;
+    const turnFor = baseG.currentTurn + 1 + (window._premoves.length * 2);
+    window._premoves.push({ actions:[...actions], turnFor });
+    // Advance shadow G: skip our turn + opponent hypothetical turn
+    const sh = window._pmShadowG;
+    sh._pendingActions  = [];
+    sh.turnUsed         = false;
+    sh.sacrificePool    = { color:null, count:0 };
+    sh.selectedShipId   = null;
+    sh.movingFromSysId  = null;
+    sh.interaction      = 'IDLE';
+    sh.currentTurn     += 2;
+    sh._turnStart       = JSON.stringify(sh);
+    // Restore real G
+    window.G = window._pmOrigG;
+    window._pmOrigG = null;
+    window._premoveMode = false;
+    render();
+    window.renderPremovePanel();
+  };
+
+  // ── Exit mode ───────────────────────────────────────────
+  function _exit() {
+    if (!window._premoveMode) return;
+    window.G = window._pmOrigG;
+    window._pmOrigG = null;
+    window._premoveMode = false;
+    render();
+    window.renderPremovePanel();
+  }
+
+  // ── Cancel from index ───────────────────────────────────
+  window._cancelFrom = function(idx) {
+    window._premoves.splice(idx);
+    window._pmShadowG = null;
+    window.renderPremovePanel();
+  };
+
+  // ── Fire queued premove when MY turn arrives ─────────────
+  window._tryFirePremove = function() {
+    if (!window._premoves.length || !window._ONLINE?.active) return;
+    if (window._premoveMode) _exit();
+    const MY = window._ONLINE.mySlot;
+    if (!window.G || window.G.currentPlayer !== MY || window.G.phase !== 'PLAY') return;
+
+    const pm = window._premoves[0];
+    console.log(`[PREMOVE] Firing T${pm.turnFor}:`, pm.actions);
+
+    for (const action of pm.actions) {
+      if (!_exec(action)) {
+        console.warn(`[PREMOVE] Invalid: "${action}" — clearing all premoves`);
+        window._premoves = [];
+        window._pmShadowG = null;
+        render();
+        window.renderPremovePanel();
+        return;
+      }
+    }
+
+    window._premoves.shift();
+    window._pmShadowG = null; // reset: real board changed after opponent's actual move
+    G.sacrificePool = { color: null, count: 0 };
+    doEndTurn();
+    window.renderPremovePanel();
+  };
+
+  // ── Execute notation against live G ─────────────────────
+  function _exec(n) {
+    const p = n.trim().split(/\s+/);
+    const v = p[0];
+    const MY = window.G.currentPlayer;
+    try {
+      if (v === 'skip') return true;
+
+      if (v === 'build') {
+        const col=L2C[p[1][0]], sysName=p[2];
+        const sys=G.systems.find(s=>s.name===sysName);
+        if (!sys) return false;
+        const hasPow=sys.stars.some(s=>s.color==='green')||sys.ships.some(s=>s.owner===MY&&s.color==='green')||G.sacrificePool.color==='green';
+        if (!hasPow) return false;
+        const sz=[1,2,3].find(s=>G.bank[col][s]>0);
+        if (!sz) return false;
+        const anyShip=sys.ships.find(s=>s.owner===MY);
+        if (!anyShip) return false;
+        G.selectedShipId=anyShip.id; G.interaction='SHIP_SELECTED';
+        doBuild(sys,col); return true;
+      }
+
+      if (v === 'trade') {
+        const col=L2C[p[1][0]],size=+p[1][1],sysName=p[2],newCol=L2C[p[3]];
+        const sys=G.systems.find(s=>s.name===sysName);
+        if (!sys) return false;
+        const ship=sys.ships.find(s=>s.owner===MY&&s.color===col&&s.size===size);
+        if (!ship) return false;
+        const hasPow=sys.stars.some(s=>s.color==='blue')||sys.ships.some(s=>s.owner===MY&&s.color==='blue')||G.sacrificePool.color==='blue';
+        if (!hasPow) return false;
+        if (G.bank[newCol][size]<=0) return false;
+        G.selectedShipId=ship.id; G.interaction='TRADING';
+        doTrade(ship,newCol); return true;
+      }
+
+      if (v === 'move') {
+        const col=L2C[p[1][0]],size=+p[1][1],fromN=p[2],toN=p[3];
+        const fromSys=G.systems.find(s=>s.name===fromN);
+        const toSys=G.systems.find(s=>s.name===toN);
+        if (!fromSys||!toSys) return false;
+        const ship=fromSys.ships.find(s=>s.owner===MY&&s.color===col&&s.size===size);
+        if (!ship) return false;
+        if (!isConnected(fromSys,toSys)) return false;
+        const hasPow=fromSys.stars.some(s=>s.color==='yellow')||fromSys.ships.some(s=>s.owner===MY&&s.color==='yellow')||G.sacrificePool.color==='yellow';
+        if (!hasPow) return false;
+        G.selectedShipId=ship.id; G.movingFromSysId=fromSys.id; G.interaction='MOVING';
+        onMoveTargetClick(toSys.id); return true;
+      }
+
+      if (v === 'discover') {
+        const col=L2C[p[1][0]],size=+p[1][1],fromN=p[2],sCol=L2C[p[3][0]],sSz=+p[3][1];
+        const fromSys=G.systems.find(s=>s.name===fromN);
+        if (!fromSys) return false;
+        const ship=fromSys.ships.find(s=>s.owner===MY&&s.color===col&&s.size===size);
+        if (!ship) return false;
+        if (G.bank[sCol][sSz]<=0) return false;
+        const hasPow=fromSys.stars.some(s=>s.color==='yellow')||fromSys.ships.some(s=>s.owner===MY&&s.color==='yellow')||G.sacrificePool.color==='yellow';
+        if (!hasPow) return false;
+        G.selectedShipId=ship.id; G.movingFromSysId=fromSys.id; G.interaction='DISCOVERING';
+        doDiscover(sCol,sSz); return true;
+      }
+
+      if (v === 'hijack') {
+        const col=L2C[p[1][0]],size=+p[1][1],sysName=p[2];
+        const sys=G.systems.find(s=>s.name===sysName);
+        if (!sys) return false;
+        const target=sys.ships.find(s=>s.owner!==MY&&s.color===col&&s.size===size);
+        if (!target) return false;
+        const largest=getLargestOwnShip(sys,MY);
+        if (!largest||largest.size<target.size) return false;
+        const hasPow=sys.stars.some(s=>s.color==='red')||sys.ships.some(s=>s.owner===MY&&s.color==='red')||G.sacrificePool.color==='red';
+        if (!hasPow) return false;
+        G.interaction='ATTACKING';
+        onAttackTargetClick(target.id); return true;
+      }
+
+      if (v === 'sacrifice') {
+        const col=L2C[p[1][0]],size=+p[1][1],sysName=p[2];
+        const sys=G.systems.find(s=>s.name===sysName);
+        if (!sys) return false;
+        const ship=sys.ships.find(s=>s.owner===MY&&s.color===col&&s.size===size);
+        if (!ship) return false;
+        G.selectedShipId=ship.id;
+        doSacrifice(ship,sys); return true;
+      }
+
+      if (v === 'catastrophe') {
+        const sys=G.systems.find(s=>s.name===p[1]);
+        if (!sys) return false;
+        triggerCatastrophe(sys.id,L2C[p[2]]); return true;
+      }
+
+    } catch(e) { console.error('[PREMOVE] exec error:',e); return false; }
+    return false;
+  }
+
+  // ── Patch render() to sync panel state ─────────────────
+  const _origRender = window.render;
+  window.render = function() {
+    _origRender.apply(this, arguments);
+    if (window.renderPremovePanel) window.renderPremovePanel();
+  };
+
+})();
+
+// ============================================================
 //  TIMER
 // ============================================================
 let _timerInterval = null;
@@ -4621,6 +4980,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       } else if (g.currentPlayer === MY_SLOT) {
         window.render();
         if (g.phase === 'PLAY') startTimerTick();
+        if (window._premoves?.length > 0 && window._tryFirePremove) setTimeout(window._tryFirePremove, 250);
       } else {
         showWaiting('Waiting for opponent…');
         if (g.phase === 'PLAY') startTimerTick();
@@ -4751,6 +5111,10 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       }
 
       window.render();
+      // ── Fire queued premove if MY turn just arrived ────────
+      if (incoming.currentPlayer === MY_SLOT && window._premoves?.length > 0 && window._tryFirePremove) {
+        setTimeout(window._tryFirePremove, 250);
+      }
       // Remove any waiting banner before showing the turn banner
       if (_waitEl) { _waitEl.remove(); _waitEl = null; }
       // Start/restart the timer for the new current player's turn
