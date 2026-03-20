@@ -4147,7 +4147,7 @@ window._pmForcedStarName = null;
     set(ref(db, `rooms/${ROOM_ID}/premoves/${MY}`), payload).catch(e => console.warn('[PREMOVE] save failed:', e));
   }
 
-  window._loadPremoves() {
+  window._loadPremoves = function() {
     if (!window._ONLINE?.active || typeof get !== 'function' || typeof ref !== 'function') return;
     const ROOM_ID = window._ONLINE?.roomId || new URLSearchParams(location.search).get('room');
     if (!ROOM_ID) return;
