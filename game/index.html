@@ -2471,6 +2471,7 @@ function directAttack(targetShip, sys) {
 
 
 function renderBoard() {
+  console.log('[renderBoard] phase:', G?.phase, 'systems:', G?.systems?.length); //delete this
   const zP1  = document.getElementById('zone-p1');
   const zP2  = document.getElementById('zone-p2');
   const zMid = document.getElementById('zone-mid');
