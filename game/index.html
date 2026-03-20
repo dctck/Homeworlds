@@ -3907,6 +3907,9 @@ function escapeHtml(s) {
 // ============================================================
 //  PREMOVE SYSTEM  (online only)
 // ============================================================
+
+window._pmCanceledMsg = null;
+
 (function() {
   window._premoves    = [];
   window._premoveMode = false;
@@ -3932,9 +3935,7 @@ function escapeHtml(s) {
     const panel = document.getElementById('premove-panel');
     if (!panel) return;
     const on = window._ONLINE?.active && window.G?.phase === 'PLAY';
-    const show = on && (window.G.currentPlayer !== window._ONLINE.mySlot || window._premoves.length > 0 || window._premoveMode);
-    panel.style.display = show ? 'flex' : 'none';
-    if (!show && window._premoveMode) _exit();
+    panel.style.display = on ? 'flex' : 'none';
   }
 
   // ── Render panel ────────────────────────────────────────
@@ -3976,7 +3977,11 @@ function escapeHtml(s) {
     // Entries
     entries.innerHTML = '';
     if (window._premoves.length === 0 && !window._premoveMode) {
-      entries.innerHTML = '<div style="font-size:12px;color:#253040;text-align:center;padding:8px 4px;letter-spacing:1px;">No premoves queued.</div>';
+      if (window._pmCanceledMsg) {
+        entries.innerHTML = `<div style="font-size:12px;color:#cc4455;padding:6px 4px;letter-spacing:0.5px;line-height:1.5;">⚠ ${window._pmCanceledMsg}</div>`;
+      } else {
+        entries.innerHTML = '<div style="font-size:12px;color:#253040;text-align:center;padding:8px 4px;letter-spacing:1px;">No premoves queued.</div>';
+      }
     }
     const pSlot = window._ONLINE?.mySlot || 1;
     window._premoves.forEach((pm, idx) => {
@@ -4026,6 +4031,7 @@ function escapeHtml(s) {
   // ── Start recording ─────────────────────────────────────
   window._startPremove = function() {
     if (!window._ONLINE?.active) return;
+    window._pmCanceledMsg = null;
     const MY = window._ONLINE.mySlot;
     if (!window.G || window.G.currentPlayer === MY) return;
     window._pmOrigG = window.G;
@@ -4079,6 +4085,7 @@ function escapeHtml(s) {
     if (!window._premoveMode) return;
     window.G = window._pmOrigG;
     window._pmOrigG = null;
+    window._pmShadowG = null;
     window._premoveMode = false;
     render();
     window.renderPremovePanel();
@@ -4112,6 +4119,7 @@ function escapeHtml(s) {
         console.warn(`[PREMOVE] Invalid: "${action}" — clearing all premoves`);
         window._premoves = [];
         window._pmShadowG = null;
+        window._pmCanceledMsg = `Canceled — invalid: "${action}"`;
         render();
         window.renderPremovePanel();
         return;
@@ -4130,19 +4138,20 @@ function escapeHtml(s) {
     const p = n.trim().split(/\s+/);
     const v = p[0];
     const MY = window.G.currentPlayer;
+    const bail = (r) => { console.warn(`[PREMOVE] ✗ "${n}" — ${r}`); return false; };
     try {
       if (v === 'skip') return true;
 
       if (v === 'build') {
         const col=L2C[p[1][0]], sysName=p[2];
         const sys=G.systems.find(s=>s.name===sysName);
-        if (!sys) return false;
+        if (!sys) return bail('system not found: '+sysName);
         const hasPow=sys.stars.some(s=>s.color==='green')||sys.ships.some(s=>s.owner===MY&&s.color==='green')||G.sacrificePool.color==='green';
-        if (!hasPow) return false;
+        if (!hasPow) return bail('no green power in '+sysName);
         const sz=[1,2,3].find(s=>G.bank[col][s]>0);
-        if (!sz) return false;
+        if (!sz) return bail('bank empty for '+col);
         const anyShip=sys.ships.find(s=>s.owner===MY);
-        if (!anyShip) return false;
+        if (!anyShip) return bail('no own ship in '+sysName);
         G.selectedShipId=anyShip.id; G.interaction='SHIP_SELECTED';
         doBuild(sys,col); return true;
       }
@@ -4150,12 +4159,12 @@ function escapeHtml(s) {
       if (v === 'trade') {
         const col=L2C[p[1][0]],size=+p[1][1],sysName=p[2],newCol=L2C[p[3]];
         const sys=G.systems.find(s=>s.name===sysName);
-        if (!sys) return false;
+        if (!sys) return bail('system not found: '+sysName);
         const ship=sys.ships.find(s=>s.owner===MY&&s.color===col&&s.size===size);
-        if (!ship) return false;
+        if (!ship) return bail(`no own ${col}${size} in ${sysName}`);
         const hasPow=sys.stars.some(s=>s.color==='blue')||sys.ships.some(s=>s.owner===MY&&s.color==='blue')||G.sacrificePool.color==='blue';
-        if (!hasPow) return false;
-        if (G.bank[newCol][size]<=0) return false;
+        if (!hasPow) return bail('no blue power in '+sysName);
+        if (G.bank[newCol][size]<=0) return bail('bank empty for '+newCol+size);
         G.selectedShipId=ship.id; G.interaction='TRADING';
         doTrade(ship,newCol); return true;
       }
@@ -4164,12 +4173,13 @@ function escapeHtml(s) {
         const col=L2C[p[1][0]],size=+p[1][1],fromN=p[2],toN=p[3];
         const fromSys=G.systems.find(s=>s.name===fromN);
         const toSys=G.systems.find(s=>s.name===toN);
-        if (!fromSys||!toSys) return false;
+        if (!fromSys) return bail('source system not found: '+fromN);
+        if (!toSys) return bail('dest system not found: '+toN);
         const ship=fromSys.ships.find(s=>s.owner===MY&&s.color===col&&s.size===size);
-        if (!ship) return false;
-        if (!isConnected(fromSys,toSys)) return false;
+        if (!ship) return bail(`no own ${col}${size} in ${fromN}`);
+        if (!isConnected(fromSys,toSys)) return bail(`${fromN} and ${toN} not connected`);
         const hasPow=fromSys.stars.some(s=>s.color==='yellow')||fromSys.ships.some(s=>s.owner===MY&&s.color==='yellow')||G.sacrificePool.color==='yellow';
-        if (!hasPow) return false;
+        if (!hasPow) return bail('no yellow power in '+fromN);
         G.selectedShipId=ship.id; G.movingFromSysId=fromSys.id; G.interaction='MOVING';
         onMoveTargetClick(toSys.id); return true;
       }
@@ -4177,12 +4187,12 @@ function escapeHtml(s) {
       if (v === 'discover') {
         const col=L2C[p[1][0]],size=+p[1][1],fromN=p[2],sCol=L2C[p[3][0]],sSz=+p[3][1];
         const fromSys=G.systems.find(s=>s.name===fromN);
-        if (!fromSys) return false;
+        if (!fromSys) return bail('source system not found: '+fromN);
         const ship=fromSys.ships.find(s=>s.owner===MY&&s.color===col&&s.size===size);
-        if (!ship) return false;
-        if (G.bank[sCol][sSz]<=0) return false;
+        if (!ship) return bail(`no own ${col}${size} in ${fromN}`);
+        if (G.bank[sCol][sSz]<=0) return bail(`bank empty for star ${sCol}${sSz}`);
         const hasPow=fromSys.stars.some(s=>s.color==='yellow')||fromSys.ships.some(s=>s.owner===MY&&s.color==='yellow')||G.sacrificePool.color==='yellow';
-        if (!hasPow) return false;
+        if (!hasPow) return bail('no yellow power in '+fromN);
         G.selectedShipId=ship.id; G.movingFromSysId=fromSys.id; G.interaction='DISCOVERING';
         doDiscover(sCol,sSz); return true;
       }
@@ -4190,13 +4200,13 @@ function escapeHtml(s) {
       if (v === 'hijack') {
         const col=L2C[p[1][0]],size=+p[1][1],sysName=p[2];
         const sys=G.systems.find(s=>s.name===sysName);
-        if (!sys) return false;
+        if (!sys) return bail('system not found: '+sysName);
         const target=sys.ships.find(s=>s.owner!==MY&&s.color===col&&s.size===size);
-        if (!target) return false;
+        if (!target) return bail(`no enemy ${col}${size} in ${sysName}`);
         const largest=getLargestOwnShip(sys,MY);
-        if (!largest||largest.size<target.size) return false;
+        if (!largest||largest.size<target.size) return bail(`own largest (${largest?.size}) < target size (${size})`);
         const hasPow=sys.stars.some(s=>s.color==='red')||sys.ships.some(s=>s.owner===MY&&s.color==='red')||G.sacrificePool.color==='red';
-        if (!hasPow) return false;
+        if (!hasPow) return bail('no red power in '+sysName);
         G.interaction='ATTACKING';
         onAttackTargetClick(target.id); return true;
       }
@@ -4204,22 +4214,34 @@ function escapeHtml(s) {
       if (v === 'sacrifice') {
         const col=L2C[p[1][0]],size=+p[1][1],sysName=p[2];
         const sys=G.systems.find(s=>s.name===sysName);
-        if (!sys) return false;
+        if (!sys) return bail('system not found: '+sysName);
         const ship=sys.ships.find(s=>s.owner===MY&&s.color===col&&s.size===size);
-        if (!ship) return false;
+        if (!ship) return bail(`no own ${col}${size} in ${sysName}`);
         G.selectedShipId=ship.id;
         doSacrifice(ship,sys); return true;
       }
 
       if (v === 'catastrophe') {
         const sys=G.systems.find(s=>s.name===p[1]);
-        if (!sys) return false;
+        if (!sys) return bail('system not found: '+p[1]);
         triggerCatastrophe(sys.id,L2C[p[2]]); return true;
       }
 
     } catch(e) { console.error('[PREMOVE] exec error:',e); return false; }
-    return false;
+    return bail('unknown action verb: '+v);
   }
+
+  const _pmPrevShipClick = window.onShipClick;
+  window.onShipClick = function(id) {
+    if (window._premoveMode) {
+      const ship = findShip(id);
+      if (ship && ship.owner !== window._ONLINE?.mySlot) {
+        // Only allow clicking opponent ships in MOVING (to move there) or ATTACKING mode
+        if (G.interaction !== 'MOVING' && G.interaction !== 'ATTACKING') return;
+      }
+    }
+    _pmPrevShipClick.apply(this, arguments);
+  };
 
   // ── Patch render() to sync panel state ─────────────────
   const _origRender = window.render;
@@ -4232,6 +4254,41 @@ function escapeHtml(s) {
         tok.classList.add('premove-rec');
         const lbl = tok.querySelector('.token-label');
         if (lbl) lbl.textContent = 'REGISTER';
+
+        const wrap = tok.closest('.turn-token-wrap');
+        if (wrap) {
+          const oldReset = wrap.querySelector('.hold-reset-btn');
+          if (oldReset) oldReset.style.display = 'none';
+
+          if (!wrap.querySelector('.pm-tok-ctrl')) {
+            const cb = document.createElement('button');
+            cb.className = 'hold-reset-btn pm-tok-ctrl';
+            wrap.appendChild(cb);
+          }
+          const cb = wrap.querySelector('.pm-tok-ctrl');
+          const hasMoves = (window.G?._pendingActions?.length || 0) > 0 && window.G?.interaction === 'IDLE';
+          if (hasMoves) {
+            cb.textContent = 'RESET';
+            cb.onclick = () => {
+              const base = window._pmShadowG
+                ? JSON.parse(JSON.stringify(window._pmShadowG))
+                : JSON.parse(JSON.stringify(window._pmOrigG || window.G));
+              base.currentPlayer   = window._ONLINE.mySlot;
+              base.turnUsed        = false;
+              base.sacrificePool   = { color:null, count:0 };
+              base.selectedShipId  = null;
+              base.movingFromSysId = null;
+              base.interaction     = 'IDLE';
+              base._pendingActions = [];
+              base._turnStart      = JSON.stringify(base);
+              window.G = base;
+              render();
+            };
+          } else {
+            cb.textContent = 'CANCEL';
+            cb.onclick = _exit;
+          }
+        }
       }
     }
     if (window.renderPremovePanel) window.renderPremovePanel();
