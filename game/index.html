@@ -733,6 +733,8 @@ body::before {
   50%     { filter: drop-shadow(0 0 18px rgba(255,68,85,0.9)); }
 }
 
+.turn-token.premove-rec { color: #22dd77 !important; border-color: rgba(34,221,119,0.6) !important; }
+.turn-token.premove-rec .token-ring { border-top-color: #22dd77 !important; }
 
 /* ================================================================
    SHORTCUT INTERACTION — piece-power & direct-attack highlights
@@ -4085,6 +4087,12 @@ function escapeHtml(s) {
     window.renderPremovePanel();
   }
 
+  const _origEndTurn = window.doEndTurn;
+  window.doEndTurn = function() {
+    if (window._premoveMode) { window._registerPremove(); return; }
+    _origEndTurn.apply(this, arguments);
+  };
+
   // ── Cancel from index ───────────────────────────────────
   window._cancelFrom = function(idx) {
     window._premoves.splice(idx);
@@ -4220,6 +4228,15 @@ function escapeHtml(s) {
   const _origRender = window.render;
   window.render = function() {
     _origRender.apply(this, arguments);
+    if (window._premoveMode) {
+      const MY = window._ONLINE?.mySlot || 1;
+      const tok = document.querySelector(`.turn-token.p${MY}`);
+      if (tok) {
+        tok.classList.add('premove-rec');
+        const lbl = tok.querySelector('.token-label');
+        if (lbl) lbl.textContent = 'REGISTER';
+      }
+    }
     if (window.renderPremovePanel) window.renderPremovePanel();
   };
 
