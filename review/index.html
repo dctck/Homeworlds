@@ -2192,11 +2192,13 @@ function renderSystem(sys) {
 
 // renderBoard adapted for review (no turn token, no setup preview)
 function renderBoard() {
+  console.log('[renderBoard] start, phase:', G?.phase, 'customPhase:', G?.customPhase, '_appMode:', _appMode, 'systems:', G?.systems?.length); // delete this
   const zP1  = document.getElementById('zone-p1');
   const zP2  = document.getElementById('zone-p2');
   const zMid = document.getElementById('zone-mid');
   [zP1, zP2, zMid].forEach(z => z.innerHTML = '');
   _arrowPid = 0;
+  console.log('[renderBoard] zones cleared, hw1:', !!G.systems.find(s=>s.isHomeworld===1), 'hw2:', !!G.systems.find(s=>s.isHomeworld===2)); // delete this
 
   // Board background click: deselect in sandbox
   if (_appMode === 'sandbox') {
@@ -2274,7 +2276,8 @@ function renderBoard() {
   }
 
   const midSystems = G.systems.filter(s => !s.isHomeworld);
-  if (!midSystems.length) return;
+  console.log('[renderBoard] midSystems:', midSystems.length); // delete this
+  if (!midSystems.length) { console.log('[renderBoard] returning early — no mid systems'); return; } // delete this and replace with >> if (!midSystems.length) return;
 
   const d2map = bfsDistances(hw2);
   const d1map = bfsDistances(hw1);
@@ -4207,8 +4210,11 @@ function puzzleEndTurn() {
   if (!_puzzleMeta) return;
   if (G.phase !== 'PLAY') return;
 
-  // Save snapshot for "previous move"
-  _puzzleTurnSnaps.push(G._turnStart || JSON.stringify(G));
+  // Snap current turn-start state BEFORE any moves this turn
+  // G._turnStart is set at end of previous puzzleEndTurn — but on turn 1 it may be null
+  const snapToSave = G._turnStart || JSON.stringify(G);
+  _puzzleTurnSnaps.push(snapToSave);
+  console.log('[puzzleEndTurn] saved snap, total snaps:', _puzzleTurnSnaps.length); //delete this
 
   // Log and commit puzzle player's turn
   if (!G.turnUsed && G.sacrificePool.count === 0 && (!G._pendingActions?.length)) {
