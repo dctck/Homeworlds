@@ -203,12 +203,20 @@ exports.onTurnChange = onValueWritten(
     const prefs  = player.notifPrefs || {};
     const roomId = event.params.roomId;
 
+    // Skip all notifications if recipient is currently online in the room
+    const presenceSnap = await db.ref(`rooms/${roomId}/presence/${newCurrentPlayer}`).get();
+    const isOnline = presenceSnap.val()?.online === true;
+    if (isOnline) {
+      console.log(`[NOTIF] Skipping — uid=${recipientUid} is present in room`);
+      return null;
+    }
+
     const promises = [];
 
     // Push notification
     if (prefs.push && player.pushSubscription) {
       initWebPush();
-      const payload = JSON.stringify({ title: 'Homeworlds Arena', body: notifBody, gameId: roomId });
+      const payload = JSON.stringify({ title: 'Homeworlds Arena', body: notifBody, gameId: roomId, playerSlot: newCurrentPlayer });
       promises.push(
         webpush.sendNotification(player.pushSubscription, payload).catch(err => {
           if (err.statusCode === 410) { // subscription expired — clean up
@@ -224,7 +232,7 @@ exports.onTurnChange = onValueWritten(
       const { getAuth } = require('firebase-admin/auth');
       const userRecord = await getAuth().getUser(recipientUid).catch(() => null);
       const email = userRecord?.email;
-      if (email) promises.push(sendTurnEmail(email, notifBody, roomId));
+      if (email) promises.push(sendTurnEmail(email, notifBody, roomId, newCurrentPlayer));
     }
 
     await Promise.all(promises);
@@ -375,8 +383,8 @@ function genCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-async function sendTurnEmail(email, message, roomId) {
-  const gameUrl = `https://hwarena.xyz/game_index.html?id=${roomId}`;
+async function sendTurnEmail(email, message, roomId, playerSlot) {
+  const gameUrl = `https://hwarena.xyz/game/?room=${roomId}&player=${playerSlot}`;
   const transport = makeTransport();
   await transport.sendMail({
     from:    `"Homeworlds Arena" <${process.env.EMAIL_USER}>`,
