@@ -4577,6 +4577,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       const _modalEl = document.getElementById('startup-modal');
       if (_modalEl) _modalEl.remove();
 
+      if (g.phase === 'PLAY') {
+        g._turnStart = JSON.stringify(g); // snap for reset on rejoin
+      }
       window.G = g;
       window.renderPlayerCards();
       window.render();
@@ -4718,6 +4721,9 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       }
 
       window.G = incoming;
+      if (incoming.phase === 'PLAY') {
+        window.G._turnStart = JSON.stringify(window.G); // snap for reset
+      }
 
       if (incoming.phase === 'OVER') {
         console.log(`[HW RECV] Received OVER state from Firebase — winner=${incoming.winner} log.length=${incoming.log?.length ?? 0}`);
