@@ -6,7 +6,7 @@
 <title>Profile — HW ARENA</title>
 
 <link rel="icon" href="/assets/icons/Favicon1.png" sizes="48x48">
-<link rel="apple-touch-icon" href="/assets/icons/Favicon2.png">
+<link rel="apple-touch-icon" href="/assets/appIcons/icon-192.png">
 <link rel="manifest" href="/manifest.json">
 
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -513,7 +513,9 @@ function renderProfile(user){
 
   // Notification toggles
   const prefs = ME.notifPrefs || {};
-  document.getElementById('toggle-push').checked  = !!prefs.push;
+  // Push is per-device — read from localStorage
+  document.getElementById('toggle-push').checked  = localStorage.getItem('hw_push_enabled') === '1';
+  // Email is account-wide — read from Firebase
   document.getElementById('toggle-email').checked = !!prefs.email;
   const note = getPlatformNote();
   const noteEl = document.getElementById('push-platform-note');
@@ -624,6 +626,7 @@ document.getElementById('toggle-push').onchange = async function() {
       const saveSub = httpsCallable(fns, 'savePushSubscription');
       await saveSub({ subscription: sub.toJSON() });
       await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: true });
+      localStorage.setItem('hw_push_enabled', '1');
        const steps = getPushSetupSteps();
       const noteEl = document.getElementById('push-platform-note');
       noteEl.innerHTML = '<strong style="color:#ddeeff">Setup checklist:</strong><br>' + steps.join('<br>');
@@ -641,6 +644,7 @@ document.getElementById('toggle-push').onchange = async function() {
     }
   } else {
     await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: false });
+    localStorage.setItem('hw_push_enabled', '0');
     statusEl.textContent = 'Push notifications off.';
   }
 };
