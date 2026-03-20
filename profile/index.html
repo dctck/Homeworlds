@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Profile — HW ARENA</title>
-
-<link rel="icon" href="/assets/icons/Favicon1.png" sizes="48x48">
-<link rel="apple-touch-icon" href="/assets/icons/Favicon2.png">
-  
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#060912;--panel:#0c1120;--border:#1c2840;--text:#a8c0e0;--bright:#ddeeff;--p1:#4488ff;--p2:#ff4455;--green:#22dd77}
@@ -457,7 +453,6 @@ async function loadHistory(uid){
     ]);
     const hasUnseen = snapPlayer.val() === true;
 
-    // Show unseen badge on section header if there are new results
     if (hasUnseen) {
       const badge = document.getElementById('recent-badge');
       if (badge) badge.style.display = 'inline-flex';
@@ -466,35 +461,55 @@ async function loadHistory(uid){
     if (!snapGames.exists()) return;
     const matches = snapGames.val();
     if (!matches || !matches.length) return;
-    container.innerHTML = '';
 
-    // Find how many games at the top are "unseen" (added since last visit)
-    // We identify unseen games by the `unseen: true` flag written during reconcile
-    matches.forEach(m => {
-      const row = document.createElement('div');
-      row.className = 'match-row' + (m.unseen ? ' unseen' : '');
-      const isDraw = m.result === 'draw';
-      const delta = isDraw ? '—' : (m.starDelta > 0 ? `+${m.starDelta}★` : `${m.starDelta}★`);
-      const deltaColor = isDraw ? '#4a6080' : (m.starDelta > 0 ? 'var(--green)' : '#884444');
-      const date = new Date(m.playedAt).toLocaleDateString();
-      row.innerHTML = `
-        <span class="match-result ${m.result}">${m.result.toUpperCase()}</span>
-        <span class="match-opp">vs ${esc(m.opponent||'Unknown')}</span>
-        <span class="match-stars" style="color:${deltaColor}">${delta}</span>
-        <span class="match-date">${date}</span>
-        ${m.unseen ? '<span class="unseen-badge" title="New result"></span>' : ''}
-        ${m.gameId ? `<a class="match-review" href="/review/?game=${encodeURIComponent(m.gameId)}&unseen=${m.unseen?'1':'0'}">▶ REVIEW</a>` : ''}`;
-      container.appendChild(row);
-    });
+    const PAGE_SIZE = 10;
+    let currentPage = 0;
 
-    // Clear hasUnseenResult + unseen flags now that player has seen them
+    function renderPage(page) {
+      container.innerHTML = '';
+      const start = page * PAGE_SIZE;
+      const slice = matches.slice(start, start + PAGE_SIZE);
+
+      slice.forEach(m => {
+        const row = document.createElement('div');
+        row.className = 'match-row' + (m.unseen ? ' unseen' : '');
+        const isDraw = m.result === 'draw';
+        const delta = isDraw ? '—' : (m.starDelta > 0 ? `+${m.starDelta}★` : `${m.starDelta}★`);
+        const deltaColor = isDraw ? '#4a6080' : (m.starDelta > 0 ? 'var(--green)' : '#884444');
+        const date = new Date(m.playedAt).toLocaleDateString();
+        row.innerHTML = `
+          <span class="match-result ${m.result}">${m.result.toUpperCase()}</span>
+          <span class="match-opp">vs ${esc(m.opponent||'Unknown')}</span>
+          <span class="match-stars" style="color:${deltaColor}">${delta}</span>
+          <span class="match-date">${date}</span>
+          ${m.unseen ? '<span class="unseen-badge" title="New result"></span>' : ''}
+          ${m.gameId ? `<a class="match-review" href="/review/?game=${encodeURIComponent(m.gameId)}&unseen=${m.unseen?'1':'0'}">▶ REVIEW</a>` : ''}`;
+        container.appendChild(row);
+      });
+
+      // Pagination controls (only if more than one page)
+      if (matches.length > PAGE_SIZE) {
+        const totalPages = Math.ceil(matches.length / PAGE_SIZE);
+        const nav = document.createElement('div');
+        nav.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px;font-size:11px;color:#3a5060;';
+        nav.innerHTML = `
+          <button id="pg-prev" style="background:none;border:1px solid #1c2840;color:var(--text);padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px;" ${page === 0 ? 'disabled style="opacity:.35;cursor:default;"' : ''}>◀ PREV</button>
+          <span>${page + 1} / ${totalPages}</span>
+          <button id="pg-next" style="background:none;border:1px solid #1c2840;color:var(--text);padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px;" ${page >= totalPages - 1 ? 'disabled style="opacity:.35;cursor:default;"' : ''}>NEXT ▶</button>`;
+        container.appendChild(nav);
+        nav.querySelector('#pg-prev').onclick = () => { currentPage--; renderPage(currentPage); };
+        nav.querySelector('#pg-next').onclick = () => { currentPage++; renderPage(currentPage); };
+      }
+    }
+
+    renderPage(currentPage);
+
     if (hasUnseen) {
       await update(ref(db, `players/${uid}`), { hasUnseenResult: false });
-      // Clear unseen flag on individual game entries
       const cleared = matches.map(m => ({ ...m, unseen: false }));
       await set(ref(db, `players/${uid}/recentGames`), cleared);
       const badge = document.getElementById('recent-badge');
-      if (badge) setTimeout(() => badge.style.display = 'none', 3000); // fade out after 3s
+      if (badge) setTimeout(() => badge.style.display = 'none', 3000);
     }
   } catch(e) {
     console.warn('loadHistory failed:', e.message);
