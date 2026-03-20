@@ -124,8 +124,8 @@ exports.onRoomStatusChange = onValueWritten(
     const newStar1 = Math.max(0, (p1.stars || 0) + s1);
     const newStar2 = Math.max(0, (p2.stars || 0) + s2);
 
-    const hist1 = Array.isArray(p1.recentGames) ? p1.recentGames : p1.recentGames && typeof p1.recentGames === 'object' ? Object.values(p1.recentGames) : [];
-    const hist2 = Array.isArray(p2.recentGames) ? p2.recentGames : p2.recentGames && typeof p2.recentGames === 'object' ? Object.values(p2.recentGames) : [];
+    const hist1 = (Array.isArray(p1.recentGames) ? p1.recentGames : p1.recentGames && typeof p1.recentGames === 'object' ? Object.values(p1.recentGames) : []).filter(x => x != null);
+const hist2 = (Array.isArray(p2.recentGames) ? p2.recentGames : p2.recentGames && typeof p2.recentGames === 'object' ? Object.values(p2.recentGames) : []).filter(x => x != null);
 
     // ── Write both player records atomically ────────────────
     await Promise.all([
