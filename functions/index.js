@@ -20,6 +20,17 @@ const { getDatabase }    = require('firebase-admin/database');
 
 initializeApp();
 
+// ── Web Push (VAPID) ──────────────────────────────────────────────────────
+const webpush = require('web-push');
+
+function initWebPush() {
+  webpush.setVapidDetails(
+    'mailto:' + process.env.EMAIL_USER,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
+
 // ── ELO calculation ──────────────────────────────────────────
 function calcEloDelta(myElo, oppElo, actual /* 0, 0.5, or 1 */) {
   const K = 32;
@@ -156,6 +167,71 @@ const hist2 = (Array.isArray(p2.recentGames) ? p2.recentGames : p2.recentGames &
   }
 );
 
+// ── Trigger: notify player when it becomes their turn ────────────────────
+exports.onTurnChange = onValueWritten(
+  { ref: 'rooms/{roomId}', region: 'us-central1',
+    secrets: ['EMAIL_USER', 'EMAIL_PASS', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY'] },
+  async event => {
+    const after  = event.data.after.val();
+    const before = event.data.before.val();
+
+    if (!after || !before) return null;
+    if (after.status !== 'playing') return null;
+    // Only fire when the active player actually changed
+    if (after.currentPlayer === before.currentPlayer &&
+        after.currentTurn  === before.currentTurn) return null;
+
+    const newCurrentPlayer = after.currentPlayer; // 1 or 2
+    const recipientUid = newCurrentPlayer === 1
+      ? after.player1?.uid
+      : after.player2?.uid;
+    if (!recipientUid) return null;
+
+    // Premove cancel: before had premove for this player, after it's gone
+    const beforePremove = before.premoves?.[newCurrentPlayer];
+    const afterPremove  = after.premoves?.[newCurrentPlayer];
+    const premoveCanceled = !!beforePremove && !afterPremove;
+
+    const gameName  = after.name || 'a game';
+    const notifBody = premoveCanceled
+      ? `Premove canceled — your turn in "${gameName}"`
+      : `Your turn in "${gameName}"`;
+
+    const db = getDatabase();
+    const playerSnap = await db.ref(`players/${recipientUid}`).get();
+    const player = playerSnap.val() || {};
+    const prefs  = player.notifPrefs || {};
+    const roomId = event.params.roomId;
+
+    const promises = [];
+
+    // Push notification
+    if (prefs.push && player.pushSubscription) {
+      initWebPush();
+      const payload = JSON.stringify({ title: 'Homeworlds Arena', body: notifBody, gameId: roomId });
+      promises.push(
+        webpush.sendNotification(player.pushSubscription, payload).catch(err => {
+          if (err.statusCode === 410) { // subscription expired — clean up
+            return db.ref(`players/${recipientUid}/pushSubscription`).remove();
+          }
+          console.warn(`[PUSH] Failed uid=${recipientUid}:`, err.message);
+        })
+      );
+    }
+
+    // Email notification
+    if (prefs.email) {
+      const { getAuth } = require('firebase-admin/auth');
+      const userRecord = await getAuth().getUser(recipientUid).catch(() => null);
+      const email = userRecord?.email;
+      if (email) promises.push(sendTurnEmail(email, notifBody, roomId));
+    }
+
+    await Promise.all(promises);
+    console.log(`[NOTIF] Sent to uid=${recipientUid} | premoveCanceled=${premoveCanceled}`);
+    return null;
+  }
+);
 
 // ── Scheduled: auto-archive timed-out games every 5 minutes ──────────────────
 // Runs server-side so both players can be in lobby and the game still ends.
@@ -299,6 +375,27 @@ function genCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+async function sendTurnEmail(email, message, roomId) {
+  const gameUrl = `https://hwarena.xyz/game_index.html?id=${roomId}`;
+  const transport = makeTransport();
+  await transport.sendMail({
+    from:    `"Homeworlds Arena" <${process.env.EMAIL_USER}>`,
+    to:      email,
+    subject: 'Your turn — Homeworlds Arena',
+    text:    `${message}\n\nPlay now: ${gameUrl}\n\nTurn off emails in your profile settings.`,
+    html: `
+      <div style="background:#060912;color:#a8c0e0;font-family:monospace;padding:32px;max-width:480px;border:1px solid #1c2840;border-radius:8px">
+        <div style="font-family:sans-serif;font-size:13px;letter-spacing:3px;color:#4a6080;margin-bottom:8px">HOMEWORLDS ARENA</div>
+        <h2 style="color:#ddeeff;font-size:22px;margin:0 0 16px">⚡ ${message}</h2>
+        <a href="${gameUrl}" style="display:inline-block;background:#1a3a6a;color:#ddeeff;padding:12px 24px;border-radius:6px;text-decoration:none;font-size:14px;letter-spacing:1px;border:1px solid #2a5a9a">PLAY NOW →</a>
+        <p style="font-size:11px;color:#2a3850;margin-top:24px">
+          Don't want these? <a href="https://hwarena.xyz/Profile_index.html" style="color:#4a6080">Turn off in profile settings</a>.
+        </p>
+      </div>
+    `,
+  }).catch(err => console.warn(`[EMAIL NOTIF] Failed to ${email}:`, err.message));
+}
+
 /**
  * sendVerifCode({ uid, email })
  * Called right after createUserWithEmailAndPassword on the client.
@@ -402,6 +499,21 @@ exports.checkVerifCode = onCall(
     await db.ref(`players/${uid}`).update({ emailVerified: true });
 
     console.log(`[VERIF] ✓ uid=${uid} verified`);
+    return { ok: true };
+  }
+);
+
+// ── Save Push Subscription — callable from front-end ────────────────────
+exports.savePushSubscription = onCall(
+  { region: 'us-central1' },
+  async (request) => {
+    const callerUid = request.auth?.uid;
+    if (!callerUid) throw new Error('UNAUTHORIZED');
+    const { subscription } = request.data || {};
+    if (!subscription?.endpoint) throw new Error('Invalid subscription object');
+    const db = getDatabase();
+    await db.ref(`players/${callerUid}/pushSubscription`).set(subscription);
+    console.log(`[PUSH] Subscription saved uid=${callerUid}`);
     return { ok: true };
   }
 );
