@@ -4805,14 +4805,35 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   const db    = getDatabase(fbApp);
   let _started = false;
 
+function showAuthWall(msg) {
+  document.body.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#060912;font-family:'Share Tech Mono',monospace;padding:20px">
+      <div style="background:#0c1120;border:1px solid #1c2840;border-radius:10px;padding:32px;max-width:360px;width:100%;text-align:center">
+        <div style="font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:3px;color:#4a6080;margin-bottom:12px">HOMEWORLDS ARENA</div>
+        <div style="font-size:28px;margin-bottom:16px">🔒</div>
+        <div style="color:#ddeeff;font-size:14px;line-height:1.7;margin-bottom:20px">${msg || 'Sign in to access this game.'}</div>
+        <a href="/?redirect=${encodeURIComponent(location.href)}" style="display:block;padding:12px;background:rgba(68,136,255,.12);border:1px solid #4488ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;border-radius:4px;text-decoration:none;margin-bottom:10px">SIGN IN</a>
+        <a href="/lobby/" style="display:block;padding:10px;background:transparent;border:1px solid #1c2840;color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;border-radius:4px;text-decoration:none">GO TO LOBBY</a>
+      </div>
+    </div>`;
+}
+
   // ── Auth → boot ─────────────────────────────────────────────
   onAuthStateChanged(auth, async user => {
-    if (!user) { location.href = '/'; return; }
+    if (!user) {
+      // Came from a notification link — show sign-in prompt instead of silent redirect
+      const fromNotif = document.referrer === '' || !document.referrer.includes('hwarena.xyz');
+      showAuthWall(fromNotif ? 'Sign in to access this game.' : null);
+      return;
+    }
     const snap = await get(ref(db, `rooms/${ROOM_ID}`));
     if (!snap.exists()) { alert('Room not found.'); location.href = '/lobby/'; return; }
     const room = snap.val();
     const expected = MY_SLOT === 1 ? room.player1?.uid : room.player2?.uid;
-    if (expected !== user.uid) { alert('Not your room slot.'); location.href = '/lobby/'; return; }
+    if (expected !== user.uid) {
+      showAuthWall(`This game belongs to a different account (${expected === room.player1?.uid ? room.player1?.name : room.player2?.name}). Please sign in with the correct account.`);
+      return;
+    }
 
     // Load player's saved advancedMode preference
     try {
