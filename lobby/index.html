@@ -187,6 +187,25 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 .vtab.active{background:rgba(255,255,255,.06);border-color:var(--border);color:var(--bright)}
 .vtab:not(.active):hover{color:var(--text)}
 #filter-tabs-wrap.hidden,#mobile-filter-wrap.hidden{display:none!important}
+
+/* ── Notification prompt modal ── */
+#notif-modal-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#notif-modal-overlay.show{display:flex}
+.notif-modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:28px;width:100%;max-width:360px;margin:16px}
+.notif-modal-icon{font-size:28px;margin-bottom:12px}
+.notif-modal-title{font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:2px;color:var(--bright);margin-bottom:8px}
+.notif-modal-sub{font-size:12px;color:#4a6080;line-height:1.7;margin-bottom:18px}
+.notif-modal-btns{display:flex;flex-direction:column;gap:8px}
+.btn-notif-push{padding:11px;cursor:pointer;background:rgba(68,136,255,.12);border:1px solid var(--p1);color:var(--p1);font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;border-radius:4px;transition:all .15s}
+.btn-notif-push:hover{background:rgba(68,136,255,.25)}
+.btn-notif-email{padding:11px;cursor:pointer;background:rgba(34,221,119,.08);border:1px solid rgba(34,221,119,.4);color:var(--green);font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;border-radius:4px;transition:all .15s}
+.btn-notif-email:hover{background:rgba(34,221,119,.18)}
+.btn-notif-skip{padding:9px;cursor:pointer;background:transparent;border:1px solid var(--border);color:#4a6080;font-family:'Share Tech Mono',monospace;font-size:12px;border-radius:4px;transition:all .15s;margin-top:2px}
+.btn-notif-skip:hover{color:var(--text);border-color:#3a5080}
+.notif-modal-note{font-size:11px;color:#3a5060;margin-top:10px;line-height:1.6;padding:8px;background:rgba(255,255,255,.02);border-radius:4px;border:1px solid rgba(28,40,64,.6);display:none}
+.notif-modal-status{font-size:12px;margin-top:8px;min-height:14px;letter-spacing:.5px}
+.notif-modal-status.ok{color:var(--green)}.notif-modal-status.err{color:var(--p2)}
+
 </style>
 </head>
 <body>
@@ -359,11 +378,36 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
   </div>
 </div>
 
+<!-- NOTIFICATION PROMPT MODAL -->
+<div id="notif-modal-overlay">
+  <div class="notif-modal">
+    <div class="notif-modal-icon">🔔</div>
+    <div class="notif-modal-title">STAY IN THE GAME</div>
+    <div class="notif-modal-sub">Get notified when it's your turn — even when you're not on the site. Enable push or email notifications.</div>
+    <div class="notif-modal-btns">
+      <button class="btn-notif-push" id="btn-notif-push">⚡ ENABLE PUSH NOTIFICATIONS</button>
+      <button class="btn-notif-email" id="btn-notif-email">✉ ENABLE EMAIL NOTIFICATIONS</button>
+      <button class="btn-notif-skip" id="btn-notif-skip">NOT NOW</button>
+    </div>
+    <div class="notif-modal-note" id="notif-modal-note"></div>
+    <div class="notif-modal-status" id="notif-modal-status"></div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp }      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getAuth,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getDatabase,ref,get,set,push,onValue,update } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { firebaseConfig } from '/firebase-config.js';
+
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js';
+const fns = getFunctions(app, 'us-central1');
+
+const VAPID_PUBLIC_KEY = 'BJ4Rm3On-raVuvG05Kp24vGOzLJdK4wMEO9ctinW3-syytPd34tgM8Vm4hSCAdlVkjovY7MvY44CYl-K2rcQ1QA';
+function urlBase64ToUint8Array(b){const p='='.repeat((4-b.length%4)%4);const s=(b+p).replace(/-/g,'+').replace(/_/g,'/');const r=atob(s);return new Uint8Array([...r].map(c=>c.charCodeAt(0)));}
+async function registerSW(){if(!('serviceWorker' in navigator))return null;try{return await navigator.serviceWorker.register('/service-worker.js');}catch(e){return null;}}
+function getPlatformNote(){const ua=navigator.userAgent;const isIOS=/iphone|ipad|ipod/i.test(ua);const isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;if(isIOS&&!isStandalone)return'📱 iPhone: Open in Safari → tap Share → Add to Home Screen, then reopen and enable here.';return null;}
+
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -432,6 +476,8 @@ onAuthStateChanged(auth, async user => {
   try { await reconcileMissedResults(user.uid); } catch(e) { console.warn('reconcile error:', e); }
 
   subscribeRooms();
+  // Show notification prompt if prefs never set
+  if (!ME.notifPrefs) showNotifModal();
 });
 
 async function reconcileMissedResults(uid) {
@@ -496,6 +542,68 @@ async function reconcileMissedResults(uid) {
   showNewResultBanner(newEntries);
 }
 
+function showNotifModal() {
+  document.getElementById('notif-modal-overlay').classList.add('show');
+
+  // iOS note
+  const note = getPlatformNote();
+  const noteEl = document.getElementById('notif-modal-note');
+  if (note) { noteEl.textContent = note; noteEl.style.display = 'block'; }
+
+  async function dismissModal() {
+    document.getElementById('notif-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('btn-notif-skip').onclick = async () => {
+    // Mark prefs as seen so modal never shows again
+    await update(ref(db, `players/${ME.uid}/notifPrefs`), { push: false, email: false });
+    dismissModal();
+  };
+
+  document.getElementById('btn-notif-email').onclick = async () => {
+    const statusEl = document.getElementById('notif-modal-status');
+    await update(ref(db, `players/${ME.uid}/notifPrefs`), { email: true });
+    statusEl.className = 'notif-modal-status ok';
+    statusEl.textContent = '✓ Email notifications enabled — manage in Profile';
+    setTimeout(dismissModal, 1800);
+  };
+
+  document.getElementById('btn-notif-push').onclick = async () => {
+    const statusEl = document.getElementById('notif-modal-status');
+    statusEl.className = 'notif-modal-status';
+    statusEl.textContent = '';
+
+    if (!('Notification' in window) || !('PushManager' in window)) {
+      statusEl.className = 'notif-modal-status err';
+      statusEl.textContent = 'Push not supported in this browser.';
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      statusEl.className = 'notif-modal-status err';
+      statusEl.textContent = 'Permission denied — enable in browser settings.';
+      return;
+    }
+    try {
+      statusEl.textContent = 'Activating…';
+      const reg = await registerSW();
+      if (!reg) throw new Error('Service worker unavailable');
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
+      const saveSub = httpsCallable(fns, 'savePushSubscription');
+      await saveSub({ subscription: sub.toJSON() });
+      await update(ref(db, `players/${ME.uid}/notifPrefs`), { push: true });
+      statusEl.className = 'notif-modal-status ok';
+      statusEl.textContent = '✓ Push enabled! Manage in Profile.';
+      setTimeout(dismissModal, 1800);
+    } catch(e) {
+      const msg = e.message.includes('no active Service Worker')
+        ? 'Please accept the browser permission popup, then try again.'
+        : 'Could not enable: ' + e.message;
+      statusEl.className = 'notif-modal-status err';
+      statusEl.textContent = msg;
+    }
+  };
+}
 
 function goToProfile() { location.href = '/profile/'; }
 function showNewResultBanner(entries) {
