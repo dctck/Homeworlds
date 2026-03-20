@@ -401,17 +401,16 @@ import { getDatabase,ref,get,set,push,onValue,update } from 'https://www.gstatic
 import { firebaseConfig } from '/firebase-config.js';
 
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js';
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getDatabase(app);
 const fns = getFunctions(app, 'us-central1');
 
 const VAPID_PUBLIC_KEY = 'BJ4Rm3On-raVuvG05Kp24vGOzLJdK4wMEO9ctinW3-syytPd34tgM8Vm4hSCAdlVkjovY7MvY44CYl-K2rcQ1QA';
 function urlBase64ToUint8Array(b){const p='='.repeat((4-b.length%4)%4);const s=(b+p).replace(/-/g,'+').replace(/_/g,'/');const r=atob(s);return new Uint8Array([...r].map(c=>c.charCodeAt(0)));}
 async function registerSW(){if(!('serviceWorker' in navigator))return null;try{return await navigator.serviceWorker.register('/service-worker.js');}catch(e){return null;}}
 function getPlatformNote(){const ua=navigator.userAgent;const isIOS=/iphone|ipad|ipod/i.test(ua);const isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;if(isIOS&&!isStandalone)return'📱 iPhone: Open in Safari → tap Share → Add to Home Screen, then reopen and enable here.';return null;}
-
-
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = getDatabase(app);
 
 // ── Tier ────────────────────────────────────────────────────
 const TIERS=[
