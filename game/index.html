@@ -4139,24 +4139,28 @@ window._pmForcedStarName = null;
   };
 
   function _savePremoves() {
-    if (!window._ONLINE?.active || typeof set !== 'function' || typeof ref !== 'function') return;
+    if (!window._ONLINE?.active) return;
     const ROOM_ID = window._ONLINE?.roomId || new URLSearchParams(location.search).get('room');
     if (!ROOM_ID) return;
     const MY = window._ONLINE.mySlot;
     const payload = window._premoves.length > 0 ? JSON.stringify(window._premoves) : null;
-    set(ref(db, `rooms/${ROOM_ID}/premoves/${MY}`), payload).catch(e => console.warn('[PREMOVE] save failed:', e));
+    // Use Firebase fns from window if available (set via online module)
+    const _set = window._pmFirebase?.set;
+    const _ref = window._pmFirebase?.ref;
+    const _db  = window._pmFirebase?.db;
+    if (!_set || !_ref || !_db) return;
+    _set(_ref(_db, `rooms/${ROOM_ID}/premoves/${MY}`), payload).catch(e => console.warn('[PREMOVE] save failed:', e));
   }
 
-  window._loadPremoves = function() {
-    if (!window._ONLINE?.active || typeof get !== 'function' || typeof ref !== 'function') return;
+  window._loadPremoves = function(dbInst, refFn, getFn) {
+    if (!window._ONLINE?.active) return;
     const ROOM_ID = window._ONLINE?.roomId || new URLSearchParams(location.search).get('room');
     if (!ROOM_ID) return;
     const MY = window._ONLINE.mySlot;
-    get(ref(db, `rooms/${ROOM_ID}/premoves/${MY}`)).then(snap => {
+    getFn(refFn(dbInst, `rooms/${ROOM_ID}/premoves/${MY}`)).then(snap => {
       if (snap.exists() && snap.val()) {
         try {
           window._premoves = JSON.parse(snap.val());
-          // Restore shadowAfter from last entry
           const last = window._premoves[window._premoves.length - 1];
           if (last?.shadowAfter) window._pmShadowG = JSON.parse(JSON.stringify(last.shadowAfter));
           console.log(`[PREMOVE] Restored ${window._premoves.length} premove(s) from Firebase`);
@@ -4944,6 +4948,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
       advancedMode: !!(window._savedAdvancedMode),
     };
     window._ONLINE = { active: true, mySlot: MY_SLOT };
+    window._pmFirebase = { db, ref, set };
 
     // NOTE: Do NOT remove the startup-modal here.
     // The fresh-game path uses it for the "who goes first" animation.
@@ -4964,7 +4969,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (ngBtn) ngBtn.style.display = 'none';
 
     if (typeof window.initChat === 'function') window.initChat();
-    setTimeout(() => { if (window._loadPremoves) window._loadPremoves(); }, 500);
+    setTimeout(() => { if (window._loadPremoves) window._loadPremoves(db, ref, get); }, 500);
 
     // ── Wire Firebase chat ─────────────────────────────────────
     const chatRef = ref(db, `rooms/${ROOM_ID}/chat`);
