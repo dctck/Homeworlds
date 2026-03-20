@@ -180,6 +180,12 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
   .mobile-filter{display:none}
   .ss-chevron{display:none}
 }
+
+.view-tabs{display:flex;gap:4px}
+.vtab{padding:4px 11px;border-radius:3px;font-size:12px;letter-spacing:1px;cursor:pointer;border:1px solid transparent;transition:all .15s;font-family:'Share Tech Mono',monospace;color:#3a5060}
+.vtab.active{background:rgba(255,255,255,.06);border-color:var(--border);color:var(--bright)}
+.vtab:not(.active):hover{color:var(--text)}
+#filter-tabs-wrap.hidden,#mobile-filter-wrap.hidden{display:none!important}
 </style>
 </head>
 <body>
@@ -307,22 +313,23 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 <!-- MAIN -->
 <main id="main">
   <div class="main-hdr">
-    <div class="main-title"><span class="live-dot"></span>OPEN ROOMS</div>
-    <div class="filter-tabs">
+    <div class="view-tabs">
+      <div class="vtab active" data-view="rooms"><span class="live-dot"></span>OPEN ROOMS</div>
+      <div class="vtab" data-view="puzzles">PUZZLES</div>
+    </div>
+    <div class="filter-tabs" id="filter-tabs-wrap">
       <div class="ftab" data-filter="all">ALL</div>
       <div class="ftab" data-filter="myturn">MY TURN</div>
       <div class="ftab" data-filter="waiting">WAITING</div>
       <div class="ftab" data-filter="playing">IN PROGRESS</div>
-      <div class="ftab" data-filter="puzzles">PUZZLES</div>
     </div>
-    <div class="mobile-filter">
+    <div class="mobile-filter" id="mobile-filter-wrap">
       <select class="filter-select" id="mobile-filter-select">
         <option value="all">ALL</option>
         <option value="myturn">MY TURN</option>
         <option value="waiting">WAITING</option>
         <option value="playing">IN PROGRESS</option>
       </select>
-      <button class="ftab-pzl" id="mobile-pzl-btn">PUZZLES</button>
     </div>
   </div>
   <div id="room-list">
@@ -385,6 +392,8 @@ let selectedFm  = 'challenger'; // 'challenger' | 'random'
 let ME          = null;
 let lastRooms   = {};
 let currentFilter = localStorage.getItem('hw_lobby_filter') || 'all';
+if (currentFilter === 'puzzles') currentFilter = 'all'; // migrate old stored value
+let currentView   = 'rooms';
 let pendingJoin   = null;
 
 // ── Auth guard ───────────────────────────────────────────────
@@ -561,34 +570,38 @@ document.querySelectorAll('.fm-btn').forEach(btn => {
   };
 });
 
-// ── Filter tabs ──────────────────────────────────────────────
+// ── View tabs + Filter ───────────────────────────────────────
+function applyView(v){
+  currentView = v;
+  document.querySelectorAll('.vtab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+  const showFilter = v === 'rooms';
+  document.getElementById('filter-tabs-wrap')?.classList.toggle('hidden', !showFilter);
+  document.getElementById('mobile-filter-wrap')?.classList.toggle('hidden', !showFilter);
+  renderRooms(lastRooms);
+}
+
 function applyFilter(f){
   currentFilter = f;
   localStorage.setItem('hw_lobby_filter', f);
   document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
-  // sync mobile controls
   const mSel = document.getElementById('mobile-filter-select');
-  const mPzl = document.getElementById('mobile-pzl-btn');
-  if(mSel) mSel.value = f !== 'puzzles' ? f : 'all';
-  if(mPzl) mPzl.classList.toggle('active', f === 'puzzles');
+  if(mSel) mSel.value = f;
   renderRooms(lastRooms);
 }
+
+document.querySelectorAll('.vtab').forEach(tab => {
+  tab.onclick = () => applyView(tab.dataset.view);
+});
 
 document.querySelectorAll('.ftab').forEach(tab => {
   tab.classList.toggle('active', tab.dataset.filter === currentFilter);
   tab.onclick = () => applyFilter(tab.dataset.filter);
 });
 
-// Mobile filter controls
 const _mSel = document.getElementById('mobile-filter-select');
-const _mPzl = document.getElementById('mobile-pzl-btn');
 if(_mSel){
-  _mSel.value = currentFilter !== 'puzzles' ? currentFilter : 'all';
+  _mSel.value = currentFilter;
   _mSel.addEventListener('change', () => applyFilter(_mSel.value));
-}
-if(_mPzl){
-  _mPzl.classList.toggle('active', currentFilter === 'puzzles');
-  _mPzl.addEventListener('click', () => applyFilter('puzzles'));
 }
 
 
@@ -710,7 +723,7 @@ async function renderPuzzles(list) {
 function renderRooms(rooms){
   const list = document.getElementById('room-list');
   updateMyTurnBadge(rooms);
-  if (currentFilter === 'puzzles') { renderPuzzles(list); return; }
+  if (currentView === 'puzzles') { renderPuzzles(list); return; }
   const myUid = ME?.uid;
   let entries = Object.entries(rooms)
     .map(([id, r]) => ({ ...r, id }))
@@ -794,16 +807,17 @@ function renderRooms(rooms){
       }
     }
 
-    const youTag = '<span style="color:var(--green)">(You)</span>';
-    const hostLabel  = esc(room.player1?.name||'—') + (isHost  ? ' '+youTag : '');
-    const guestLabel = room.player2 ? esc(room.player2.name||'—') + (isGuest ? ' '+youTag : '') : null;
+    const youTag     = '<span style="color:var(--green)">(You)</span>';
+    const guestTier  = room.player2 ? tierHTML(room.player2.stars||0) : '';
+    const hostLabel  = esc(room.player1?.name||'—') + ' ' + hostTier + (isHost  ? ' '+youTag : '');
+    const guestLabel = room.player2 ? esc(room.player2.name||'—') + ' ' + guestTier + (isGuest ? ' '+youTag : '') : null;
     const isPlaying  = room.status === 'playing';
     const metaWho    = isPlaying && guestLabel
-      ? `${hostLabel} &nbsp;${hostTier}&nbsp; vs ${guestLabel}`
-      : `HOST: ${hostLabel} &nbsp;${hostTier}`;
+      ? `${hostLabel} vs ${guestLabel}`
+      : `HOST: ${hostLabel}`;
     const metaTail   = isPlaying
-      ? `· ${tc}`
-      : `· ${tc} · ${formatFm(room.settings)}`;
+      ? tc
+      : `${tc} · ${formatFm(room.settings)}`;
     card.innerHTML=`
       <div>
         <div class="room-name">${esc(room.name)} ${badges}</div>
