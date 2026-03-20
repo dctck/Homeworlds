@@ -2285,7 +2285,7 @@ function makeTurnToken(player) {
 
   // Hold-to-reset button: only show when current player has actions to undo (not opponent's token)
   const isMyTurn = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
-  const canReset = G.phase === 'PLAY' && isMyTurn && (G.history || (G._pendingActions?.length > 0));
+    const canReset = G.phase === 'PLAY' && isMyTurn && (G._turnStart || G.history || (G._pendingActions?.length > 0));
   if (canReset) {
     const resetBtnEl = document.createElement('button');
     resetBtnEl.className = 'hold-reset-btn';
@@ -2471,7 +2471,10 @@ function directAttack(targetShip, sys) {
 
 
 function renderBoard() {
-  console.log('[renderBoard] phase:', G?.phase, 'systems:', G?.systems?.length); //delete this
+  console.log('[renderBoard] phase:', G?.phase, 'systems:', G?.systems?.length,
+  'hw1 ships:', G?.systems?.find(s=>s.isHomeworld===1)?.ships?.length,
+  'hw2 ships:', G?.systems?.find(s=>s.isHomeworld===2)?.ships?.length); //delete this
+
   const zP1  = document.getElementById('zone-p1');
   const zP2  = document.getElementById('zone-p2');
   const zMid = document.getElementById('zone-mid');
