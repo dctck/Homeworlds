@@ -412,6 +412,74 @@ function urlBase64ToUint8Array(b){const p='='.repeat((4-b.length%4)%4);const s=(
 async function registerSW(){if(!('serviceWorker' in navigator))return null;try{return await navigator.serviceWorker.register('/service-worker.js');}catch(e){return null;}}
 function getPlatformNote(){const ua=navigator.userAgent;const isIOS=/iphone|ipad|ipod/i.test(ua);const isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;if(isIOS&&!isStandalone)return'📱 iPhone: Open in Safari → tap Share → Add to Home Screen, then reopen and enable here.';return null;}
 
+function getPushSetupSteps() {
+  const ua = navigator.userAgent;
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isAndroid = /android/i.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const isMac = /macintosh/i.test(ua) && !isIOS;
+  const isChrome = /chrome/i.test(ua) && !/edg/i.test(ua);
+  const isFirefox = /firefox/i.test(ua);
+  const isEdge = /edg/i.test(ua);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+  if (isIOS && !isStandalone) {
+    return [
+      '1. Open this page in <strong>Safari</strong> (not Chrome)',
+      '2. Tap the <strong>Share</strong> button (□↑)',
+      '3. Tap <strong>Add to Home Screen</strong>',
+      '4. Open the app from your Home Screen',
+      '5. Come back here and enable push notifications',
+    ];
+  }
+  if (isIOS && isStandalone) {
+    return [
+      '1. On your iPhone go to <strong>Settings → Notifications</strong>',
+      '2. Find <strong>HW Arena</strong> and enable notifications',
+    ];
+  }
+  if (isAndroid) {
+    return [
+      '1. Tap <strong>Add to Home Screen</strong> when Chrome prompts',
+      '2. Go to <strong>Settings → Apps → Chrome → Notifications</strong> and enable',
+    ];
+  }
+  if (isMac && isSafari) {
+    return [
+      '1. In Safari go to <strong>Settings → Websites → Notifications</strong>',
+      '2. Find <strong>hwarena.xyz</strong> and set to Allow',
+      '3. Go to <strong>System Settings → Notifications → Safari</strong> and enable',
+    ];
+  }
+  if (isMac && isChrome) {
+    return [
+      '1. In Chrome click the <strong>🔒 lock icon</strong> in the address bar',
+      '2. Set <strong>Notifications</strong> to Allow',
+      '3. Go to <strong>System Settings → Notifications → Google Chrome</strong> and enable',
+    ];
+  }
+  if (isMac && isEdge) {
+    return [
+      '1. In Edge click the <strong>🔒 lock icon</strong> in the address bar',
+      '2. Set <strong>Notifications</strong> to Allow',
+      '3. Go to <strong>System Settings → Notifications → Microsoft Edge</strong> and enable',
+    ];
+  }
+  if (isFirefox) {
+    return [
+      '1. Click the <strong>🔒 lock icon</strong> in the address bar',
+      '2. Set <strong>Send Notifications</strong> to Allow',
+      '3. On Mac: go to <strong>System Settings → Notifications → Firefox</strong> and enable',
+    ];
+  }
+  // Windows fallback
+  return [
+    '1. Click the <strong>🔒 lock icon</strong> in the address bar',
+    '2. Set <strong>Notifications</strong> to Allow',
+    '3. Make sure browser notifications are enabled in <strong>Windows Settings → System → Notifications</strong>',
+  ];
+}
+
 // ── Tier ────────────────────────────────────────────────────
 const TIERS=[
   {name:'Iron',min:0,max:4,color:'#8a9bb0'},{name:'Bronze',min:5,max:9,color:'#cd7f32'},
