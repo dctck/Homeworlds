@@ -2295,7 +2295,7 @@ function makeTurnToken(player) {
     resetBtnEl.appendChild(fillEl);
 
     let _rTimer = null, _rStart = null;
-    const HOLD_MS = 1000;
+    const HOLD_MS = 300;
     function startHold(e) {
       e.preventDefault();
       resetBtnEl.classList.add('holding');
@@ -2324,12 +2324,15 @@ function makeTurnToken(player) {
     }
     function doReset() {
       cancelHold();
-      if (G.history) {
-        G = JSON.parse(G.history);
+      if (G._turnStart) {
+        const saved = G._turnStart;
+        G = JSON.parse(saved);
+        G._turnStart = saved; // preserve so reset can be used again on same turn
       } else if (G._pendingActions?.length > 0) {
         G._pendingActions = [];
         G.turnUsed = false;
         G.sacrificePool = { color: null, count: 0 };
+        G.history = null;
       }
       G.selectedShipId = null; G.movingFromSysId = null; G.interaction = 'IDLE';
       render();
@@ -3632,7 +3635,7 @@ document.getElementById('btn-reset').onclick = () => {
 
 // Turn-token end-turn logic
 let _endTurnHoldTimer = null;
-const _HOLD_MS = 600;
+const _HOLD_MS = 300;
 
 function doEndTurn() {
     stopTimerTick();  // pause timer immediately — resumes when player clicks BEGIN TURN
