@@ -21,7 +21,7 @@ self.addEventListener('push', e => {
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const gameId = e.notification.data && e.notification.data.gameId;
-  const url = gameId ? `/game_index.html?id=${gameId}` : '/lobby_index.html';
+  const url = gameId ? `/game/?room=${gameId}&player=${data.playerSlot||1}` : '/lobby/';
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {
