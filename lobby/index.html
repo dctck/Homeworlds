@@ -480,6 +480,12 @@ function getPushSetupSteps() {
   ];
 }
 
+function endpointToKey(endpoint) {
+  // Last ~40 chars of endpoint URL are unique enough as a key
+  // Strip special chars that Firebase keys don't allow
+  return endpoint.slice(-40).replace(/[.#$[\]/]/g, '_');
+}
+
 // ── Tier ────────────────────────────────────────────────────
 const TIERS=[
   {name:'Iron',min:0,max:4,color:'#8a9bb0'},{name:'Bronze',min:5,max:9,color:'#cd7f32'},
@@ -658,8 +664,7 @@ function showNotifModal() {
       if (!reg) throw new Error('Service worker unavailable');
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
       const saveSub = httpsCallable(fns, 'savePushSubscription');
-      await saveSub({ subscription: sub.toJSON() });
-      await update(ref(db, `players/${ME.uid}/notifPrefs`), { push: true });
+      await saveSub({ subscription: sub.toJSON(), deviceId: endpointToKey(sub.endpoint) });
       localStorage.setItem('hw_push_enabled', '1');
       const steps = getPushSetupSteps();
       noteEl.innerHTML = '<strong style="color:#ddeeff">Complete setup:</strong><br>' + steps.join('<br>');
