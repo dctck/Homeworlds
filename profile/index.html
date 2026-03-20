@@ -624,7 +624,11 @@ document.getElementById('toggle-push').onchange = async function() {
       const saveSub = httpsCallable(fns, 'savePushSubscription');
       await saveSub({ subscription: sub.toJSON() });
       await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: true });
-      statusEl.textContent = '✓ Push notifications enabled';
+       const steps = getPushSetupSteps();
+      const noteEl = document.getElementById('push-platform-note');
+      noteEl.innerHTML = '<strong style="color:#ddeeff">Setup checklist:</strong><br>' + steps.join('<br>');
+      noteEl.style.display = 'block';
+      statusEl.textContent = '✓ Subscribed — complete the steps above if notifications don\'t arrive';
       statusEl.className = 'notif-status ok';
     } catch(e) {
       console.error('[PUSH]', e);
