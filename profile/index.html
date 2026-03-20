@@ -170,6 +170,13 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 
 /* ── Avatar upload state ── */
 .avatar-uploading{opacity:.5;pointer-events:none}
+
+/* ── Notification section ── */
+.notif-platform-note{font-size:11px;color:#3a5060;margin-top:6px;line-height:1.6;padding:8px 10px;background:rgba(255,255,255,.02);border-radius:4px;border:1px solid rgba(28,40,64,.6)}
+.notif-platform-note a{color:#4a6080;text-decoration:underline}
+.notif-status{font-size:12px;letter-spacing:.5px;margin-top:6px;min-height:14px}
+.notif-status.ok{color:var(--green)}.notif-status.err{color:var(--p2)}
+
 </style>
 </head>
 <body>
@@ -229,7 +236,19 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
     <div class="stat-card draws"><span class="stat-n" id="stat-draws">—</span><span class="stat-l">DRAWS</span></div>
   </div>
 
-  <!-- SETTINGS -->
+  <!-- MATCH HISTORY -->
+  <div class="section">
+    <div class="section-title" style="display:flex;align-items:center;gap:8px;">RECENT MATCHES<span class="unseen-badge" id="recent-badge" style="display:none" title="New unreviewed results"></span><span style="font-size:10px;color:#3a5060;font-family:sans-serif;letter-spacing:0;font-weight:normal;margin-left:4px;">(latest 20 saved)</span></div>
+    <div class="match-history-scroll" id="match-history"><div class="no-history">No matches recorded yet.</div></div>
+  </div>
+
+  <!-- ALL TIERS -->
+  <div class="section">
+    <div class="section-title">RANK TIERS</div>
+    <div class="tiers-grid" id="tiers-grid"></div>
+  </div>
+
+<!-- SETTINGS -->
   <div class="section">
     <div class="section-title">GAME SETTINGS</div>
     <div class="setting-row">
@@ -250,16 +269,29 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 
   </div>
 
-  <!-- ALL TIERS -->
+  <!-- NOTIFICATIONS -->
   <div class="section">
-    <div class="section-title">RANK TIERS</div>
-    <div class="tiers-grid" id="tiers-grid"></div>
-  </div>
+    <div class="section-title">NOTIFICATIONS</div>
 
-  <!-- MATCH HISTORY -->
-  <div class="section">
-    <div class="section-title" style="display:flex;align-items:center;gap:8px;">RECENT MATCHES<span class="unseen-badge" id="recent-badge" style="display:none" title="New unreviewed results"></span><span style="font-size:10px;color:#3a5060;font-family:sans-serif;letter-spacing:0;font-weight:normal;margin-left:4px;">(latest 20 saved)</span></div>
-    <div class="match-history-scroll" id="match-history"><div class="no-history">No matches recorded yet.</div></div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-name">PUSH NOTIFICATIONS</div>
+        <div class="setting-desc">Get a browser notification when it's your turn.</div>
+        <div class="notif-platform-note" id="push-platform-note" style="display:none"></div>
+        <div class="notif-status" id="push-status"></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="toggle-push"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-name">EMAIL NOTIFICATIONS</div>
+        <div class="setting-desc">Get an email when it's your turn. Sent to your account email.</div>
+        <div class="notif-status" id="email-status"></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="toggle-email"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+    </div>
+
   </div>
 
   <!-- ACCOUNT -->
@@ -300,6 +332,41 @@ const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getDatabase(app);
 const fns  = getFunctions(app, 'us-central1');
+
+// ── Push notifications ────────────────────────────────────────
+const VAPID_PUBLIC_KEY = 'BJ4Rm3On-raVuvG05Kp24vGOzLJdK4wMEO9ctinW3-syytPd34tgM8Vm4hSCAdlVkjovY7MvY44CYl-K2rcQ1QA';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return new Uint8Array([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function registerSW() {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    return await navigator.serviceWorker.register('/service-worker.js');
+  } catch(e) {
+    console.warn('[SW] Registration failed:', e.message);
+    return null;
+  }
+}
+
+function getPlatformNote() {
+  const ua = navigator.userAgent;
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+  if (isIOS && !isStandalone) {
+    return `📱 iPhone/iPad: Push notifications require adding this site to your Home Screen via Safari. <a href="#" onclick="return false">Tap Share → Add to Home Screen</a>, then reopen and enable here.`;
+  }
+  if (isIOS && isStandalone && !isSafari) {
+    return `⚠️ Please use Safari to enable push notifications on iPhone.`;
+  }
+  return null; // desktop or Android — no note needed
+}
 
 // ── Tier system ──────────────────────────────────────────────
 const TIERS=[
@@ -376,6 +443,14 @@ function renderProfile(user){
   // Mirror to localStorage so game.html can read it without auth wait
   localStorage.setItem('hw_colorblind', ME.colorblindMode ? '1' : '0');
 
+  // Notification toggles
+  const prefs = ME.notifPrefs || {};
+  document.getElementById('toggle-push').checked  = !!prefs.push;
+  document.getElementById('toggle-email').checked = !!prefs.email;
+  const note = getPlatformNote();
+  const noteEl = document.getElementById('push-platform-note');
+  if (note) { noteEl.innerHTML = note; noteEl.style.display = 'block'; }
+
   // All tiers table
   const grid=document.getElementById('tiers-grid');
   grid.innerHTML='';
@@ -446,6 +521,61 @@ document.getElementById('toggle-colorblind').onchange=async function(){
   const val = this.checked;
   localStorage.setItem('hw_colorblind', val ? '1' : '0');
   await update(ref(db,`players/${USER.uid}`),{colorblindMode:val});
+};
+
+// ── Notification toggles ──────────────────────────────────────
+document.getElementById('toggle-push').onchange = async function() {
+  const enabled = this.checked;
+  const statusEl = document.getElementById('push-status');
+  statusEl.className = 'notif-status';
+  statusEl.textContent = '';
+
+  if (enabled) {
+    // Check browser support
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      statusEl.textContent = 'Push notifications not supported in this browser.';
+      statusEl.className = 'notif-status err';
+      this.checked = false; return;
+    }
+    // Request permission
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      statusEl.textContent = 'Permission denied. Please allow notifications in browser settings.';
+      statusEl.className = 'notif-status err';
+      this.checked = false; return;
+    }
+    // Subscribe
+    try {
+      statusEl.textContent = 'Activating…';
+      const reg = await registerSW();
+      if (!reg) throw new Error('Service worker unavailable');
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+      const saveSub = httpsCallable(fns, 'savePushSubscription');
+      await saveSub({ subscription: sub.toJSON() });
+      await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: true });
+      statusEl.textContent = '✓ Push notifications enabled';
+      statusEl.className = 'notif-status ok';
+    } catch(e) {
+      console.error('[PUSH]', e);
+      statusEl.textContent = 'Could not enable: ' + e.message;
+      statusEl.className = 'notif-status err';
+      this.checked = false;
+    }
+  } else {
+    await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: false });
+    statusEl.textContent = 'Push notifications off.';
+  }
+};
+
+document.getElementById('toggle-email').onchange = async function() {
+  const enabled = this.checked;
+  const statusEl = document.getElementById('email-status');
+  await update(ref(db, `players/${USER.uid}/notifPrefs`), { email: enabled });
+  statusEl.className = 'notif-status ok';
+  statusEl.textContent = enabled ? '✓ Email notifications enabled' : 'Email notifications off.';
 };
 
 // ── Match history ─────────────────────────────────────────────
