@@ -4062,9 +4062,9 @@ window._pmForcedStarName = null;
     if (!actions.length) return;
     const baseG   = window._pmOrigG;
     const turnFor = baseG.currentTurn + 1 + (window._premoves.length * 2);
+    const sh = window._pmShadowG;
     window._premoves.push({ actions:[...actions], turnFor, shadowAfter: JSON.parse(JSON.stringify(sh)) });
     // Advance shadow G: skip our turn + opponent hypothetical turn
-    const sh = window._pmShadowG;
     sh._pendingActions  = [];
     sh.turnUsed         = false;
     sh.sacrificePool    = { color:null, count:0 };
