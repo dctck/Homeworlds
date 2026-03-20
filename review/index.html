@@ -1062,6 +1062,7 @@ body {
 <div id="loading">
   <div class="spinner"></div>
   <div id="loading-msg">LOADING GAME…</div>
+  <a id="loading-back" href="javascript:history.back()" style="display:none;margin-top:20px;font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#4a6080;border:1px solid #1c2840;padding:6px 18px;border-radius:4px;text-decoration:none;">← BACK</a>
 </div>
 
 <!-- Mobile sticky top bar (hidden on desktop) -->
@@ -3883,7 +3884,7 @@ async function load() {
     });
     setLoading('Loading game…');
     const snap = await get(ref(db, `gamesPlayed/${gameId}`));
-    if (!snap.exists()) { setLoading(`Game #${gameId} not found — it may still be saving. Try again in a moment.`); return; }
+    if (!snap.exists()) { setLoading('GAME RECORD NOT FOUND'); document.getElementById('loading-back').style.display='inline-block'; return; }
     init(snap.val());
   } catch(e) {
     setLoading('Failed to load: ' + e.message);
