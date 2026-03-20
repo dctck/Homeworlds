@@ -354,7 +354,8 @@ onAuthStateChanged(auth, async user => {
       showUsernamePicker(user);
       return;
     }
-    window.location.href = '/lobby/';
+    const _redir = new URLSearchParams(window.location.search).get('redirect');
+    window.location.href = _redir ? decodeURIComponent(_redir) : '/lobby/';
   } else {
     showMain();
   }
