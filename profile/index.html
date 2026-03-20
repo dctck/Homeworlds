@@ -560,7 +560,10 @@ document.getElementById('toggle-push').onchange = async function() {
       statusEl.className = 'notif-status ok';
     } catch(e) {
       console.error('[PUSH]', e);
-      statusEl.textContent = 'Could not enable: ' + e.message;
+      const msg = e.message.includes('no active Service Worker')
+        ? 'Please accept the browser permission popup, then toggle again.'
+        : 'Could not enable: ' + e.message;
+      statusEl.textContent = msg;
       statusEl.className = 'notif-status err';
       this.checked = false;
     }
