@@ -1425,6 +1425,7 @@ const STAR_NAMES = [
 ];
 const _usedStarNames = new Set();
 function randomStarName() {
+  if (window._pmForcedStarName) { const n = window._pmForcedStarName; window._pmForcedStarName = null; return n; }
   const available = STAR_NAMES.filter(n => !_usedStarNames.has(n));
   if (available.length === 0) { _usedStarNames.clear(); }
   const name = available.length > 0
@@ -3909,6 +3910,7 @@ function escapeHtml(s) {
 // ============================================================
 
 window._pmCanceledMsg = null;
+window._pmForcedStarName = null;
 
 (function() {
   window._premoves    = [];
@@ -4031,7 +4033,6 @@ window._pmCanceledMsg = null;
   // ── Start recording ─────────────────────────────────────
   window._startPremove = function() {
     if (!window._ONLINE?.active) return;
-    window._pmCanceledMsg = null;
     const MY = window._ONLINE.mySlot;
     if (!window.G || window.G.currentPlayer === MY) return;
     window._pmOrigG = window.G;
@@ -4061,7 +4062,7 @@ window._pmCanceledMsg = null;
     if (!actions.length) return;
     const baseG   = window._pmOrigG;
     const turnFor = baseG.currentTurn + 1 + (window._premoves.length * 2);
-    window._premoves.push({ actions:[...actions], turnFor });
+    window._premoves.push({ actions:[...actions], turnFor, shadowAfter: JSON.parse(JSON.stringify(sh)) });
     // Advance shadow G: skip our turn + opponent hypothetical turn
     const sh = window._pmShadowG;
     sh._pendingActions  = [];
@@ -4078,6 +4079,7 @@ window._pmCanceledMsg = null;
     window._premoveMode = false;
     render();
     window.renderPremovePanel();
+    _savePremoves();
   };
 
   // ── Exit mode ───────────────────────────────────────────
@@ -4100,8 +4102,9 @@ window._pmCanceledMsg = null;
   // ── Cancel from index ───────────────────────────────────
   window._cancelFrom = function(idx) {
     window._premoves.splice(idx);
-    window._pmShadowG = null;
+    window._pmShadowG = idx === 0 ? null : JSON.parse(JSON.stringify(window._premoves[idx-1].shadowAfter));
     window.renderPremovePanel();
+    _savePremoves();
   };
 
   // ── Fire queued premove when MY turn arrives ─────────────
@@ -4122,6 +4125,7 @@ window._pmCanceledMsg = null;
         window._pmCanceledMsg = `Canceled — invalid: "${action}"`;
         render();
         window.renderPremovePanel();
+        _savePremoves();
         return;
       }
     }
@@ -4131,7 +4135,36 @@ window._pmCanceledMsg = null;
     G.sacrificePool = { color: null, count: 0 };
     doEndTurn();
     window.renderPremovePanel();
+    _savePremoves();
   };
+
+  function _savePremoves() {
+    if (!window._ONLINE?.active || typeof set !== 'function' || typeof ref !== 'function') return;
+    const ROOM_ID = window._ONLINE?.roomId || new URLSearchParams(location.search).get('room');
+    if (!ROOM_ID) return;
+    const MY = window._ONLINE.mySlot;
+    const payload = window._premoves.length > 0 ? JSON.stringify(window._premoves) : null;
+    set(ref(db, `rooms/${ROOM_ID}/premoves/${MY}`), payload).catch(e => console.warn('[PREMOVE] save failed:', e));
+  }
+
+  window._loadPremoves() {
+    if (!window._ONLINE?.active || typeof get !== 'function' || typeof ref !== 'function') return;
+    const ROOM_ID = window._ONLINE?.roomId || new URLSearchParams(location.search).get('room');
+    if (!ROOM_ID) return;
+    const MY = window._ONLINE.mySlot;
+    get(ref(db, `rooms/${ROOM_ID}/premoves/${MY}`)).then(snap => {
+      if (snap.exists() && snap.val()) {
+        try {
+          window._premoves = JSON.parse(snap.val());
+          // Restore shadowAfter from last entry
+          const last = window._premoves[window._premoves.length - 1];
+          if (last?.shadowAfter) window._pmShadowG = JSON.parse(JSON.stringify(last.shadowAfter));
+          console.log(`[PREMOVE] Restored ${window._premoves.length} premove(s) from Firebase`);
+          window.renderPremovePanel();
+        } catch(e) { console.warn('[PREMOVE] load parse failed:', e); }
+      }
+    }).catch(e => console.warn('[PREMOVE] load failed:', e));
+  }
 
   // ── Execute notation against live G ─────────────────────
   function _exec(n) {
@@ -4193,6 +4226,7 @@ window._pmCanceledMsg = null;
         if (G.bank[sCol][sSz]<=0) return bail(`bank empty for star ${sCol}${sSz}`);
         const hasPow=fromSys.stars.some(s=>s.color==='yellow')||fromSys.ships.some(s=>s.owner===MY&&s.color==='yellow')||G.sacrificePool.color==='yellow';
         if (!hasPow) return bail('no yellow power in '+fromN);
+        window._pmForcedStarName = p[4] || null; // use recorded name
         G.selectedShipId=ship.id; G.movingFromSysId=fromSys.id; G.interaction='DISCOVERING';
         doDiscover(sCol,sSz); return true;
       }
@@ -4930,6 +4964,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
     if (ngBtn) ngBtn.style.display = 'none';
 
     if (typeof window.initChat === 'function') window.initChat();
+    setTimeout(() => { if (window._loadPremoves) window._loadPremoves(); }, 500);
 
     // ── Wire Firebase chat ─────────────────────────────────────
     const chatRef = ref(db, `rooms/${ROOM_ID}/chat`);
