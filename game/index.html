@@ -2762,9 +2762,6 @@ function renderSystem(sys) {
           render();
         };
         wrap.insertAdjacentHTML('afterbegin', shipImgHTML(ship.color, ship.size, ship.owner, {}));
-        const od = document.createElement('div');
-        od.style.cssText = `position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:1px;background:${ship.owner===1?'#3366ff':'#ff3344'};opacity:0.8`;
-        wrap.appendChild(od);
         _stampPid(wrap);
     return wrap;
       }
