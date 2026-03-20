@@ -407,6 +407,14 @@ const auth = getAuth(app);
 const db   = getDatabase(app);
 const fns = getFunctions(app, 'us-central1');
 
+// Pre-register SW early so it's ready before user clicks push toggle
+let _swReg = null;
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js')
+    .then(r => { _swReg = r; })
+    .catch(e => console.warn('[SW]', e.message));
+}
+
 const VAPID_PUBLIC_KEY = 'BJ4Rm3On-raVuvG05Kp24vGOzLJdK4wMEO9ctinW3-syytPd34tgM8Vm4hSCAdlVkjovY7MvY44CYl-K2rcQ1QA';
 function urlBase64ToUint8Array(b){const p='='.repeat((4-b.length%4)%4);const s=(b+p).replace(/-/g,'+').replace(/_/g,'/');const r=atob(s);return new Uint8Array([...r].map(c=>c.charCodeAt(0)));}
 async function registerSW(){if(!('serviceWorker' in navigator))return null;try{return await navigator.serviceWorker.register('/service-worker.js');}catch(e){return null;}}
@@ -652,15 +660,24 @@ function showNotifModal() {
       statusEl.textContent = 'Push not supported in this browser.';
       return;
     }
+    // iOS PWA: requestPermission must be first — no awaits before it
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      statusEl.className = 'notif-modal-status err';
-      statusEl.textContent = 'Permission denied — enable in browser settings.';
+      const isIOSStandalone = /iphone|ipad|ipod/i.test(navigator.userAgent) && 
+        (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone);
+      if (isIOSStandalone) {
+        statusEl.className = 'notif-status err';
+        statusEl.textContent = 'Go to iPhone Settings → Notifications → HW Arena → enable Allow Notifications, then try again.';
+      } else {
+        statusEl.className = 'notif-status err';
+        statusEl.textContent = 'Permission denied — enable in browser settings.';
+      }
+      this && (this.checked = false);
       return;
     }
     try {
       statusEl.textContent = 'Activating…';
-      const reg = await registerSW();
+      const reg = _swReg || await registerSW();
       if (!reg) throw new Error('Service worker unavailable');
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
       const saveSub = httpsCallable(fns, 'savePushSubscription');
