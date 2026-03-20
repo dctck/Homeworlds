@@ -544,7 +544,7 @@ onAuthStateChanged(auth, async user => {
 
   subscribeRooms();
   // Show notification prompt if prefs never set
-  if (!ME.notifPrefs) showNotifModal();
+  if (!ME.notifPrefs && localStorage.getItem('hw_push_enabled') === null) showNotifModal();
 });
 
 async function reconcileMissedResults(uid) {
@@ -624,6 +624,7 @@ function showNotifModal() {
   document.getElementById('btn-notif-skip').onclick = async () => {
     // Mark prefs as seen so modal never shows again
     await update(ref(db, `players/${ME.uid}/notifPrefs`), { push: false, email: false });
+    localStorage.setItem('hw_push_enabled', '0');
     dismissModal();
   };
 
@@ -659,6 +660,7 @@ function showNotifModal() {
       const saveSub = httpsCallable(fns, 'savePushSubscription');
       await saveSub({ subscription: sub.toJSON() });
       await update(ref(db, `players/${ME.uid}/notifPrefs`), { push: true });
+      localStorage.setItem('hw_push_enabled', '1');
       const steps = getPushSetupSteps();
       noteEl.innerHTML = '<strong style="color:#ddeeff">Complete setup:</strong><br>' + steps.join('<br>');
       noteEl.style.display = 'block';
