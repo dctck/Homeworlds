@@ -659,9 +659,13 @@ function showNotifModal() {
       const saveSub = httpsCallable(fns, 'savePushSubscription');
       await saveSub({ subscription: sub.toJSON() });
       await update(ref(db, `players/${ME.uid}/notifPrefs`), { push: true });
+      const steps = getPushSetupSteps();
+      noteEl.innerHTML = '<strong style="color:#ddeeff">Complete setup:</strong><br>' + steps.join('<br>');
+      noteEl.style.display = 'block';
       statusEl.className = 'notif-modal-status ok';
-      statusEl.textContent = '✓ Push enabled! Manage in Profile.';
-      setTimeout(dismissModal, 1800);
+      statusEl.textContent = '✓ Subscribed — follow the steps above';
+      // Don't auto-dismiss so user can read the steps
+      document.getElementById('btn-notif-skip').textContent = 'GOT IT';
     } catch(e) {
       const msg = e.message.includes('no active Service Worker')
         ? 'Please accept the browser permission popup, then try again.'
