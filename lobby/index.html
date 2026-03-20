@@ -159,6 +159,27 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 .btn-cancel:hover{border-color:#3a5080;color:var(--text)}
 .btn-confirm{flex:1;padding:10px;cursor:pointer;background:rgba(68,136,255,.12);border:1px solid var(--p1);color:var(--p1);font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;border-radius:4px;transition:all .15s}
 .btn-confirm:hover{background:rgba(68,136,255,.25)}
+
+/* ── Mobile collapsible sidebar ── */
+@media(max-width:768px){
+  .ss-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;-webkit-user-select:none;margin-bottom:14px}
+  .ss-chevron{font-size:10px;color:#4a6080;transition:transform .25s;flex-shrink:0}
+  .ss.collapsed .ss-chevron{transform:rotate(-90deg)}
+  .ss-body{overflow:hidden;transition:max-height .35s ease,opacity .25s ease;max-height:900px;opacity:1}
+  .ss.collapsed .ss-body{max-height:0;opacity:0;pointer-events:none}
+  .ss .ss-label{margin-bottom:0}
+  /* ── Mobile filter dropdown ── */
+  .filter-tabs{display:none!important}
+  .mobile-filter{display:flex;align-items:center;gap:6px}
+  .filter-select{padding:4px 26px 4px 8px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a6080'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 7px center}
+  .filter-select option{background:#0c1120}
+  .ftab-pzl{padding:4px 11px;border-radius:3px;font-size:12px;letter-spacing:1px;cursor:pointer;border:1px solid transparent;transition:all .15s;font-family:'Share Tech Mono',monospace;color:#3a5060;background:none}
+  .ftab-pzl.active{background:rgba(255,255,255,.06);border-color:var(--border);color:var(--bright)}
+}
+@media(min-width:769px){
+  .mobile-filter{display:none}
+  .ss-chevron{display:none}
+}
 </style>
 </head>
 <body>
@@ -181,8 +202,12 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 
 <!-- SIDEBAR -->
 <aside id="sidebar">
-  <div class="ss">
-    <div class="ss-label">CREATE ROOM</div>
+  <div class="ss collapsed">
+    <div class="ss-header" onclick="this.closest('.ss').classList.toggle('collapsed')">
+      <div class="ss-label">CREATE ROOM</div>
+      <span class="ss-chevron">▼</span>
+    </div>
+    <div class="ss-body">
 
     <div class="form-row">
       <label class="form-label">ROOM NAME</label>
@@ -254,10 +279,15 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
     </div>
 
     <button class="btn-create" id="btn-create">CREATE ROOM</button>
+    </div><!-- /ss-body -->
   </div>
 
-  <div class="ss">
-    <div class="ss-label">QUICK PLAY</div>
+  <div class="ss collapsed">
+    <div class="ss-header" onclick="this.closest('.ss').classList.toggle('collapsed')">
+      <div class="ss-label">QUICK PLAY</div>
+      <span class="ss-chevron">▼</span>
+    </div>
+    <div class="ss-body">
     <button class="btn-passplay" onclick="window.location.href='/game/?mode=passplay'" style="margin-bottom: 12px;">
       PASS &amp; PLAY — LOCAL TWO PLAYER
     </button>
@@ -270,6 +300,7 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
 
 
 
+  </div><!-- /ss-body -->
   </div>
 </aside>
 
@@ -283,6 +314,15 @@ header{grid-area:hdr;display:flex;align-items:center;justify-content:space-betwe
       <div class="ftab" data-filter="waiting">WAITING</div>
       <div class="ftab" data-filter="playing">IN PROGRESS</div>
       <div class="ftab" data-filter="puzzles">PUZZLES</div>
+    </div>
+    <div class="mobile-filter">
+      <select class="filter-select" id="mobile-filter-select">
+        <option value="all">ALL</option>
+        <option value="myturn">MY TURN</option>
+        <option value="waiting">WAITING</option>
+        <option value="playing">IN PROGRESS</option>
+      </select>
+      <button class="ftab-pzl" id="mobile-pzl-btn">PUZZLES</button>
     </div>
   </div>
   <div id="room-list">
@@ -522,16 +562,36 @@ document.querySelectorAll('.fm-btn').forEach(btn => {
 });
 
 // ── Filter tabs ──────────────────────────────────────────────
+function applyFilter(f){
+  currentFilter = f;
+  localStorage.setItem('hw_lobby_filter', f);
+  document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+  // sync mobile controls
+  const mSel = document.getElementById('mobile-filter-select');
+  const mPzl = document.getElementById('mobile-pzl-btn');
+  if(mSel) mSel.value = f !== 'puzzles' ? f : 'all';
+  if(mPzl) mPzl.classList.toggle('active', f === 'puzzles');
+  renderRooms(lastRooms);
+}
+
 document.querySelectorAll('.ftab').forEach(tab => {
-  // Set initial active state from localStorage
   tab.classList.toggle('active', tab.dataset.filter === currentFilter);
-  tab.onclick = () => {
-    currentFilter = tab.dataset.filter;
-    localStorage.setItem('hw_lobby_filter', currentFilter);
-    document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === currentFilter));
-    renderRooms(lastRooms);
-  };
+  tab.onclick = () => applyFilter(tab.dataset.filter);
 });
+
+// Mobile filter controls
+const _mSel = document.getElementById('mobile-filter-select');
+const _mPzl = document.getElementById('mobile-pzl-btn');
+if(_mSel){
+  _mSel.value = currentFilter !== 'puzzles' ? currentFilter : 'all';
+  _mSel.addEventListener('change', () => applyFilter(_mSel.value));
+}
+if(_mPzl){
+  _mPzl.classList.toggle('active', currentFilter === 'puzzles');
+  _mPzl.addEventListener('click', () => applyFilter('puzzles'));
+}
+
+
 
 // ── Create room ──────────────────────────────────────────────
 document.getElementById('btn-create').onclick = async () => {
@@ -661,7 +721,12 @@ function renderRooms(rooms){
       if (r.status === 'archived') return false;
       return true;
     })
-    .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
+    .sort((a,b) => {
+      const aMe = (a.hostUid===myUid||a.player2?.uid===myUid) ? 1 : 0;
+      const bMe = (b.hostUid===myUid||b.player2?.uid===myUid) ? 1 : 0;
+      if(bMe!==aMe) return bMe-aMe;
+      return (b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0);
+    });
   if (currentFilter !== 'all') {
     if (currentFilter === 'playing')  entries = entries.filter(r => r.status === 'playing');
     else if (currentFilter === 'waiting') entries = entries.filter(r => r.status === 'waiting');
@@ -697,7 +762,6 @@ function renderRooms(rooms){
 
     // Badges
     let badges = '';
-    if (isParticipant && !isArchived) badges += '<span class="room-priv" style="color:#22dd77;border-color:#22dd7740;background:#22dd7712">★ YOURS</span>';
     if (isMyTurn) badges += '<span class="room-priv" style="color:#ffcc00;border-color:#ffcc0040;background:#ffcc0012;animation:pulse-badge .9s ease-in-out infinite">● MY TURN</span>';
     if (room.isPrivate) badges += '<span class="room-priv">🔒 PRIVATE</span>';
 
@@ -730,10 +794,20 @@ function renderRooms(rooms){
       }
     }
 
+    const youTag = '<span style="color:var(--green)">(You)</span>';
+    const hostLabel  = esc(room.player1?.name||'—') + (isHost  ? ' '+youTag : '');
+    const guestLabel = room.player2 ? esc(room.player2.name||'—') + (isGuest ? ' '+youTag : '') : null;
+    const isPlaying  = room.status === 'playing';
+    const metaWho    = isPlaying && guestLabel
+      ? `${hostLabel} &nbsp;${hostTier}&nbsp; vs ${guestLabel}`
+      : `HOST: ${hostLabel} &nbsp;${hostTier}`;
+    const metaTail   = isPlaying
+      ? `· ${tc}`
+      : `· ${tc} · ${formatFm(room.settings)}`;
     card.innerHTML=`
       <div>
         <div class="room-name">${esc(room.name)} ${badges}</div>
-        <div class="room-meta">HOST: ${esc(room.player1?.name||'—')} &nbsp;${hostTier}&nbsp; · ${tc} · ${formatFm(room.settings)}</div>
+        <div class="room-meta">${metaWho} · ${metaTail}</div>
       </div>
       <div class="room-actions">
         ${statusHtml}
