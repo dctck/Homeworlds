@@ -333,6 +333,14 @@ const auth = getAuth(app);
 const db   = getDatabase(app);
 const fns  = getFunctions(app, 'us-central1');
 
+// Pre-register SW early so it's ready before user clicks push toggle
+let _swReg = null;
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js')
+    .then(r => { _swReg = r; })
+    .catch(e => console.warn('[SW]', e.message));
+}
+
 // ── Push notifications ────────────────────────────────────────
 const VAPID_PUBLIC_KEY = 'BJ4Rm3On-raVuvG05Kp24vGOzLJdK4wMEO9ctinW3-syytPd34tgM8Vm4hSCAdlVkjovY7MvY44CYl-K2rcQ1QA';
 
@@ -436,13 +444,10 @@ function getPushSetupSteps() {
   ];
 }
 
-function getDeviceId() {
-  let id = localStorage.getItem('hw_device_id');
-  if (!id) {
-    id = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    localStorage.setItem('hw_device_id', id);
-  }
-  return id;
+function endpointToKey(endpoint) {
+  // Last ~40 chars of endpoint URL are unique enough as a key
+  // Strip special chars that Firebase keys don't allow
+  return endpoint.slice(-40).replace(/[.#$[\]/]/g, '_');
 }
 
 // ── Tier system ──────────────────────────────────────────────
@@ -617,13 +622,21 @@ document.getElementById('toggle-push').onchange = async function() {
       this.checked = false; return;
     }
     // Request permission
+    // iOS PWA: requestPermission must be first — no awaits before it
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      statusEl.textContent = 'Permission denied. Please allow notifications in browser settings.';
-      statusEl.className = 'notif-status err';
-      this.checked = false; return;
+      const isIOSStandalone = /iphone|ipad|ipod/i.test(navigator.userAgent) && 
+        (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone);
+      if (isIOSStandalone) {
+        statusEl.className = 'notif-status err';
+        statusEl.textContent = 'Go to iPhone Settings → Notifications → HW Arena → enable Allow Notifications, then try again.';
+      } else {
+        statusEl.className = 'notif-status err';
+        statusEl.textContent = 'Permission denied — enable in browser settings.';
+      }
+      this && (this.checked = false);
+      return;
     }
-    // Subscribe
     try {
       statusEl.textContent = 'Activating…';
       const reg = await registerSW();
@@ -633,8 +646,7 @@ document.getElementById('toggle-push').onchange = async function() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
       const saveSub = httpsCallable(fns, 'savePushSubscription');
-      await saveSub({ subscription: sub.toJSON(), deviceId: getDeviceId() });
-      await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: true });
+      await saveSub({ subscription: sub.toJSON(), deviceId: endpointToKey(sub.endpoint) });
       localStorage.setItem('hw_push_enabled', '1');
        const steps = getPushSetupSteps();
       const noteEl = document.getElementById('push-platform-note');
@@ -652,13 +664,14 @@ document.getElementById('toggle-push').onchange = async function() {
       this.checked = false;
     }
   } else {
-    await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: false });
-    // Remove this device's subscription from Firebase
-    const { getFunctions, httpsCallable } = await import('...');
-    await db.ref(`players/${USER.uid}/pushSubscriptions/${getDeviceId()}`).remove();
-    localStorage.setItem('hw_push_enabled', '0');
     localStorage.setItem('hw_push_enabled', '0');
     statusEl.textContent = 'Push notifications off.';
+    try {
+      const reg = _swReg || await registerSW();
+      if (!reg) throw new Error('Service worker unavailable');
+    } catch(e) {
+      console.warn('[PUSH] Could not remove subscription:', e.message);
+    }
   }
 };
 
