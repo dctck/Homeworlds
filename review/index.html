@@ -1571,7 +1571,6 @@ function isSelectableShip(ship, sys) {
  * Routes to the appropriate action for that color.
  */
 function onPowerClick(color, sys, event) {
-  console.log('[onPowerClick] color:', color, 'selectedShipId:', G.selectedShipId, 'interaction:', G.interaction); //delete this
   const ship = findShip(G.selectedShipId);
   if (!ship) return;
   const shipSys = findSystemByShip(G.selectedShipId);
@@ -1696,11 +1695,15 @@ function makeTurnToken(player) {
     }
     function doPrevMove() {
       cancelPrevHold();
+      console.log('[doPrevMove] called, snaps length:', _puzzleTurnSnaps.length, '_appMode:', _appMode); //delete this
       if (_puzzleTurnSnaps.length === 0) return;
       G = JSON.parse(_puzzleTurnSnaps.pop());
+      console.log('[doPrevMove] G restored, phase:', G.phase, 'currentPlayer:', G.currentPlayer, 'systems:', G.systems.length); //delete this
       const moveEl = document.getElementById('puzzle-moves');
       if (moveEl) moveEl.textContent = _puzzleTurnSnaps.length;
+      console.log('[doPrevMove] about to render');  //delete this
       render();
+      console.log('[doPrevMove] render done');  //delete this
     }
     prevBtn.addEventListener('mousedown', startPrevHold);
     prevBtn.addEventListener('touchstart', startPrevHold, { passive: false });
@@ -1749,10 +1752,12 @@ function makeTurnToken(player) {
     }
     function doReset() {
       cancelHold();
+      console.log('[doReset] called, _turnStart exists:', !!G._turnStart, '_appMode:', _appMode); //delete this
       if (G._turnStart) {
-        const saved = G._turnStart; // capture before G is replaced
+        const saved = G._turnStart;
         G = JSON.parse(saved);
-        G._turnStart = saved; // restore so next reset still works
+        G._turnStart = saved;
+        console.log('[doReset] G restored, phase:', G.phase, 'systems:', G.systems.length);
       } else {
         G._pendingActions = [];
         G.turnUsed = false;
@@ -1761,10 +1766,12 @@ function makeTurnToken(player) {
       }
       G.selectedShipId = null; G.movingFromSysId = null; G.interaction = 'IDLE';
       // Call directly — avoids any guard issues with render()
+      console.log('[doReset] about to render, G.phase:', G.phase, 'currentPlayer:', G.currentPlayer);  //delete this
       renderBank();
       renderBoard();
       renderSidebar();
       renderLog();
+      console.log('[doReset] render done'); //delete this
     }
     resetBtnEl.addEventListener('mousedown', startHold);
     resetBtnEl.addEventListener('touchstart', startHold, { passive: false });
@@ -2185,7 +2192,6 @@ function renderSystem(sys) {
 
 // renderBoard adapted for review (no turn token, no setup preview)
 function renderBoard() {
-  console.log('[renderBoard] _appMode:', _appMode, 'phase:', G?.phase, 'currentPlayer:', G?.currentPlayer); //delete this
   const zP1  = document.getElementById('zone-p1');
   const zP2  = document.getElementById('zone-p2');
   const zMid = document.getElementById('zone-mid');
@@ -2253,7 +2259,6 @@ function renderBoard() {
     zP2.appendChild(renderSystem(hw2));
     if (_appMode === 'sandbox' && G.phase === 'PLAY' && G.currentPlayer === 2)
       zP2.appendChild(makeTurnToken(2));
-      console.log('[renderBoard] token check p2:', _appMode, G.phase, G.currentPlayer); //delete this
     if (_appMode === 'sandbox' && G.phase === 'SETUP' && G.setupDone && G.currentPlayer === 2)
       zP2.appendChild(makeSetupToken(2));
   }
