@@ -4117,6 +4117,7 @@ function startPuzzle(data, puzzleId, user, db) {
     uid = Math.max(uid, sys.id || 0);
     sys.ships.forEach(s => { uid = Math.max(uid, s.id || 0); });
   });
+  G._turnStart = JSON.stringify(G); // snap clean start-of-turn state
 
   // Show puzzle toolbar
   const toolbar = document.getElementById('sandbox-toolbar');
