@@ -436,6 +436,15 @@ function getPushSetupSteps() {
   ];
 }
 
+function getDeviceId() {
+  let id = localStorage.getItem('hw_device_id');
+  if (!id) {
+    id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('hw_device_id', id);
+  }
+  return id;
+}
+
 // ── Tier system ──────────────────────────────────────────────
 const TIERS=[
   {name:'Iron',min:0,max:4,color:'#8a9bb0',bg:'rgba(138,155,176,.12)'},
@@ -624,7 +633,7 @@ document.getElementById('toggle-push').onchange = async function() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
       const saveSub = httpsCallable(fns, 'savePushSubscription');
-      await saveSub({ subscription: sub.toJSON() });
+      await saveSub({ subscription: sub.toJSON(), deviceId: getDeviceId() });
       await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: true });
       localStorage.setItem('hw_push_enabled', '1');
        const steps = getPushSetupSteps();
@@ -644,6 +653,10 @@ document.getElementById('toggle-push').onchange = async function() {
     }
   } else {
     await update(ref(db, `players/${USER.uid}/notifPrefs`), { push: false });
+    // Remove this device's subscription from Firebase
+    const { getFunctions, httpsCallable } = await import('...');
+    await db.ref(`players/${USER.uid}/pushSubscriptions/${getDeviceId()}`).remove();
+    localStorage.setItem('hw_push_enabled', '0');
     localStorage.setItem('hw_push_enabled', '0');
     statusEl.textContent = 'Push notifications off.';
   }
