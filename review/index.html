@@ -1907,6 +1907,7 @@ function renderBank() {
         empty.textContent = '—';
         stack.appendChild(empty);
       }
+      cell.dataset.animKey = 'bank:' + c + ':' + sz;
       cell.appendChild(stack);
       grid.appendChild(cell);
     });
@@ -1990,6 +1991,7 @@ function renderSystem(sys) {
   function makeShipWrap(ship) {
     const wrap = document.createElement('div');
     wrap.className = 'ship-wrap';
+    wrap.dataset.animKey = 'ship:' + ship.id + ':' + ship.color + ':' + ship.size;
     const isOwn    = ship.owner === G.currentPlayer;
     const isSelected = G.selectedShipId === ship.id;
     const isEnemy  = !isOwn;
@@ -2143,7 +2145,7 @@ function renderSystem(sys) {
   downShips.forEach(ship => row.appendChild(makeShipWrap(ship)));
 
   // Stars in centre — with power-click shortcuts when ship is selected
-  sys.stars.forEach(star => {
+  sys.stars.forEach((star, starIdx) => {
     const isSetupOwnHW = G.phase === 'SETUP' && G.setupDone && sys.isHomeworld === G.currentPlayer;
     const wrap = document.createElement('div');
     wrap.style.flexShrink = '0';
@@ -2152,12 +2154,14 @@ function renderSystem(sys) {
       wrap.style.cursor = 'pointer';
       wrap.title = `Remove ${star.color} size-${star.size} star`;
       wrap.innerHTML = starImgHTML(star.color, star.size);
+      wrap.dataset.animKey = 'star:' + sys.id + ':' + star.color + ':' + star.size + ':' + starIdx;
       wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
       wrap.onmouseleave = () => wrap.style.filter = '';
       wrap.onclick = () => restartSetup();
     } else {
       wrap.innerHTML = starImgHTML(star.color, star.size);
       _stampPid(wrap);
+      wrap.dataset.animKey = 'star:' + sys.id + ':' + star.color + ':' + star.size + ':' + starIdx;
 
       // Shortcut: clicking a star in selected ship's system triggers that color's action
       if (G.interaction === 'SHIP_SELECTED' && isSelSys) {
@@ -2451,6 +2455,7 @@ function attachTurnTokenListeners(tokenEl) {
     G.setupCache = { stars: [] };
     G.setupStep = 0;
     G._pendingActions = [];  // clear any staged log entry
+    window._animSkipSetupPreview = true;
     render();
   }
 
@@ -2486,6 +2491,7 @@ function attachTurnTokenListeners(tokenEl) {
       G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
     }
     G._pendingActions = [];
+    window._animSkipSetupPreview = true;
     render();
   }
 
@@ -2761,22 +2767,47 @@ function doSacrifice(ship, sys) {
 }
 
 function renderSetupPreview(zone) {
-  if (!G.setupCache || G.setupCache.stars.length === 0) return;
+  // When homeworld is finalized it's in G.systems — rendered by renderSystem instead
+  if (G.setupDone) return;
+  const sysName = G.currentPlayer === 1 ? 'NEXUS' : 'VERTEX';
   const card = document.createElement('div');
   card.className = `system-card homeworld-${G.currentPlayer}`;
   const nameDiv = document.createElement('div');
   nameDiv.className = 'sys-name';
-  nameDiv.textContent = `PLAYER ${G.currentPlayer} — PREVIEW`;
+  nameDiv.textContent = sysName;
   card.appendChild(nameDiv);
+
+  if (!G.setupCache || G.setupCache.stars.length === 0) {
+    // Empty state — no stars picked yet
+    const ph = document.createElement('div');
+    ph.style.cssText = 'font-size:11px;color:#334455;letter-spacing:0.5px;padding:8px 2px;';
+    ph.textContent = 'Select stars from stash';
+    card.appendChild(ph);
+    zone.appendChild(card);
+    console.log('[SETUP] empty preview shown for P' + G.currentPlayer);
+    return;
+  }
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:12px;color:#557;margin-bottom:6px;letter-spacing:0.5px';
+  hint.textContent = 'Click a piece to remove it';
+  card.appendChild(hint);
+
   const starsDiv = document.createElement('div');
   starsDiv.className = 'sys-stars';
   G.setupCache.stars.forEach((star, idx) => {
     const wrap = document.createElement('div');
     wrap.style.cssText = 'cursor:pointer;transition:filter 0.15s;';
+    wrap.title = `Remove ${star.color} size-${star.size} star`;
     wrap.innerHTML = starImgHTML(star.color, star.size);
+    wrap.dataset.animKey = 'setuppreview:' + star.color + ':' + star.size + ':' + idx;
+    console.log('[SETUP] preview star stamped:', wrap.dataset.animKey);
     wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
     wrap.onmouseleave = () => wrap.style.filter = '';
-    wrap.onclick = () => {
+    const _stampTime = Date.now();
+    wrap.onclick = (e) => {
+      e.stopPropagation();
+      if (Date.now() - _stampTime < 350) return; // ignore phantom clicks from DOM rebuild
       G.bank[star.color][star.size]++;
       G.setupCache.stars.splice(idx, 1);
       G.setupStep = idx;
@@ -2786,7 +2817,9 @@ function renderSetupPreview(zone) {
   });
   card.appendChild(starsDiv);
   zone.appendChild(card);
+  console.log('[SETUP] preview rendered:', G.setupCache.stars.length, 'stars for P' + G.currentPlayer);
 }
+
 
 function renderCatastrophePanel() {
   const panel = document.getElementById('catastrophe-panel');
@@ -4307,7 +4340,9 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   G.customEditingHW = null;
   G.customPhase = fromCurrentSnapshot ? null : 'HW1_STARS';
   G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
-  G.setupDone = false; G.setupStep = 0; G.setupCache = { stars: [] };
+  G.setupDone = false; 
+  G.setupStep = 0; 
+  G.setupCache = { stars: [] };
   G.firstMover = G.firstMover || 1;
 
   if (fromCurrentSnapshot) {
@@ -4535,6 +4570,163 @@ function _initArrows() {
     _renderArrows();
   });
 }
+
+// ============================================================
+//  PIECE MOVE ANIMATION  (FLIP + ghost-from-bank)
+// ============================================================
+(function () {
+  const MS = 350;
+
+  function runWithAnim(fn, ctx, args) {
+    const inSetup = typeof G !== 'undefined' && G && G.phase === 'SETUP';
+    console.log('[ANIM] fired — phase:', G?.phase, 'setupDone:', G?.setupDone,
+      'setupStep:', G?.setupStep, 'cacheLen:', G?.setupCache?.stars?.length);
+
+    // Snapshot all current piece positions before render
+    const snap = {};
+    document.querySelectorAll('[data-anim-key]').forEach(el => {
+      const bpw = el.querySelector('.bank-piece-wrap');
+      snap[el.dataset.animKey] = {
+        rect: el.getBoundingClientRect(),
+        html: bpw ? bpw.innerHTML : el.innerHTML
+      };
+    });
+    console.log('[ANIM] snapped', Object.keys(snap).length, 'keys');
+
+    fn.apply(ctx, args);
+
+    // ── Forward: board/preview pieces that are new or moved ──
+    const _skipPreview = !!window._animSkipSetupPreview;
+    window._animSkipSetupPreview = false;
+    document.querySelectorAll('[data-anim-key]').forEach(el => {
+      const key   = el.dataset.animKey;
+      const parts = key.split(':');
+      if (parts[0] === 'bank') return;
+      const last = el.getBoundingClientRect();
+
+      if (snap[key] && !inSetup) {
+        // FLIP — piece existed, animate from old position to new
+        // Skipped during SETUP: sidebar/layout shifts cause false positives
+        const dx = snap[key].rect.left - last.left;
+        const dy = snap[key].rect.top  - last.top;
+        if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+        console.log('[ANIM] FLIP:', key, '→ dx:', Math.round(dx), 'dy:', Math.round(dy));
+        el.style.transition = 'none';
+        el.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
+        el.offsetHeight;
+        el.style.transition = 'transform ' + MS + 'ms cubic-bezier(0.2,0,0.2,1)';
+        el.style.transform  = '';
+        el.addEventListener('transitionend', () => {
+          el.style.transition = '';
+          el.style.transform  = '';
+        }, { once: true });
+
+      } else if (!snap[key]) {
+        // Ghost — new piece, fly from source to destination
+        const isPreview = parts[0] === 'setuppreview';
+        if (isPreview && _skipPreview) return;
+        const color   = isPreview ? parts[1] : parts[2];
+        const size    = isPreview ? parts[2] : parts[3];
+        const starIdx = isPreview ? parts[3] : parts[4];
+
+        // For newly finalized homeworld stars: prefer setuppreview position as source
+        // so the star flies from the preview card → final homeworld card (not from bank)
+        const spKey  = (parts[0] === 'star' && starIdx !== undefined)
+          ? 'setuppreview:' + color + ':' + size + ':' + starIdx
+          : null;
+        const srcKey = (spKey && snap[spKey]) ? spKey : 'bank:' + color + ':' + size;
+
+        if (!snap[srcKey]) {
+          console.log('[ANIM] ghost skipped — no source for:', key, '(tried', srcKey + ')');
+          return;
+        }
+        console.log('[ANIM] ghost:', key, 'from', srcKey);
+
+        const fr = snap[srcKey].rect;
+        const g  = document.createElement('div');
+        g.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;display:inline-block;' +
+          'left:' + fr.left + 'px;top:' + fr.top + 'px;will-change:transform;transition:none;';
+        g.innerHTML = el.innerHTML;
+        document.body.appendChild(g);
+
+        const gR = g.getBoundingClientRect();
+        const dx = (last.left + last.width  / 2) - (gR.left + gR.width  / 2);
+        const dy = (last.top  + last.height / 2) - (gR.top  + gR.height / 2);
+        if (Math.abs(dx) < 2 && Math.abs(dy) < 2) { g.remove(); return; }
+
+        // Hide real piece — ghost covers destination during flight
+        const _el = el;
+        _el.style.visibility = 'hidden';
+
+        g.style.transition = 'transform ' + MS + 'ms cubic-bezier(0.2,0,0.2,1)';
+        g.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
+        g.addEventListener('transitionend', () => {
+          g.remove();
+          _el.style.visibility = '';
+        }, { once: true });
+        setTimeout(() => {
+          if (g.parentNode) g.remove();
+          _el.style.visibility = '';
+        }, MS + 200);
+      }
+    });
+
+    // ── Reverse: board/preview pieces that disappeared → fly back to bank ──
+    Object.entries(snap).forEach(([key, info]) => {
+      if (key.startsWith('bank:')) return;
+      if (_skipPreview && (key.startsWith('star:') || key.startsWith('setuppreview:'))) return;
+      if (document.querySelector('[data-anim-key="' + key + '"]')) return;
+
+      // For setuppreview stars: only reverse-ghost if there's NO corresponding
+      // system star being forward-ghosted (which means they went to bank, not finalized)
+      if (key.startsWith('setuppreview:')) {
+        const sp = key.split(':'); // setuppreview:color:size:idx
+        let hasForwardGhost = false;
+        document.querySelectorAll('[data-anim-key^="star:"]').forEach(el => {
+          const k = el.dataset.animKey.split(':');
+          if (k[2] === sp[1] && k[3] === sp[2] && k[4] === sp[3] && !snap[el.dataset.animKey]) {
+            hasForwardGhost = true;
+          }
+        });
+        if (hasForwardGhost) {
+          console.log('[ANIM] skipping reverse for', key, '(star being forward-ghosted to system)');
+          return;
+        }
+      }
+
+      const parts = key.split(':');
+      const isRevPrev = parts[0] === 'setuppreview';
+      const color = isRevPrev ? parts[1] : parts[2];
+      const size  = isRevPrev ? parts[2] : parts[3];
+      const bkEl  = document.querySelector('[data-anim-key="bank:' + color + ':' + size + '"]');
+      if (!bkEl) return;
+
+      console.log('[ANIM] reverse ghost:', key, '→ bank:', color, size);
+      const dest = bkEl.getBoundingClientRect();
+      const g = document.createElement('div');
+      g.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;display:inline-block;' +
+        'left:' + info.rect.left + 'px;top:' + info.rect.top + 'px;will-change:transform;transition:none;';
+      g.innerHTML = info.html;
+      document.body.appendChild(g);
+      const gR = g.getBoundingClientRect();
+      const dx = (dest.left + dest.width  / 2) - (gR.left + gR.width  / 2);
+      const dy = (dest.top  + dest.height / 2) - (gR.top  + gR.height / 2);
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) { g.remove(); return; }
+      g.style.transition = 'transform ' + MS + 'ms cubic-bezier(0.2,0,0.2,1)';
+      g.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
+      g.addEventListener('transitionend', () => g.remove(), { once: true });
+      setTimeout(() => { if (g.parentNode) g.remove(); }, MS + 200);
+    });
+  }
+
+  const _origRender = render;
+  render = function () { runWithAnim(_origRender, this, arguments); };
+
+  const _origGoTo = goTo;
+  goTo = function () { runWithAnim(_origGoTo, this, arguments); };
+
+}());
+
 
 </script>
 
