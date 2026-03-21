@@ -2217,13 +2217,15 @@ function render() {
   renderPlayerCards();
   if (window._autoSave && !window._ONLINE?.active && G && G.phase !== 'OVER') {
     try {
-      // Strip bulky in-memory-only fields before saving — these grow each turn
-      // and cause noticeable lag by mid-game when serialized on every render.
+      // Save the start-of-turn snapshot, not the current mid-turn state.
+      // This means refresh/exit always restores to the last *completed* turn —
+      // any mid-turn actions are discarded, matching what reset-turn would do.
+      const base = G._turnStart ? JSON.parse(G._turnStart) : G;
       const gs = {
-        ...G,
-        history:        null,  // prev full-state snapshot (for undo)
-        _turnStart:     null,  // full-state snapshot at turn start
-        _gameSnapshots: null,  // per-turn snapshot array used by review
+        ...base,
+        history:        null,
+        _turnStart:     null,
+        _gameSnapshots: null,
       };
       localStorage.setItem('hw_saved_game', JSON.stringify(gs));
     } catch(e) {}
@@ -2715,17 +2717,18 @@ function renderSetupPreview(zone) {
     wrap.style.cssText = 'cursor:pointer;transition:filter 0.15s;';
     wrap.title = `Remove ${star.color} size-${star.size} star`;
     wrap.innerHTML = starImgHTML(star.color, star.size);
-    wrap.dataset.animKey = 'setuppreview:' + star.color + ':' + star.size + ':' + idx;
+    wrap.dataset.animKey = 'setuppreview:' + star.color + ':' + star.size + ':' + (star._pid || idx);
     console.log('[SETUP] preview star stamped:', wrap.dataset.animKey);
     wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
     wrap.onmouseleave = () => wrap.style.filter = '';
     const _stampTime = Date.now();
     wrap.onclick = (e) => {
       e.stopPropagation();
-      if (Date.now() - _stampTime < 350) return; // ignore phantom clicks from DOM rebuild
+      if (Date.now() - _stampTime < 350) return;
       G.bank[star.color][star.size]++;
       G.setupCache.stars.splice(idx, 1);
-      G.setupStep = idx;
+      G.setupStep = G.setupCache.stars.length; // remaining stars = next step
+      window._animSkipSetupPreview = true;
       render();
     };
     starsDiv.appendChild(wrap);
@@ -2932,7 +2935,7 @@ function renderSystem(sys) {
     if (isSetupOwnHW) {
       const _sIdx = sys.stars.indexOf(star);
       wrap.style.cursor = 'pointer';
-      wrap.title = `Remove ${star.color} size-${star.size} star${_sIdx > 0 ? ' (also removes ship)' : ' (also removes all)'}`;
+      wrap.title = `Remove ${star.color} size-${star.size} star`;
       wrap.innerHTML = starImgHTML(star.color, star.size);
       wrap.dataset.animKey = 'star:' + sys.id + ':' + star.color + ':' + star.size + ':' + _sIdx;
       wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
@@ -3346,7 +3349,7 @@ function onBankClick(color, size) {
   if (G.phase === 'SETUP' && !G.setupDone) {
     if (G.setupStep < 2) {
       G.bank[color][size]--;
-      G.setupCache.stars.push({ color, size });
+      G.setupCache.stars.push({ color, size, _pid: Date.now() });
       G.setupStep++;
       render();
     } else if (G.setupStep === 2 && size === 3) {
@@ -3402,37 +3405,29 @@ function restartSetup() {
   render();
 }
 
-// Smart per-piece removal from the finalized homeworld preview.
-// Clicking the ship only removes the ship; clicking a star removes that star
-// and all subsequent pieces (ship too), since placement is ordered.
+// Remove only the clicked piece — ship or specific star — leave the rest in preview.
 function removeSetupPiece(type, starIndex) {
-  if (!G.setupDone) return; // shouldn't happen, but guard
+  if (!G.setupDone) return;
   const hw = G.systems.find(s => s.isHomeworld === G.currentPlayer);
   if (!hw) { restartSetup(); return; }
 
-  // Always return the ship
   const ship = hw.ships.find(s => s.owner === G.currentPlayer);
 
   if (type === 'ship') {
-    // Remove ship only — keep both stars placed
+    // Return ship only — keep all stars in preview
     if (ship) G.bank[ship.color][ship.size]++;
-    // Rebuild from the placed stars — move them back to setupCache
-    G.setupCache.stars = hw.stars.map(s => ({ color: s.color, size: s.size }));
+    G.setupCache.stars = hw.stars.map((s, i) => ({ color: s.color, size: s.size, _pid: Date.now() + i }));
     G.setupStep = 2;
-    G.setupDone = false;
-    G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
   } else {
-    // type === 'star' at index starIndex
-    // Return ship + all stars from starIndex onwards
+    // Return clicked star only — ship also must return since system is dismantled
     if (ship) G.bank[ship.color][ship.size]++;
-    for (let i = starIndex; i < hw.stars.length; i++) {
-      G.bank[hw.stars[i].color][hw.stars[i].size]++;
-    }
-    G.setupCache.stars = hw.stars.slice(0, starIndex).map(s => ({ color: s.color, size: s.size }));
-    G.setupStep = starIndex;
-    G.setupDone = false;
-    G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
+    G.bank[hw.stars[starIndex].color][hw.stars[starIndex].size]++;
+    const remaining = hw.stars.filter((_, i) => i !== starIndex);
+    G.setupCache.stars = remaining.map((s, i) => ({ color: s.color, size: s.size, _pid: Date.now() + i }));
+    G.setupStep = remaining.length; // 0 or 1 remaining → pick that many more stars
   }
+  G.setupDone = false;
+  G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
   G._pendingActions = [];
   window._animSkipSetupPreview = true;
   render();
@@ -4941,9 +4936,12 @@ function renderMobileLog() {
 
         // For newly finalized homeworld stars: prefer setuppreview position as source
         // so the star flies from the preview card → final homeworld card (not from bank)
-        const spKey  = (parts[0] === 'star' && starIdx !== undefined)
-          ? 'setuppreview:' + color + ':' + size + ':' + starIdx
-          : null;
+        // Find setuppreview source by color+size — key uses _pid not starIdx
+        let spKey = null;
+        if (parts[0] === 'star') {
+          const prefix = 'setuppreview:' + color + ':' + size + ':';
+          spKey = Object.keys(snap).find(k => k.startsWith(prefix)) || null;
+        }
         const srcKey = (spKey && snap[spKey]) ? spKey : 'bank:' + color + ':' + size;
 
         if (!snap[srcKey]) {
@@ -4967,16 +4965,19 @@ function renderMobileLog() {
         // Hide real piece — ghost covers destination during flight
         const _el = el;
         _el.style.visibility = 'hidden';
+        _el.style.pointerEvents = 'none';
 
         g.style.transition = 'transform ' + MS + 'ms cubic-bezier(0.2,0,0.2,1)';
         g.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
         g.addEventListener('transitionend', () => {
           g.remove();
           _el.style.visibility = '';
+          _el.style.pointerEvents = '';
         }, { once: true });
         setTimeout(() => {
           if (g.parentNode) g.remove();
           _el.style.visibility = '';
+          _el.style.pointerEvents = '';
         }, MS + 200);
       }
     });
@@ -4990,11 +4991,12 @@ function renderMobileLog() {
       // For setuppreview stars: only reverse-ghost if there's NO corresponding
       // system star being forward-ghosted (which means they went to bank, not finalized)
       if (key.startsWith('setuppreview:')) {
-        const sp = key.split(':'); // setuppreview:color:size:idx
+        const sp = key.split(':'); // setuppreview:color:size:pid
         let hasForwardGhost = false;
         document.querySelectorAll('[data-anim-key^="star:"]').forEach(el => {
           const k = el.dataset.animKey.split(':');
-          if (k[2] === sp[1] && k[3] === sp[2] && k[4] === sp[3] && !snap[el.dataset.animKey]) {
+          // Match color+size only — index/pid differ between setuppreview and star keys
+          if (k[2] === sp[1] && k[3] === sp[2] && !snap[el.dataset.animKey]) {
             hasForwardGhost = true;
           }
         });
