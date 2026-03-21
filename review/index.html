@@ -1145,7 +1145,7 @@ body:not(.sandbox-mode) #action-section { display: none !important; }
 <div id="right-panel">
   <div id="sandbox-toolbar" style="display:none;flex-direction:column;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border)">
     <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#4a8070">⬡ SANDBOX MODE</div>
-    <button onclick="exitSandbox()" style="padding:8px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">EXIT SANDBOX</button>
+    <button onclick="exitSandbox()" style="padding:8px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">CLEAN & EXIT SANDBOX</button>
     <button id="btn-publish-puzzle" onclick="openPublishPuzzle()" style="display:none;padding:8px;background:rgba(255,204,0,0.08);border:1px solid #4a3800;color:#887030;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseover="this.style.borderColor='#ffcc00';this.style.color='#ffcc00'" onmouseout="this.style.borderColor='#4a3800';this.style.color='#887030'">★ PUBLISH PUZZLE</button>
     <button id="btn-fresh-sandbox" onclick="freshSandbox()" style="padding:8px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseover="this.style.borderColor='#ff3344';this.style.color='#ff3344'" onmouseout="this.style.borderColor='#1c2840';this.style.color='#304050'">↺ FRESH SANDBOX</button>
   </div>
@@ -1160,7 +1160,7 @@ body:not(.sandbox-mode) #action-section { display: none !important; }
     </div>
     <div id="nav-hint">Key: ⇧← | ← | → | ⇧→</div>
     <button onclick="startSandbox(true)" style="margin-top:6px;width:100%;padding:8px;background:rgba(34,102,255,0.08);border:1px solid #1c3060;color:#3a5888;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseenter="this.style.color='#4488ff';this.style.borderColor='#2266ff'" onmouseleave="this.style.color='#3a5888';this.style.borderColor='#1c3060'">⬡ SANDBOX FROM HERE</button>
-    <button onclick="startSandbox(false)" style="width:100%;padding:8px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseenter="this.style.color='#4488ff';this.style.borderColor='#2266ff'" onmouseleave="this.style.color='#304050';this.style.borderColor='#1c2840'">⬡ FRESH SANDBOX</button>
+    <button onclick="freshSandbox()" style="width:100%;padding:8px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseenter="this.style.color='#4488ff';this.style.borderColor='#2266ff'" onmouseleave="this.style.color='#304050';this.style.borderColor='#1c2840'">⬡ FRESH SANDBOX</button>
   </div>
   </div><!-- end rv-controls -->
   <div id="log-panel">
@@ -3926,6 +3926,7 @@ async function load() {
     startSandbox(false);
     // Override exitSandbox to go to lobby instead of review
     window.exitSandbox = function() {
+      clearSandboxState();
       location.href = '/lobby/';
     };
     return;
@@ -4397,7 +4398,7 @@ function clearSandboxState() {
   localStorage.removeItem(SB_SAVE_KEY);
 }
 
-function freshSandbox() {
+window.freshSandbox = function freshSandbox() {
   const saved = localStorage.getItem(SB_SAVE_KEY);
   if (saved) {
     const confirmed = confirm('Start a fresh sandbox? Your saved sandbox session will be lost.');
@@ -4474,6 +4475,7 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   document.getElementById('log-turn-count').textContent = '—';
 }
 window.exitSandbox = function exitSandbox() {
+  clearSandboxState();
   _appMode = 'review';
   document.getElementById('sandbox-toolbar').style.display = 'none';
   document.getElementById('rv-controls').style.display = '';
