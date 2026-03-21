@@ -67,7 +67,7 @@ body {
   font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 700; overflow: hidden;
 }
 .uo-name { font-size: 12px; letter-spacing: 1px; color: #a8c0e0; }
-.uo-result { font-size: 10px; letter-spacing: 2px; font-family: 'Orbitron', sans-serif; }
+.uo-result { font-size: 12px; letter-spacing: 2px; font-family: 'Orbitron', sans-serif; }
 .uo-vs { font-size: 14px; color: #2a3850; font-family: 'Orbitron', sans-serif; }
 .uo-btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .uo-btn {
@@ -158,6 +158,8 @@ body::before {
 
 /* === ACTION PANEL === */
 #action-section { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
+body:not(.sandbox-mode) #player-bar,
+body:not(.sandbox-mode) #action-section { display: none !important; }
 .action-btn {
   width: 100%; padding: 10px 12px; cursor: pointer;
   background: rgba(255,255,255,0.03); border: 1px solid #1c2840;
@@ -526,6 +528,7 @@ body::before {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #1c2840; border-radius: 3px; }
 
+button, .nav-btn, .action-btn { touch-action: manipulation; }
 
 /* ================================================================
    TURN TOKEN — circular clickable marker on the active homeworld
@@ -634,7 +637,7 @@ body::before {
   border: 1px solid #2a3850;
   color: #4a6080;
   font-family: 'Share Tech Mono', monospace;
-  font-size: 10px; letter-spacing: 1px;
+  font-size: 12px; letter-spacing: 1px;
   cursor: pointer; border-radius: 4px;
   position: relative; overflow: hidden;
   transition: color 0.15s, border-color 0.15s;
@@ -781,7 +784,7 @@ body::before {
    ============================================================ */
 @media (max-width: 800px) {
   /* ── Review mobile: single scrollable column ── */
-  html { height: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-x: hidden; }
+  html { height: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-x: hidden; touch-action: manipulation; }
   body {
     display: flex !important;
     flex-direction: column !important;
@@ -819,7 +822,8 @@ body::before {
     letter-spacing: 3px; color: var(--bright); padding: 12px 8px;
   }
 
-  /* Reorder sections: board first, then stash/actions (sidebar), then log (right-panel) */
+  /* Reorder sections: players top, then board, stash/actions, then log */
+  #players-section { order: 1; width: 100%; }
   #sidebar   { order: 3; width: 100%; height: auto !important; overflow: visible !important; border-right: none; flex: none; }
   #board     { order: 2; width: 100%; height: auto !important; overflow: visible !important; padding: 12px; border-bottom: 1px solid var(--border); }
   #right-panel { order: 4; width: 100% !important; height: auto !important; border-left: none; border-top: 1px solid var(--border); display: flex !important; flex-direction: column; }
@@ -852,7 +856,7 @@ body::before {
 
   /* Board */
   #zone-p2, #zone-p1 { flex-wrap: wrap; min-height: 70px; justify-content: center; gap: 8px; }
-  .zone-label { font-size: 10px; letter-spacing: 2px; margin-bottom: 4px; }
+  .zone-label { font-size: 12px; letter-spacing: 2px; margin-bottom: 4px; }
   .zone-hw-area { padding: 2px 0 8px; }
   .system-card { padding: 8px 10px; }
   #zone-mid { gap: 8px; flex-wrap: wrap; justify-content: center; padding: 4px 0; }
@@ -893,7 +897,7 @@ body::before {
   #rv-bottom-nav .bnav-icon { font-size: 18px; line-height: 1; }
   #rv-bottom-nav button:disabled { opacity: .2; pointer-events: none; }
   #rv-bottom-nav #bnav-turn {
-    flex: 1.5; font-family: 'Orbitron', sans-serif; font-size: 10px;
+    flex: 1.5; font-family: 'Orbitron', sans-serif; font-size: 12px;
     color: var(--bright); letter-spacing: 1px; pointer-events: none; cursor: default;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center;
@@ -1007,17 +1011,11 @@ body {
 }
 .nav-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); border-color: #3a5080; color: var(--bright); }
 .nav-btn:disabled { opacity: .2; cursor: not-allowed; }
-#nav-hint { font-size: 10px; color: #2a3850; text-align: center; margin-top: 8px; letter-spacing: 1px; }
+#nav-hint { font-size: 12px; color: #2a3850; text-align: center; margin-top: 8px; letter-spacing: 1px; }
 /* Players section */
-#players-section { padding: 12px; flex-shrink: 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; }
-.rv-player {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  border-radius: 6px; margin-bottom: 6px;
-  background: rgba(255,255,255,.02); border: 1px solid var(--border);
-  flex: 1;
-}
-.rv-player:last-child { margin-bottom: 0; }
-.rv-player.winner { border-color: rgba(255,204,0,.35); background: rgba(255,204,0,.04); }
+#action-section { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
+body:not(.sandbox-mode) #player-bar,
+body:not(.sandbox-mode) #action-section { display: none !important; }
 .rv-avatar {
   width: 36px; height: 36px; border-radius: 5px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
@@ -1026,8 +1024,8 @@ body {
 }
 .rv-avatar.p1 { border-color: rgba(68,136,255,.5); color: #4488ff; }
 .rv-avatar.p2 { border-color: rgba(255,68,85,.5); color: #ff4455; }
-.rv-info-name { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px; color: var(--bright); margin-bottom: 2px; }
-.rv-info-result { font-size: 10px; color: #4a6080; }
+.rv-info-name { font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 1px; color: var(--bright); margin-bottom: 2px; }
+.rv-info-result { font-size: 12px; color: #4a6080; }
 .rv-crown { font-size: 14px; margin-left: auto; flex-shrink: 0; }
 /* Back btn */
 
@@ -1043,7 +1041,7 @@ body {
 }
 .mini-log-line.active .ml-turn { color: #ffcc00; }
 .mini-log-line .ml-turn-cont { color: #1a2535; margin-right: 4px; }
-.log-result { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1.5px; }
+.log-result { font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 1.5px; }
 /* Loading overlay */
 #loading {
   position: fixed; inset: 0; background: rgba(6,9,18,.96); z-index: 200;
@@ -1131,8 +1129,8 @@ body {
 </div>
 
 <!-- RIGHT: Log panel (identical structure to game.html) -->
+<div id="players-section"></div>
 <div id="right-panel">
-  <div id="players-section"></div>
   <div id="sandbox-toolbar" style="display:none;flex-direction:column;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border)">
     <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#4a8070">⬡ SANDBOX MODE</div>
     <button onclick="exitSandbox()" style="padding:8px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">EXIT SANDBOX</button>
@@ -1330,7 +1328,8 @@ function isConnected(s1, s2) {
 let G = null; // set to current snapshot before every render
 // ── Colorblind mode ─────────────────────────────────────────
 // Read from localStorage (same key game.html uses)
-window._colorblindMode = localStorage.getItem('hw_colorblind') === '1';
+window._colorblindMode = localStorage.getItem('hw_colorblind') === null ? true : localStorage.getItem('hw_colorblind') === '1';
+
 
 let _arrowPid = 0;   // arrow system piece counter, reset on each goTo
 function findShip(id) {
