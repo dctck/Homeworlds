@@ -2153,7 +2153,7 @@ function renderSystem(sys) {
       wrap.style.cursor = 'pointer';
       wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
       wrap.onmouseleave = () => wrap.style.filter = '';
-      wrap.onclick = () => restartSetup();
+      wrap.onclick = (e) => { e.stopPropagation(); removeSetupPiece('ship', 0); };
     } else if (isOwn) {
       // IDLE / default: select this ship
       if (G.phase === 'PLAY') {
@@ -2197,13 +2197,14 @@ function renderSystem(sys) {
     wrap.style.flexShrink = '0';
 
     if (isSetupOwnHW) {
+      const _sIdx = sys.stars.indexOf(star);
       wrap.style.cursor = 'pointer';
       wrap.title = `Remove ${star.color} size-${star.size} star`;
       wrap.innerHTML = starImgHTML(star.color, star.size);
       wrap.dataset.animKey = 'star:' + sys.id + ':' + star.color + ':' + star.size + ':' + starIdx;
       wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
       wrap.onmouseleave = () => wrap.style.filter = '';
-      wrap.onclick = () => restartSetup();
+      wrap.onclick = (e) => { e.stopPropagation(); removeSetupPiece('star', _sIdx); };
     } else {
       wrap.innerHTML = starImgHTML(star.color, star.size);
       _stampPid(wrap);
@@ -2448,7 +2449,7 @@ function attachTurnTokenListeners(tokenEl) {
       if (G.phase === 'SETUP' && !G.setupDone) {
       if (G.setupStep < 2) {
         G.bank[color][size]--;
-        G.setupCache.stars.push({ color, size });
+        G.setupCache.stars.push({ color, size, _pid: Date.now() });
         G.setupStep++;
         render();
       } else if (G.setupStep === 2 && size === 3) {
@@ -2509,33 +2510,25 @@ function attachTurnTokenListeners(tokenEl) {
   // Clicking the ship only removes the ship; clicking a star removes that star
   // and all subsequent pieces (ship too), since placement is ordered.
   function removeSetupPiece(type, starIndex) {
-    if (!G.setupDone) return; // shouldn't happen, but guard
+    if (!G.setupDone) return;
     const hw = G.systems.find(s => s.isHomeworld === G.currentPlayer);
     if (!hw) { restartSetup(); return; }
 
-    // Always return the ship
     const ship = hw.ships.find(s => s.owner === G.currentPlayer);
 
     if (type === 'ship') {
-      // Remove ship only — keep both stars placed
       if (ship) G.bank[ship.color][ship.size]++;
-      // Rebuild from the placed stars — move them back to setupCache
-      G.setupCache.stars = hw.stars.map(s => ({ color: s.color, size: s.size }));
+      G.setupCache.stars = hw.stars.map((s, i) => ({ color: s.color, size: s.size, _pid: Date.now() + i }));
       G.setupStep = 2;
-      G.setupDone = false;
-      G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
     } else {
-      // type === 'star' at index starIndex
-      // Return ship + all stars from starIndex onwards
       if (ship) G.bank[ship.color][ship.size]++;
-      for (let i = starIndex; i < hw.stars.length; i++) {
-        G.bank[hw.stars[i].color][hw.stars[i].size]++;
-      }
-      G.setupCache.stars = hw.stars.slice(0, starIndex).map(s => ({ color: s.color, size: s.size }));
-      G.setupStep = starIndex;
-      G.setupDone = false;
-      G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
+      G.bank[hw.stars[starIndex].color][hw.stars[starIndex].size]++;
+      const remaining = hw.stars.filter((_, i) => i !== starIndex);
+      G.setupCache.stars = remaining.map((s, i) => ({ color: s.color, size: s.size, _pid: Date.now() + i }));
+      G.setupStep = remaining.length;
     }
+    G.setupDone = false;
+    G.systems = G.systems.filter(s => s.isHomeworld !== G.currentPlayer);
     G._pendingActions = [];
     window._animSkipSetupPreview = true;
     render();
@@ -2846,17 +2839,18 @@ function renderSetupPreview(zone) {
     wrap.style.cssText = 'cursor:pointer;transition:filter 0.15s;';
     wrap.title = `Remove ${star.color} size-${star.size} star`;
     wrap.innerHTML = starImgHTML(star.color, star.size);
-    wrap.dataset.animKey = 'setuppreview:' + star.color + ':' + star.size + ':' + idx;
+    wrap.dataset.animKey = 'setuppreview:' + star.color + ':' + star.size + ':' + (star._pid || idx);
     console.log('[SETUP] preview star stamped:', wrap.dataset.animKey);
     wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
     wrap.onmouseleave = () => wrap.style.filter = '';
     const _stampTime = Date.now();
     wrap.onclick = (e) => {
       e.stopPropagation();
-      if (Date.now() - _stampTime < 350) return; // ignore phantom clicks from DOM rebuild
+      if (Date.now() - _stampTime < 350) return;
       G.bank[star.color][star.size]++;
       G.setupCache.stars.splice(idx, 1);
-      G.setupStep = idx;
+      G.setupStep = G.setupCache.stars.length;
+      window._animSkipSetupPreview = true;
       render();
     };
     starsDiv.appendChild(wrap);
