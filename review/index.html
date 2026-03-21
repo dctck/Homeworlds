@@ -823,6 +823,9 @@ body::before {
   #sidebar   { order: 2; width: 100%; height: auto !important; overflow: visible !important; border-right: none; flex: none; }
   #board     { order: 3; width: 100%; height: auto !important; overflow: visible !important; padding: 12px; border-bottom: 1px solid var(--border); }
   #right-panel { order: 4; width: 100% !important; height: auto !important; border-left: none; border-top: 1px solid var(--border); display: flex !important; flex-direction: column; }
+  body.sandbox-mode #sidebar { order: 4; }
+  body.sandbox-mode #board   { order: 2; }
+  body.sandbox-mode #right-panel { order: 5; }
 
   /* Nav controls — make buttons big and tappable */
   #review-top { padding: 10px 14px; }
@@ -1137,6 +1140,7 @@ body {
     <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#4a8070">⬡ SANDBOX MODE</div>
     <button onclick="exitSandbox()" style="padding:8px;background:transparent;border:1px solid #2a3850;color:#6080a0;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px">EXIT SANDBOX</button>
     <button id="btn-publish-puzzle" onclick="openPublishPuzzle()" style="display:none;padding:8px;background:rgba(255,204,0,0.08);border:1px solid #4a3800;color:#887030;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseover="this.style.borderColor='#ffcc00';this.style.color='#ffcc00'" onmouseout="this.style.borderColor='#4a3800';this.style.color='#887030'">★ PUBLISH PUZZLE</button>
+    <button id="btn-fresh-sandbox" onclick="freshSandbox()" style="padding:8px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .15s" onmouseover="this.style.borderColor='#ff3344';this.style.color='#ff3344'" onmouseout="this.style.borderColor='#1c2840';this.style.color='#304050'">↺ FRESH SANDBOX</button>
   </div>
     <div id="rv-controls">
     <div id="nav-section">
@@ -1440,6 +1444,7 @@ function render() {
   renderBoard();
   renderSidebar();
   renderLog();
+  saveSandboxState();
   // Show publish button once both HWs exist and we're not in custom setup
   const publishBtn = document.getElementById('btn-publish-puzzle');
   if (publishBtn) {
@@ -1468,8 +1473,8 @@ function checkWin() {
           <button id="_sb_exit" style="padding:12px 28px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">EXIT</button>
         </div>`;
       document.body.appendChild(overlay);
-      overlay.querySelector('#_sb_review').onclick = () => { overlay.remove(); exitSandbox(); };
-      overlay.querySelector('#_sb_exit').onclick = () => { location.href = '/lobby/'; };
+      overlay.querySelector('#_sb_review').onclick = () => { overlay.remove(); clearSandboxState(); exitSandbox(); };
+      overlay.querySelector('#_sb_exit').onclick = () => { clearSandboxState(); location.href = '/lobby/'; };
       return true;
     }
   }
@@ -4324,9 +4329,54 @@ function puzzleCheckResult(won) {
   document.body.appendChild(overlay);
 }
 
+const SB_SAVE_KEY = 'hw_sandbox_save';
+
+function saveSandboxState() {
+  if (_appMode !== 'sandbox' || !G) return;
+  try {
+    const save = {
+      G: {
+        ...G,
+        history: null,
+        _turnStart: null,
+        _gameSnapshots: null,
+      },
+      ts: Date.now()
+    };
+    localStorage.setItem(SB_SAVE_KEY, JSON.stringify(save));
+  } catch(e) {}
+}
+
+function clearSandboxState() {
+  localStorage.removeItem(SB_SAVE_KEY);
+}
+
+function freshSandbox() {
+  const saved = localStorage.getItem(SB_SAVE_KEY);
+  if (saved) {
+    const confirmed = confirm('Start a fresh sandbox? Your saved sandbox session will be lost.');
+    if (!confirmed) return;
+    clearSandboxState();
+  }
+  _appMode = 'review'; // so startSandbox triggers correctly
+  startSandbox(false);
+}
+
 window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   _appMode = 'sandbox';
-  G = fromCurrentSnapshot ? JSON.parse(JSON.stringify(snapshots[currentIdx])) : makeInitialState();
+  let _restored = false;
+  if (!fromCurrentSnapshot) {
+    const saved = localStorage.getItem(SB_SAVE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.G) { G = parsed.G; _restored = true; }
+      } catch(e) {}
+    }
+  }
+  if (!_restored) {
+    G = fromCurrentSnapshot ? JSON.parse(JSON.stringify(snapshots[currentIdx])) : makeInitialState();
+  }
   // Set uid above all existing IDs to prevent collisions with snapshot ship/system IDs
   uid = 0;
   G.systems.forEach(sys => {
@@ -4369,6 +4419,7 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
   // show/hide sandbox UI elements
   document.getElementById('sandbox-toolbar').style.display = 'flex';
   document.getElementById('rv-controls').style.display = 'none';
+  document.body.classList.add('sandbox-mode');
   renderBank(); renderBoard(); renderSidebar(); renderLog();
   document.getElementById('log-turn-count').textContent = '—';
 }
@@ -4376,6 +4427,7 @@ window.exitSandbox = function exitSandbox() {
   _appMode = 'review';
   document.getElementById('sandbox-toolbar').style.display = 'none';
   document.getElementById('rv-controls').style.display = '';
+  document.body.classList.remove('sandbox-mode');
   goTo(currentIdx);
   // Restore review log display
   const logContainer = document.getElementById('log-entries');
