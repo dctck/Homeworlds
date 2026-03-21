@@ -822,11 +822,20 @@ button, .nav-btn, .action-btn { touch-action: manipulation; }
     letter-spacing: 3px; color: var(--bright); padding: 12px 8px;
   }
 
-  /* Reorder sections: players top, then board, stash/actions, then log */
-  #players-section { order: 1; width: 100%; }
-  #sidebar   { order: 3; width: 100%; height: auto !important; overflow: visible !important; border-right: none; flex: none; }
+  /* Mobile order: players+stash (sidebar) → board → log (right-panel) */
+  #sidebar   { order: 1; width: 100%; height: auto !important; overflow: visible !important; border-right: none; flex: none; }
   #board     { order: 2; width: 100%; height: auto !important; overflow: visible !important; padding: 12px; border-bottom: 1px solid var(--border); }
-  #right-panel { order: 4; width: 100% !important; height: auto !important; border-left: none; border-top: 1px solid var(--border); display: flex !important; flex-direction: column; }
+  #right-panel { order: 3; width: 100% !important; height: auto !important; border-left: none; border-top: 1px solid var(--border); display: flex !important; flex-direction: column; }
+  body.sandbox-mode #sidebar { order: 2; }
+  body.sandbox-mode #board   { order: 1; }
+  body.sandbox-mode #right-panel { order: 3; }
+  /* Compact player cards on mobile */
+  #players-section { padding: 6px 10px; gap: 6px; }
+  .rv-player { padding: 5px 8px; gap: 6px; }
+  .rv-avatar { width: 28px !important; height: 28px !important; font-size: 12px; flex-shrink: 0; }
+  .rv-info-name { font-size: 9px; }
+  .rv-info-result { font-size: 9px; }
+  .rv-crown { font-size: 11px; margin-left: auto; flex-shrink: 0; }
 
   /* Nav controls — make buttons big and tappable */
   #review-top { padding: 10px 14px; }
@@ -1013,6 +1022,9 @@ body {
 .nav-btn:disabled { opacity: .2; cursor: not-allowed; }
 #nav-hint { font-size: 12px; color: #2a3850; text-align: center; margin-top: 8px; letter-spacing: 1px; }
 /* Players section */
+#players-section { padding: 8px 12px; flex-shrink: 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: row; gap: 8px; }
+.rv-player { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,.02); border: 1px solid var(--border); flex: 1; min-width: 0; overflow: hidden; }
+.rv-player.winner { border-color: rgba(255,204,0,.35); background: rgba(255,204,0,.04); }
 #action-section { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
 body:not(.sandbox-mode) #player-bar,
 body:not(.sandbox-mode) #action-section { display: none !important; }
@@ -1072,6 +1084,7 @@ body:not(.sandbox-mode) #action-section { display: none !important; }
 
 <!-- LEFT: Sidebar with nav + bank -->
 <div id="sidebar">
+  <div id="players-section"></div>
   <div id="bank-section">
     <div id="bank-title">Stash</div>
     <div id="bank-grid"></div>
@@ -1129,7 +1142,6 @@ body:not(.sandbox-mode) #action-section { display: none !important; }
 </div>
 
 <!-- RIGHT: Log panel (identical structure to game.html) -->
-<div id="players-section"></div>
 <div id="right-panel">
   <div id="sandbox-toolbar" style="display:none;flex-direction:column;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border)">
     <div style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#4a8070">⬡ SANDBOX MODE</div>
