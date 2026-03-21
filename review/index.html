@@ -819,13 +819,10 @@ body::before {
     letter-spacing: 3px; color: var(--bright); padding: 12px 8px;
   }
 
-  /* Reorder sections */
-  #sidebar   { order: 2; width: 100%; height: auto !important; overflow: visible !important; border-right: none; flex: none; }
-  #board     { order: 3; width: 100%; height: auto !important; overflow: visible !important; padding: 12px; border-bottom: 1px solid var(--border); }
+  /* Reorder sections: board first, then stash/actions (sidebar), then log (right-panel) */
+  #sidebar   { order: 3; width: 100%; height: auto !important; overflow: visible !important; border-right: none; flex: none; }
+  #board     { order: 2; width: 100%; height: auto !important; overflow: visible !important; padding: 12px; border-bottom: 1px solid var(--border); }
   #right-panel { order: 4; width: 100% !important; height: auto !important; border-left: none; border-top: 1px solid var(--border); display: flex !important; flex-direction: column; }
-  body.sandbox-mode #sidebar { order: 4; }
-  body.sandbox-mode #board   { order: 2; }
-  body.sandbox-mode #right-panel { order: 5; }
 
   /* Nav controls — make buttons big and tappable */
   #review-top { padding: 10px 14px; }
@@ -882,7 +879,7 @@ body::before {
   #rv-bottom-nav a,
   #rv-bottom-nav button {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 10px 4px 12px;
+    padding: 12px 4px 24px;
     background: none; border: none; border-right: 1px solid var(--border);
     color: #4a6080; font-family: 'Share Tech Mono', monospace; font-size: 9px;
     letter-spacing: 1px; text-decoration: none; cursor: pointer; gap: 3px;
@@ -902,7 +899,7 @@ body::before {
     text-align: center;
     border-left: 1px solid var(--border);
     border-right: 1px solid var(--border);
-    padding: 6px 4px;
+    padding: 8px 4px 16px;
     gap: 1px;
     line-height: 1.3;
   }
