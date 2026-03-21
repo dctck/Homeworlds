@@ -356,8 +356,8 @@ body::before {
   padding: 12px 16px; gap: 0; position: relative; z-index: 1; overflow-y: auto;
 }
 .zone-hw-area { padding: 4px 0 6px; }
-#zone-p2 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
-#zone-p1 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
+#zone-p2 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: visible; }
+#zone-p1 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: visible; }
 /* Mid zone: rows ordered by BFS distance from P2 → P1 */
 #zone-mid {
   display: flex; flex-direction: column; justify-content: center;
@@ -1515,6 +1515,50 @@ function getCatastrophes() {
 function triggerCatastrophe(sysId, color) {
   const sys = findSystem(sysId);
   if (!sys) return;
+
+  const EXPLODE_MS = 480;
+  const affected = [];
+  sys.stars.forEach((s, starIdx) => {
+    if (s.color !== color) return;
+    const key = 'star:' + sys.id + ':' + s.color + ':' + s.size + ':' + starIdx;
+    const el = document.querySelector('[data-anim-key="' + key + '"]');
+    if (el) affected.push({ el, size: s.size, rect: el.getBoundingClientRect(), dims: STAR_DIMS[s.size], folder: 'stars' });
+  });
+  sys.ships.forEach(s => {
+    if (s.color !== color) return;
+    const key = 'ship:' + s.id + ':' + s.color + ':' + s.size;
+    const el = document.querySelector('[data-anim-key="' + key + '"]');
+    if (el) affected.push({ el, size: s.size, rect: el.getBoundingClientRect(), dims: SHIP_DIMS[s.size], folder: 'ships' });
+  });
+
+  if (affected.length === 0) { _execCatastrophe(sysId, color); return; }
+
+  affected.forEach(({ el, size, rect, dims, folder }) => {
+    el.style.visibility = 'hidden';
+    const prefix = SIZE_PREFIX[size];
+    const [w, h] = dims;
+    const exp = document.createElement('div');
+    exp.className = '_hw-explosion';
+    exp.style.cssText = 'position:fixed;pointer-events:none;z-index:10000;' +
+      'left:' + (rect.left + rect.width  / 2 - w / 2) + 'px;' +
+      'top:'  + (rect.top  + rect.height / 2 - h / 2) + 'px;' +
+      'transition:opacity ' + (EXPLODE_MS * 0.5) + 'ms ease-out ' + (EXPLODE_MS * 0.5) + 'ms,' +
+      'transform ' + EXPLODE_MS + 'ms cubic-bezier(0.2,0,0.4,1);transform-origin:center;';
+    exp.innerHTML = '<img src="../assets/' + folder + '/' + prefix + 'e.webp"' +
+      ' width="' + w + '" height="' + h + '" style="display:block;" draggable="false">';
+    document.body.appendChild(exp);
+    exp.offsetHeight;
+    exp.style.transform = 'scale(1.8)';
+    exp.style.opacity   = '0';
+    setTimeout(() => exp.remove(), EXPLODE_MS + 100);
+  });
+
+  _execCatastrophe(sysId, color);
+}
+
+function _execCatastrophe(sysId, color) {
+  const sys = findSystem(sysId);
+  if (!sys) return;
   saveHistory();
   logAction(Note.catastrophe(sys.name, color));
 
@@ -1540,7 +1584,6 @@ function triggerCatastrophe(sysId, color) {
     }
   }
 
-  // Catastrophe does NOT cost the turn — player continues
   G.selectedShipId = null;
   G.interaction = 'IDLE';
   render();
@@ -1943,6 +1986,7 @@ function bfsDistances(startSys) {
 function renderSystem(sys) {
   const card = document.createElement('div');
   card.className = 'system-card';
+  card.dataset.animKey = 'syscard:' + sys.id;
   if (sys.isHomeworld === 1) card.classList.add('homeworld-1');
   if (sys.isHomeworld === 2) card.classList.add('homeworld-2');
   // Active turn glow on current player's homeworld
@@ -4383,22 +4427,25 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
     uid = Math.max(uid, sys.id || 0);
     sys.ships.forEach(ship => { uid = Math.max(uid, ship.id || 0); });
   });
+  // Always reset interaction state
   G.interaction = 'IDLE'; G.selectedShipId = null;
   G._pendingActions = []; G.log = []; G.currentTurn = 1;
   G.customMidAdding = false;
   G.customShipOwner = null; G.customShipSys = null;
   G.customEditingHW = null;
-  G.customPhase = fromCurrentSnapshot ? null : 'HW1_STARS';
-  G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
-  G.setupDone = false; 
-  G.setupStep = 0; 
-  G.setupCache = { stars: [] };
   G.firstMover = G.firstMover || 1;
 
-  if (fromCurrentSnapshot) {
+  if (_restored) {
+    // Restored from save — preserve phase, customPhase, setupDone/Step/Cache from saved G
+    // Only ensure sacrificePool is clean
+    G.sacrificePool = G.sacrificePool || { color: null, count: 0 };
+    G.turnUsed = G.turnUsed || false;
+  } else if (fromCurrentSnapshot) {
+    G.customPhase = null;
+    G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
+    G.setupDone = false; G.setupStep = 0; G.setupCache = { stars: [] };
     const existingHWs = G.systems.filter(s => s.isHomeworld);
     if (existingHWs.length < 2 || G.phase === 'SETUP') {
-      // Still in setup — fix who goes next
       if (existingHWs.length === 0) {
         G.phase = 'SETUP'; G.currentPlayer = 1; G.firstMover = 1;
       } else if (existingHWs.length === 1) {
@@ -4407,13 +4454,14 @@ window.startSandbox = function startSandbox(fromCurrentSnapshot) {
         G.currentPlayer = 3 - G.firstMover;
       }
     } else {
-      // Both HWs exist — force PLAY phase regardless of OVER/etc
       G.phase = 'PLAY';
       delete G.winner;
-      // Snapshot stamps last mover; next is the other player
       G.currentPlayer = 3 - G.currentPlayer;
     }
   } else {
+    G.customPhase = 'HW1_STARS';
+    G.turnUsed = false; G.sacrificePool = { color: null, count: 0 };
+    G.setupDone = false; G.setupStep = 0; G.setupCache = { stars: [] };
     G.phase = 'SETUP'; G.currentPlayer = 1; G.firstMover = 1;
   }
   // show/hide sandbox UI elements
@@ -4650,18 +4698,49 @@ function _initArrows() {
     // ── Forward: board/preview pieces that are new or moved ──
     const _skipPreview = !!window._animSkipSetupPreview;
     window._animSkipSetupPreview = false;
+
+    // Pass 1: FLIP system cards that shifted position (e.g. when a mid-system disappears)
+    const cardDeltas = {};
+    if (!inSetup) {
+      document.querySelectorAll('[data-anim-key^="syscard:"]').forEach(card => {
+        const key = card.dataset.animKey;
+        if (!snap[key]) return;
+        const last = card.getBoundingClientRect();
+        const dx = snap[key].rect.left - last.left;
+        const dy = snap[key].rect.top  - last.top;
+        if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+        const sysId = key.split(':')[1];
+        cardDeltas[sysId] = { dx, dy };
+        card.style.transition = 'none';
+        card.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
+        card.offsetHeight;
+        card.style.transition = 'transform ' + MS + 'ms cubic-bezier(0.2,0,0.2,1)';
+        card.style.transform  = '';
+        card.addEventListener('transitionend', () => {
+          card.style.transition = '';
+          card.style.transform  = '';
+        }, { once: true });
+      });
+    }
+
+    // Pass 2: FLIP/ghost individual pieces
     document.querySelectorAll('[data-anim-key]').forEach(el => {
       const key   = el.dataset.animKey;
       const parts = key.split(':');
-      if (parts[0] === 'bank') return;
+      if (parts[0] === 'bank' || parts[0] === 'syscard') return;
       const last = el.getBoundingClientRect();
 
       if (snap[key] && !inSetup) {
         // FLIP — piece existed, animate from old position to new
-        // Skipped during SETUP: sidebar/layout shifts cause false positives
         const dx = snap[key].rect.left - last.left;
         const dy = snap[key].rect.top  - last.top;
         if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+        // Skip if parent system card FLIP already covers this movement
+        const parentCard = el.closest('[data-anim-key^="syscard:"]');
+        if (parentCard) {
+          const cd = cardDeltas[parentCard.dataset.animKey.split(':')[1]];
+          if (cd && Math.abs(dx - cd.dx) < 3 && Math.abs(dy - cd.dy) < 3) return;
+        }
         console.log('[ANIM] FLIP:', key, '→ dx:', Math.round(dx), 'dy:', Math.round(dy));
         el.style.transition = 'none';
         el.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
@@ -4725,7 +4804,7 @@ function _initArrows() {
 
     // ── Reverse: board/preview pieces that disappeared → fly back to bank ──
     Object.entries(snap).forEach(([key, info]) => {
-      if (key.startsWith('bank:')) return;
+      if (key.startsWith('bank:') || key.startsWith('syscard:')) return;
       if (_skipPreview && (key.startsWith('star:') || key.startsWith('setuppreview:'))) return;
       if (document.querySelector('[data-anim-key="' + key + '"]')) return;
 
