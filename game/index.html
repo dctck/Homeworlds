@@ -451,7 +451,7 @@ body::before {
   text-overflow: ellipsis;
   max-width: 280px;
 }
-#zone-p1 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: hidden; }
+#zone-p1 { min-height: 110px; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: nowrap; overflow: visible; }
 /* Mid zone: rows ordered by BFS distance from P2 → P1 */
 #zone-mid {
   display: flex; flex-direction: column; justify-content: center;
@@ -922,9 +922,9 @@ body::before {
   }
   #mobile-profiles #pcard-1m { border-bottom: none; }
 
-  /* 2 · Stash — right under profiles */
+  /* 2 · Board */
   #bank-section {
-    order: 2;
+    order: 3;
     width: 100%;
     border-right: none;
     border-bottom: 1px solid var(--border);
@@ -934,9 +934,9 @@ body::before {
     grid-template-columns: 52px repeat(3, min(72px, calc((100vw - 52px - 48px) / 3)));
   }
 
-  /* 3 · Board */
+  /* 3 · Stash */
   #board {
-    order: 3;
+    order: 2;
     width: 100%;
     height: auto;
     overflow: visible;
@@ -1685,6 +1685,60 @@ function getCatastrophes() {
 function triggerCatastrophe(sysId, color) {
   const sys = findSystem(sysId);
   if (!sys) return;
+
+  // Collect affected pieces and their current screen positions before state mutation
+  const EXPLODE_MS = 480;
+  const affected = [];
+  sys.stars.forEach((s, starIdx) => {
+    if (s.color !== color) return;
+    const key = 'star:' + sys.id + ':' + s.color + ':' + s.size + ':' + starIdx;
+    const el = document.querySelector('[data-anim-key="' + key + '"]');
+    if (el) affected.push({ el, size: s.size, rect: el.getBoundingClientRect(), dims: STAR_DIMS[s.size], folder: 'stars' });
+  });
+  sys.ships.forEach(s => {
+    if (s.color !== color) return;
+    const key = 'ship:' + s.id + ':' + s.color + ':' + s.size;
+    const el = document.querySelector('[data-anim-key="' + key + '"]');
+    if (el) affected.push({ el, size: s.size, rect: el.getBoundingClientRect(), dims: SHIP_DIMS[s.size], folder: 'ships' });
+  });
+
+  if (affected.length === 0) {
+    // Nothing found in DOM — run immediately (e.g. opponent move applied offscreen)
+    _execCatastrophe(sysId, color);
+    return;
+  }
+
+  // Hide originals, show explosion images in-place
+  affected.forEach(({ el, size, rect, dims, folder }) => {
+    el.style.visibility = 'hidden';
+    const prefix = SIZE_PREFIX[size];
+    const [w, h] = dims;
+    const exp = document.createElement('div');
+    exp.className = '_hw-explosion';
+    exp.style.cssText = 'position:fixed;pointer-events:none;z-index:10000;' +
+      'left:' + (rect.left + rect.width  / 2 - w / 2) + 'px;' +
+      'top:'  + (rect.top  + rect.height / 2 - h / 2) + 'px;' +
+      'transition:opacity ' + (EXPLODE_MS * 0.5) + 'ms ease-out ' + (EXPLODE_MS * 0.5) + 'ms,' +
+      'transform ' + EXPLODE_MS + 'ms cubic-bezier(0.2,0,0.4,1);' +
+      'transform-origin:center;';
+    exp.innerHTML = '<img src="../assets/' + folder + '/' + prefix + 'e.webp"' +
+      ' width="' + w + '" height="' + h + '" style="display:block;" draggable="false">';
+    document.body.appendChild(exp);
+    // Trigger scale+fade animation
+    exp.offsetHeight;
+    exp.style.transform = 'scale(1.8)';
+    exp.style.opacity   = '0';
+    setTimeout(() => exp.remove(), EXPLODE_MS + 100);
+  });
+
+  // Run state mutation immediately — render() fires ghost animations
+  // which play simultaneously with the explosion divs above
+  _execCatastrophe(sysId, color);
+}
+
+function _execCatastrophe(sysId, color) {
+  const sys = findSystem(sysId);
+  if (!sys) return;
   saveHistory();
   logAction(Note.catastrophe(sys.name, color));
 
@@ -1715,6 +1769,7 @@ function triggerCatastrophe(sysId, color) {
   G.interaction = 'IDLE';
   render();
 }
+// ↑ end _execCatastrophe
 
 function cleanSystems() {
   G.systems = G.systems.filter(sys => {
@@ -2683,6 +2738,7 @@ function renderSetupPreview(zone) {
 function renderSystem(sys) {
   const card = document.createElement('div');
   card.className = 'system-card';
+  card.dataset.animKey = 'syscard:' + sys.id;
   if (sys.isHomeworld === 1) card.classList.add('homeworld-1');
   if (sys.isHomeworld === 2) card.classList.add('homeworld-2');
   // Active turn glow on current player's homeworld
@@ -4820,10 +4876,36 @@ function renderMobileLog() {
     // ── Forward: board/preview pieces that are new or moved ──
     const _skipPreview = !!window._animSkipSetupPreview;
     window._animSkipSetupPreview = false;
+
+    // Pass 1: FLIP system cards that shifted position (e.g. when a mid-system disappears)
+    const cardDeltas = {};
+    if (!inSetup) {
+      document.querySelectorAll('[data-anim-key^="syscard:"]').forEach(card => {
+        const key = card.dataset.animKey;
+        if (!snap[key]) return;
+        const last = card.getBoundingClientRect();
+        const dx = snap[key].rect.left - last.left;
+        const dy = snap[key].rect.top  - last.top;
+        if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+        const sysId = key.split(':')[1];
+        cardDeltas[sysId] = { dx, dy };
+        card.style.transition = 'none';
+        card.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
+        card.offsetHeight;
+        card.style.transition = 'transform ' + MS + 'ms cubic-bezier(0.2,0,0.2,1)';
+        card.style.transform  = '';
+        card.addEventListener('transitionend', () => {
+          card.style.transition = '';
+          card.style.transform  = '';
+        }, { once: true });
+      });
+    }
+
+    // Pass 2: FLIP/ghost individual pieces
     document.querySelectorAll('[data-anim-key]').forEach(el => {
       const key   = el.dataset.animKey;
       const parts = key.split(':');
-      if (parts[0] === 'bank') return;
+      if (parts[0] === 'bank' || parts[0] === 'syscard') return;
       const last = el.getBoundingClientRect();
 
       if (snap[key] && !inSetup) {
@@ -4832,6 +4914,12 @@ function renderMobileLog() {
         const dx = snap[key].rect.left - last.left;
         const dy = snap[key].rect.top  - last.top;
         if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+        // Skip if parent system card FLIP already covers this movement
+        const parentCard = el.closest('[data-anim-key^="syscard:"]');
+        if (parentCard) {
+          const cd = cardDeltas[parentCard.dataset.animKey.split(':')[1]];
+          if (cd && Math.abs(dx - cd.dx) < 3 && Math.abs(dy - cd.dy) < 3) return;
+        }
         console.log('[ANIM] FLIP:', key, '→ dx:', Math.round(dx), 'dy:', Math.round(dy));
         el.style.transition = 'none';
         el.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
@@ -4895,7 +4983,7 @@ function renderMobileLog() {
 
     // ── Reverse: board/preview pieces that disappeared → fly back to bank ──
     Object.entries(snap).forEach(([key, info]) => {
-      if (key.startsWith('bank:')) return;
+      if (key.startsWith('bank:') || key.startsWith('syscard:')) return;
       if (_skipPreview && (key.startsWith('star:') || key.startsWith('setuppreview:'))) return;
       if (document.querySelector('[data-anim-key="' + key + '"]')) return;
 
