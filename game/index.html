@@ -1341,7 +1341,7 @@ body::before {
 //  Rendered inline into ship and star SVGs when _colorblindMode is on.
 // ============================================================
 
-window._colorblindMode = localStorage.getItem('hw_colorblind') === '1';
+window._colorblindMode = localStorage.getItem('hw_colorblind') === null ? true : localStorage.getItem('hw_colorblind') === '1';
 if (!window._savedAdvancedMode) {
   window._savedAdvancedMode = localStorage.getItem('hw_advanced') === '1';
 }
