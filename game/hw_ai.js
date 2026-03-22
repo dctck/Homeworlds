@@ -133,6 +133,17 @@
         }
         break;
       }
+      case 'sacrifice': {
+        const sys  = sysById(s, move.sysId); if (!sys) break;
+        const ship = sys.ships.find(sh => sh.id === move.shipId); if (!ship) break;
+        s.bank[ship.color][ship.size]++;
+        sys.ships = sys.ships.filter(sh => sh.id !== move.shipId);
+        cleanSim(s);
+        // Simulate using sac actions as moves of that color
+        // (simplified: score the resulting position with sac pool active)
+        s._sacPool = { color: ship.color, count: ship.size };
+        break;
+      }
       case 'pass': break;
     }
     return s;
@@ -211,6 +222,16 @@
           }
         });
       }
+
+      // SACRIFICE — give up a ship for multiple actions
+      ownShips.forEach(ship => {
+        const isLastInHW = sys.isHomeworld === player && ownShips.length <= 1;
+        if (isLastInHW) return;
+        // Only worth sacrificing size 2 or 3
+        if (ship.size < 2) return;
+        moves.push({ type: 'sacrifice', sysId: sys.id, shipId: ship.id,
+                     sacColor: ship.color, sacCount: ship.size });
+      });
 
       // ATTACK — red
       if (powers.has('red')) {
@@ -414,7 +435,90 @@
     return { star1, star2, shipColor };
   }
 
+  // ── Learning weights (localStorage) ───────────────────────
+  // Signatures: 'build_home','build_mid','move_toward_opp',
+  //             'attack_opp_hw','catastrophe_opp_hw','discover','sacrifice','trade'
+  let _weights = {};
+  try { _weights = JSON.parse(localStorage.getItem('hw_ai_weights') || '{}'); } catch(e) {}
+
+  let _movesThisGame = []; // track move sigs this game
+
+  function moveSignature(move, st, player) {
+    const opp   = 3 - player;
+    const oppHW = getHW(st, opp);
+    const sys   = sysById(st, move.sysId || move.fromSysId);
+    switch (move.type) {
+      case 'build':        return sys?.isHomeworld === player ? 'build_home' : 'build_mid';
+      case 'trade':        return 'trade';
+      case 'discover':     return 'discover';
+      case 'sacrifice':    return 'sacrifice';
+      case 'attack':       return sys?.isHomeworld === opp ? 'attack_opp_hw' : 'attack_mid';
+      case 'catastrophe':  return sys?.isHomeworld === opp ? 'catastrophe_opp_hw' : 'catastrophe_mid';
+      case 'move': {
+        const toSys = sysById(st, move.toSysId);
+        if (toSys?.isHomeworld === opp) return 'move_into_opp_hw';
+        if (oppHW && toSys && connected(toSys, oppHW)) return 'move_toward_opp';
+        return 'move_other';
+      }
+      default: return 'pass';
+    }
+  }
+
+  function learnedBonus(sig) {
+    return (_weights[sig] || 0) * 2; // scale weight into score points
+  }
+
+  function recordMove(sig) {
+    _movesThisGame.push(sig);
+  }
+
+  function onGameEnd(aiWon) {
+    const delta = aiWon ? 0.4 : -0.25;
+    _movesThisGame.forEach(sig => {
+      _weights[sig] = Math.max(-10, Math.min(10, (_weights[sig] || 0) + delta));
+    });
+    try { localStorage.setItem('hw_ai_weights', JSON.stringify(_weights)); } catch(e) {}
+    _movesThisGame = [];
+  }
+
+  // Patch evaluate to include learned weights
+  const _baseEvaluate = evaluate;
+  function evaluateWithLearning(st, aiPlayer) {
+    return _baseEvaluate(st, aiPlayer);
+    // weights applied at pickMove level, not here
+  }
+
+  // Patch pickMove to record move sigs
+  const _basePick = pickMove;
+  function pickMoveWithLearning(G, aiPlayer) {
+    const opp   = 3 - aiPlayer;
+    const moves = generateMoves(G, aiPlayer);
+    let bestMove  = moves[moves.length - 1];
+    let bestScore = -Infinity;
+
+    for (const move of moves) {
+      const st1 = applyMove(G, move, aiPlayer);
+      if (isWin(st1, aiPlayer)) { recordMove(moveSignature(move, G, aiPlayer)); return move; }
+
+      const sig    = moveSignature(move, G, aiPlayer);
+      const bonus  = learnedBonus(sig);
+      const oppMoves = generateMoves(st1, opp);
+      let worstCase  = Infinity;
+      for (const oppMove of oppMoves) {
+        const st2 = applyMove(st1, oppMove, opp);
+        const val = evaluate(st2, aiPlayer);
+        if (val < worstCase) worstCase = val;
+        if (worstCase <= bestScore) break;
+      }
+      const total = worstCase + bonus;
+      if (total > bestScore) { bestScore = total; bestMove = move; }
+    }
+
+    recordMove(moveSignature(bestMove, G, aiPlayer));
+    return bestMove;
+  }
+
   // ── Public API ─────────────────────────────────────────────
-  window.HW_AI = { pickMove, pickSetup };
+  window.HW_AI = { pickMove: pickMoveWithLearning, pickSetup, onGameEnd };
 
 })();

@@ -1389,8 +1389,8 @@ function patchPassBannerForAI() {
   const _orig = window.showPassBanner;
   window.showPassBanner = function(title, subtitle) {
     if (window._AI_ENABLED) {
-      // Still need timer running — just skip the overlay
       if (typeof startTimerTick === 'function') startTimerTick();
+      render(); // still need board to update for whoever's turn it now is
       return;
     }
     _orig(title, subtitle);
@@ -2834,7 +2834,7 @@ function renderBoard() {
     }
   }
   // During setup: show confirm token on current player's zone when setup is done
-  if (G.phase === 'SETUP' && G.setupDone) {
+  if (G.phase === 'SETUP' && G.setupDone && !(window._AI_ENABLED && G.currentPlayer === window._AI_SLOT)) {
     const setupZone = G.currentPlayer === 1 ? zP1 : zP2;
     setupZone.appendChild(makeSetupToken(G.currentPlayer));
   }
@@ -5023,9 +5023,8 @@ function showReportDialog(player) {
 
     // ── AI config ─────────────────────────────────────────────
     if (_aiMode) {
-      // AI slot: if AI goes first it's player 1, else player 2
       window._AI_ENABLED  = true;
-      window._AI_SLOT     = _aiGoesFirst ? 1 : 2;
+      window._AI_SLOT     = 2;  // AI is always P2
       window._AI_AUTO_HW  = _aiAutoHW;
       window._aiThinking  = false;
     } else {
@@ -5044,9 +5043,10 @@ function showReportDialog(player) {
     G = makeInitialState();
     G._p1name = name1; G._p2name = name2;
     // AI goes first = AI is firstMover (sets up HW first)
-    if (_aiMode) {
-      G.firstMover    = window._AI_SLOT;
-      G.currentPlayer = window._AI_SLOT;
+    if (_aiMode && _aiGoesFirst) {
+      // AI (P2) sets up first, also goes first in play
+      G.firstMover    = 2;
+      G.currentPlayer = 2;
     }
     G._turnStart = null;
     G._turnStart = JSON.stringify(G);
@@ -5100,6 +5100,13 @@ function showReportDialog(player) {
   sb.onmouseenter = () => { sb.style.background='rgba(34,102,255,0.25)'; sb.style.color='#88aaff'; };
   sb.onmouseleave = () => { sb.style.background='rgba(34,102,255,0.15)'; sb.style.color='#4488ff'; };
 })();
+
+// AI game-end learning hook — registered once at page load
+window.addEventListener('gameEnded', ({ detail }) => {
+  if (!window._AI_ENABLED || !window.HW_AI?.onGameEnd) return;
+  const aiWon = detail.winner === window._AI_SLOT;
+  window.HW_AI.onGameEnd(aiWon);
+});
 
 // ============================================================
 //  MOBILE — Nav, Tab switching, Profile sync
