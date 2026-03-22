@@ -4985,8 +4985,6 @@ function renderMobileLog() {
 
   function runWithAnim(fn, ctx, args) {
     const inSetup = typeof G !== 'undefined' && G && G.phase === 'SETUP';
-    console.log('[ANIM] fired — phase:', G?.phase, 'setupDone:', G?.setupDone,
-      'setupStep:', G?.setupStep, 'cacheLen:', G?.setupCache?.stars?.length);
 
     // Snapshot all current piece positions before render
     const snap = {};
@@ -4997,7 +4995,6 @@ function renderMobileLog() {
         html: bpw ? bpw.innerHTML : el.innerHTML
       };
     });
-    console.log('[ANIM] snapped', Object.keys(snap).length, 'keys');
 
     fn.apply(ctx, args);
 
@@ -5048,7 +5045,6 @@ function renderMobileLog() {
           const cd = cardDeltas[parentCard.dataset.animKey.split(':')[1]];
           if (cd && Math.abs(dx - cd.dx) < 3 && Math.abs(dy - cd.dy) < 3) return;
         }
-        console.log('[ANIM] FLIP:', key, '→ dx:', Math.round(dx), 'dy:', Math.round(dy));
         el.style.transition = 'none';
         el.style.transform  = 'translate(' + dx + 'px,' + dy + 'px)';
         el.offsetHeight;
@@ -5078,11 +5074,9 @@ function renderMobileLog() {
         const srcKey = (spKey && snap[spKey]) ? spKey : 'bank:' + color + ':' + size;
 
         if (!snap[srcKey]) {
-          console.log('[ANIM] ghost skipped — no source for:', key, '(tried', srcKey + ')');
           return;
         }
-        console.log('[ANIM] ghost:', key, 'from', srcKey);
-
+        
         const fr = snap[srcKey].rect;
         const g  = document.createElement('div');
         g.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;display:inline-block;' +
@@ -5134,7 +5128,6 @@ function renderMobileLog() {
           }
         });
         if (hasForwardGhost) {
-          console.log('[ANIM] skipping reverse for', key, '(star being forward-ghosted to system)');
           return;
         }
       }
@@ -5146,7 +5139,6 @@ function renderMobileLog() {
       const bkEl  = document.querySelector('[data-anim-key="bank:' + color + ':' + size + '"]');
       if (!bkEl) return;
 
-      console.log('[ANIM] reverse ghost:', key, '→ bank:', color, size);
       const dest = bkEl.getBoundingClientRect();
       const g = document.createElement('div');
       g.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;display:inline-block;' +
