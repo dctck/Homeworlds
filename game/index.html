@@ -1329,7 +1329,31 @@ body::before {
     <div id="resume-game-row" style="display:none;margin-bottom:10px;">
       <button id="btn-resume-game" style="width:100%;padding:12px;background:rgba(34,221,119,0.1);border:1px solid rgba(34,221,119,0.4);color:#22dd77;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;">↩ RESUME SAVED GAME</button>
     </div>
-    <div style="display:flex;gap:10px;margin-top:0;">
+    <!-- VS AI toggle row -->
+<div style="margin-bottom:16px;">
+  <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#304050;margin-bottom:8px;text-transform:uppercase;">Mode</div>
+  <div style="display:flex;gap:8px;">
+    <button id="mode-pvp" class="mode-btn mode-active" style="flex:1;padding:9px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;border-radius:4px;transition:all .15s;">⚔ PASS &amp; PLAY</button>
+    <button id="mode-ai" class="mode-btn" style="flex:1;padding:9px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;border-radius:4px;transition:all .15s;">🤖 VS AI</button>
+  </div>
+</div>
+
+<!-- AI options (hidden by default) -->
+<div id="ai-options" style="display:none;margin-bottom:16px;padding:12px;border:1px solid #1c2840;border-radius:6px;background:rgba(255,255,255,0.02);">
+  <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#304050;margin-bottom:8px;">WHO SETS UP FIRST</div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;">
+    <button id="ai-first-ai" style="flex:1;padding:7px;background:rgba(255,68,85,0.12);border:1px solid #ff4455;color:#ff6677;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">AI FIRST</button>
+    <button id="ai-first-human" style="flex:1;padding:7px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">YOU FIRST</button>
+  </div>
+  <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#304050;margin-bottom:8px;">AI HOMEWORLD</div>
+  <div style="display:flex;gap:8px;">
+    <button id="ai-hw-auto" style="flex:1;padding:7px;background:rgba(34,221,119,0.1);border:1px solid #22dd77;color:#22dd77;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">AI CHOOSES</button>
+    <button id="ai-hw-manual" style="flex:1;padding:7px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">YOU SET IT UP</button>
+  </div>
+  <div id="ai-hw-hint" style="font-size:11px;color:#2a4055;margin-top:8px;line-height:1.6;letter-spacing:0.5px;">AI will choose its own homeworld stars and ship.</div>
+</div>
+
+<div style="display:flex;gap:10px;margin-top:0;">
       <a href="/lobby/" style="flex-shrink:0;padding:14px 18px;background:transparent;border:1px solid #1c2840;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;text-decoration:none;display:flex;align-items:center;transition:all 0.2s;" onmouseenter="this.style.color='#88aacc';this.style.borderColor='#3a5080'" onmouseleave="this.style.color='#4a6080';this.style.borderColor='#1c2840'">← LOBBY</a>
 
 
