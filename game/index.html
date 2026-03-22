@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="/assets/appIcons/icon-192.png">
 <link rel="manifest" href="/manifest.json">
 
+
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -1044,6 +1045,9 @@ body::before {
   #mobile-logchat { display: none !important; }
 }
 </style>
+
+<script src="hw_ai.js"></script>
+
 </head>
 <body>
 
@@ -1344,6 +1348,130 @@ body::before {
 window._colorblindMode = localStorage.getItem('hw_colorblind') === null ? true : localStorage.getItem('hw_colorblind') === '1';
 if (!window._savedAdvancedMode) {
   window._savedAdvancedMode = localStorage.getItem('hw_advanced') === '1';
+}
+
+
+
+// ── AI config ────────────────────────────────────────────────
+
+window._AI_ENABLED = false;  // flip true to activate AI opponent
+window._AI_SLOT    = 2;      // AI plays as player 2
+window._aiThinking = false;  // re-entrancy guard
+
+function triggerAITurn() {
+  if (!window._AI_ENABLED || !window.HW_AI) return;
+  if (G.phase !== 'PLAY' || G.currentPlayer !== window._AI_SLOT) return;
+  window._aiThinking = true;
+  setGuide('⏳ AI is thinking…');
+  setTimeout(() => {
+    if (G.phase !== 'PLAY' || G.currentPlayer !== window._AI_SLOT) {
+      window._aiThinking = false;
+      return;
+    }
+    const move = window.HW_AI.pickMove(G, window._AI_SLOT);
+    executeAIMove(move);
+    window._aiThinking = false;
+  }, 1200 + Math.random() * 600); // 1.2–1.8s fake think delay
+}
+
+function executeAIMove(move) {
+  const player = window._AI_SLOT;
+  saveHistory();
+
+  switch (move.type) {
+
+    case 'build': {
+      const sys = findSystem(move.sysId); if (!sys) break;
+      const sz  = [1,2,3].find(z => G.bank[move.color][z] > 0); if (!sz) break;
+      G.bank[move.color][sz]--;
+      const ship = { id: nextId(), color: move.color, size: sz, owner: player };
+      sys.ships.push(ship);
+      logAction(Note.build(ship, sys.name));
+      break;
+    }
+
+    case 'trade': {
+      const sys  = findSystemByShip(move.shipId); if (!sys) break;
+      const ship = findShip(move.shipId);         if (!ship) break;
+      logAction(Note.trade(ship, sys.name, move.newColor));
+      G.bank[ship.color][ship.size]++;
+      G.bank[move.newColor][ship.size]--;
+      ship.color = move.newColor;
+      break;
+    }
+
+    case 'move': {
+      const from = findSystem(move.fromSysId);
+      const to   = findSystem(move.toSysId);
+      const ship = findShip(move.shipId);
+      if (!from || !to || !ship) break;
+      logAction(Note.move(ship, from.name, to.name));
+      from.ships = from.ships.filter(s => s.id !== move.shipId);
+      to.ships.push(ship);
+      cleanSystems();
+      break;
+    }
+
+    case 'discover': {
+      const from = findSystem(move.fromSysId);
+      const ship = findShip(move.shipId);
+      if (!from || !ship) break;
+      G.bank[move.starColor][move.starSize]--;
+      const newName = randomStarName();
+      const newSys  = {
+        id: nextId(), name: newName, isHomeworld: null,
+        discoveredBy: player,
+        stars: [{ color: move.starColor, size: move.starSize }],
+        ships: []
+      };
+      logAction(Note.discover(ship, from.name, move.starColor, move.starSize, newName));
+      from.ships = from.ships.filter(s => s.id !== move.shipId);
+      newSys.ships.push(ship);
+      G.systems.push(newSys);
+      cleanSystems();
+      break;
+    }
+
+    case 'attack': {
+      const sys    = findSystem(move.sysId); if (!sys) break;
+      const target = findShip(move.targetId); if (!target) break;
+      logAction(Note.hijack(target, sys.name));
+      target.owner = player;
+      break;
+    }
+
+    case 'catastrophe': {
+      // Direct mutation — skip triggerCatastrophe() to avoid its animation path
+      const sys = findSystem(move.sysId); if (!sys) break;
+      const c   = move.color;
+      logAction(Note.catastrophe(sys.name, c));
+      sys.stars.filter(s => s.color === c).forEach(s => G.bank[s.color][s.size]++);
+      sys.ships.filter(s => s.color === c).forEach(s => G.bank[s.color][s.size]++);
+      sys.stars = sys.stars.filter(s => s.color !== c);
+      sys.ships = sys.ships.filter(s => s.color !== c);
+      if (!sys.isHomeworld) {
+        if (sys.ships.length === 0 || sys.stars.length === 0) {
+          sys.stars.forEach(s => G.bank[s.color][s.size]++);
+          sys.ships.forEach(s => G.bank[s.color][s.size]++);
+          G.systems = G.systems.filter(sx => sx.id !== sys.id);
+        }
+      } else if (sys.stars.length === 0) {
+        sys.ships.forEach(s => G.bank[s.color][s.size]++);
+        sys.ships = [];
+      }
+      break;
+    }
+
+    case 'pass':
+    default:
+      logAction(Note.skip());
+      break;
+  }
+
+  // doEndTurn() handles: commitTurnLog, G.currentPlayer flip,
+  // turnUsed reset, sacrificePool reset, checkWin, render — everything
+  G.turnUsed = true;
+  doEndTurn();
 }
 
 
@@ -2234,6 +2362,11 @@ function render() {
   if (window._pushLiveState && window._ONLINE?.active && !window._liveOverride &&
       G && G.phase === 'PLAY' && G.currentPlayer === window._ONLINE.mySlot) {
     window._pushLiveState();
+  }
+
+  if (window._AI_ENABLED && !window._aiThinking &&
+    G?.phase === 'PLAY' && G?.currentPlayer === window._AI_SLOT) {
+  triggerAITurn();
   }
 }
 
