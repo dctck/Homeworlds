@@ -1331,6 +1331,58 @@ body::before {
     </div>
     <div style="display:flex;gap:10px;margin-top:0;">
       <a href="/lobby/" style="flex-shrink:0;padding:14px 18px;background:transparent;border:1px solid #1c2840;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:6px;text-decoration:none;display:flex;align-items:center;transition:all 0.2s;" onmouseenter="this.style.color='#88aacc';this.style.borderColor='#3a5080'" onmouseleave="this.style.color='#4a6080';this.style.borderColor='#1c2840'">← LOBBY</a>
+
+
+      
+      <!-- VS AI toggle row -->
+      <div style="margin-bottom:16px;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#304050;margin-bottom:8px;text-transform:uppercase;">Mode</div>
+        <div style="display:flex;gap:8px;">
+          <button id="mode-pvp" class="mode-btn mode-active"
+            style="flex:1;padding:9px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;border-radius:4px;transition:all .15s;">
+            ⚔ PASS &amp; PLAY
+          </button>
+          <button id="mode-ai" class="mode-btn"
+            style="flex:1;padding:9px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;border-radius:4px;transition:all .15s;">
+            🤖 VS AI
+          </button>
+        </div>
+      </div>
+
+      <!-- AI options (hidden by default) -->
+      <div id="ai-options" style="display:none;margin-bottom:16px;padding:12px;border:1px solid #1c2840;border-radius:6px;background:rgba(255,255,255,0.02);">
+
+        <!-- Who goes first -->
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#304050;margin-bottom:8px;">WHO SETS UP FIRST</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <button id="ai-first-ai" class="ai-opt-btn ai-opt-active"
+            style="flex:1;padding:7px;background:rgba(255,68,85,0.12);border:1px solid #ff4455;color:#ff6677;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">
+            AI FIRST
+          </button>
+          <button id="ai-first-human" class="ai-opt-btn"
+            style="flex:1;padding:7px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">
+            YOU FIRST
+          </button>
+        </div>
+
+        <!-- AI homeworld setup -->
+        <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#304050;margin-bottom:8px;">AI HOMEWORLD</div>
+        <div style="display:flex;gap:8px;">
+          <button id="ai-hw-auto" class="ai-hw-btn ai-hw-active"
+            style="flex:1;padding:7px;background:rgba(34,221,119,0.1);border:1px solid #22dd77;color:#22dd77;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">
+            AI CHOOSES
+          </button>
+          <button id="ai-hw-manual" class="ai-hw-btn"
+            style="flex:1;padding:7px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">
+            YOU SET IT UP
+          </button>
+        </div>
+        <div id="ai-hw-hint" style="font-size:11px;color:#2a4055;margin-top:8px;line-height:1.6;letter-spacing:0.5px;">
+          AI will choose its own homeworld stars and ship.
+        </div>
+      </div>
+
+
       <button id="btn-start-game" style="flex:1;padding:14px;background:rgba(34,102,255,0.15);border:1px solid #2266ff;color:#4488ff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:all 0.2s;">
         LAUNCH GAME ›
       </button>
@@ -1354,32 +1406,85 @@ if (!window._savedAdvancedMode) {
 
 // ── AI config ────────────────────────────────────────────────
 
-window._AI_ENABLED = false;  // flip true to activate AI opponent
-window._AI_SLOT    = 2;      // AI plays as player 2
-window._aiThinking = false;  // re-entrancy guard
+window._AI_ENABLED = false;
+window._AI_SLOT    = 1;   // AI is player 1 — sets up HW first, human reacts as P2
+window._aiThinking = false;
 
+// ── Suppress pass-device banner when playing AI ──────────────
+// Patch showPassBanner so it never shows when AI is involved.
+function patchPassBannerForAI() {
+  const _orig = window.showPassBanner;
+  window.showPassBanner = function(title, subtitle) {
+    if (window._AI_ENABLED) {
+      // Still need timer running — just skip the overlay
+      if (typeof startTimerTick === 'function') startTimerTick();
+      return;
+    }
+    _orig(title, subtitle);
+  };
+}
+
+// ── AI homeworld setup ────────────────────────────────────────
+function triggerAISetup() {
+  if (!window._AI_ENABLED || !window.HW_AI) return;
+  if (!window._AI_AUTO_HW) return; // human is manually setting up AI's HW
+  if (G.phase !== 'SETUP' || G.currentPlayer !== window._AI_SLOT) return;
+  if (window._aiThinking) return;
+  window._aiThinking = true;
+  setGuide('⏳ AI is choosing homeworld…');
+
+  setTimeout(() => {
+    const { star1, star2, shipColor } = window.HW_AI.pickSetup(G.bank);
+    if (!star1 || !star2) { window._aiThinking = false; return; }
+
+    // Place star 1
+    G.bank[star1.color][star1.size]--;
+    G.setupCache.stars.push({ color: star1.color, size: star1.size });
+    render();
+
+    setTimeout(() => {
+      // Place star 2
+      G.bank[star2.color][star2.size]--;
+      G.setupCache.stars.push({ color: star2.color, size: star2.size });
+      render();
+
+      setTimeout(() => {
+        // Finalize with ship — finalizeSetup handles bank deduction + state transition
+        finalizeSetup(shipColor);
+        window._aiThinking = false;
+
+        setTimeout(() => {
+          doEndTurn(); // hand off to human (player 2)
+        }, 500);
+      }, 600);
+    }, 600);
+  }, 1000);
+}
+
+// ── AI play turn ──────────────────────────────────────────────
 function triggerAITurn() {
   if (!window._AI_ENABLED || !window.HW_AI) return;
   if (G.phase !== 'PLAY' || G.currentPlayer !== window._AI_SLOT) return;
+  if (window._aiThinking) return;
   window._aiThinking = true;
   setGuide('⏳ AI is thinking…');
+
   setTimeout(() => {
     if (G.phase !== 'PLAY' || G.currentPlayer !== window._AI_SLOT) {
-      window._aiThinking = false;
-      return;
+      window._aiThinking = false; return;
     }
     const move = window.HW_AI.pickMove(G, window._AI_SLOT);
     executeAIMove(move);
     window._aiThinking = false;
-  }, 1200 + Math.random() * 600); // 1.2–1.8s fake think delay
+  }, 1200 + Math.random() * 800);
 }
 
+// ── Execute the chosen move ───────────────────────────────────
 function executeAIMove(move) {
   const player = window._AI_SLOT;
   saveHistory();
 
   switch (move.type) {
-
     case 'build': {
       const sys = findSystem(move.sysId); if (!sys) break;
       const sz  = [1,2,3].find(z => G.bank[move.color][z] > 0); if (!sz) break;
@@ -1389,7 +1494,6 @@ function executeAIMove(move) {
       logAction(Note.build(ship, sys.name));
       break;
     }
-
     case 'trade': {
       const sys  = findSystemByShip(move.shipId); if (!sys) break;
       const ship = findShip(move.shipId);         if (!ship) break;
@@ -1399,7 +1503,6 @@ function executeAIMove(move) {
       ship.color = move.newColor;
       break;
     }
-
     case 'move': {
       const from = findSystem(move.fromSysId);
       const to   = findSystem(move.toSysId);
@@ -1411,7 +1514,6 @@ function executeAIMove(move) {
       cleanSystems();
       break;
     }
-
     case 'discover': {
       const from = findSystem(move.fromSysId);
       const ship = findShip(move.shipId);
@@ -1431,7 +1533,6 @@ function executeAIMove(move) {
       cleanSystems();
       break;
     }
-
     case 'attack': {
       const sys    = findSystem(move.sysId); if (!sys) break;
       const target = findShip(move.targetId); if (!target) break;
@@ -1439,9 +1540,8 @@ function executeAIMove(move) {
       target.owner = player;
       break;
     }
-
     case 'catastrophe': {
-      // Direct mutation — skip triggerCatastrophe() to avoid its animation path
+      // Direct mutation — skip triggerCatastrophe() animation path
       const sys = findSystem(move.sysId); if (!sys) break;
       const c   = move.color;
       logAction(Note.catastrophe(sys.name, c));
@@ -1461,15 +1561,13 @@ function executeAIMove(move) {
       }
       break;
     }
-
     case 'pass':
     default:
       logAction(Note.skip());
       break;
   }
 
-  // doEndTurn() handles: commitTurnLog, G.currentPlayer flip,
-  // turnUsed reset, sacrificePool reset, checkWin, render — everything
+  // doEndTurn handles: commit, player flip, checkWin, render — everything
   G.turnUsed = true;
   doEndTurn();
 }
@@ -2364,10 +2462,14 @@ function render() {
     window._pushLiveState();
   }
 
-  if (window._AI_ENABLED && !window._aiThinking &&
-    G?.phase === 'PLAY' && G?.currentPlayer === window._AI_SLOT) {
-  triggerAITurn();
-  }
+   if (window._AI_ENABLED && !window._aiThinking) {
+     if (G?.phase === 'PLAY' && G?.currentPlayer === window._AI_SLOT) {
+       triggerAITurn();
+     } else if (G?.phase === 'SETUP' && G?.currentPlayer === window._AI_SLOT) {
+       triggerAISetup();
+     }
+   }
+
 }
 
 // ============================================================
@@ -4862,9 +4964,74 @@ function showReportDialog(player) {
   });
   renderTCInputs('unlimited'); // init
 
+
+  // ── Mode toggle ──────────────────────────────────────────────
+  let _aiMode      = false;
+  let _aiGoesFirst = true;   // AI sets up first (player reacts)
+  let _aiAutoHW    = true;   // AI picks its own HW
+
+  function _setModeBtn(isAI) {
+    _aiMode = isAI;
+    const pvp = document.getElementById('mode-pvp');
+    const ai  = document.getElementById('mode-ai');
+    const opts = document.getElementById('ai-options');
+    const p2col = document.getElementById('p2-col'); // your existing P2 name column
+
+    if (isAI) {
+      pvp.style.background = 'transparent';    pvp.style.borderColor = '#1c2840'; pvp.style.color = '#304050';
+      ai.style.background  = 'rgba(34,102,255,0.15)'; ai.style.borderColor = '#2266ff'; ai.style.color = '#4488ff';
+      opts.style.display   = 'block';
+      // Lock P2 name to AI
+      const n2 = document.getElementById('setup-name-2');
+      if (n2) { n2.value = 'AI'; n2.disabled = true; n2.style.opacity = '0.4'; }
+    } else {
+      ai.style.background  = 'transparent';    ai.style.borderColor = '#1c2840'; ai.style.color = '#304050';
+      pvp.style.background = 'rgba(34,102,255,0.15)'; pvp.style.borderColor = '#2266ff'; pvp.style.color = '#4488ff';
+      opts.style.display   = 'none';
+      const n2 = document.getElementById('setup-name-2');
+      if (n2) { n2.disabled = false; n2.style.opacity = '1'; if (n2.value === 'AI') n2.value = 'Player 2'; }
+    }
+  }
+
+  function _setAIFirst(aiFirst) {
+    _aiGoesFirst = aiFirst;
+    const ba = document.getElementById('ai-first-ai');
+    const bh = document.getElementById('ai-first-human');
+    if (aiFirst) {
+      ba.style.background = 'rgba(255,68,85,0.12)'; ba.style.borderColor = '#ff4455'; ba.style.color = '#ff6677';
+      bh.style.background = 'transparent'; bh.style.borderColor = '#1c2840'; bh.style.color = '#304050';
+    } else {
+      bh.style.background = 'rgba(68,136,255,0.12)'; bh.style.borderColor = '#4488ff'; bh.style.color = '#4488ff';
+      ba.style.background = 'transparent'; ba.style.borderColor = '#1c2840'; ba.style.color = '#304050';
+    }
+  }
+
+  function _setAIHW(auto) {
+    _aiAutoHW = auto;
+    const ba = document.getElementById('ai-hw-auto');
+    const bm = document.getElementById('ai-hw-manual');
+    const hint = document.getElementById('ai-hw-hint');
+    if (auto) {
+      ba.style.background = 'rgba(34,221,119,0.1)'; ba.style.borderColor = '#22dd77'; ba.style.color = '#22dd77';
+      bm.style.background = 'transparent'; bm.style.borderColor = '#1c2840'; bm.style.color = '#304050';
+      hint.textContent = 'AI will choose its own homeworld stars and ship.';
+    } else {
+      bm.style.background = 'rgba(255,204,0,0.1)'; bm.style.borderColor = '#ffcc00'; bm.style.color = '#ffcc00';
+      ba.style.background = 'transparent'; ba.style.borderColor = '#1c2840'; ba.style.color = '#304050';
+      hint.textContent = 'You will set up the AI\'s homeworld — same as normal setup.';
+    }
+  }
+
+  document.getElementById('mode-pvp').onclick    = () => _setModeBtn(false);
+  document.getElementById('mode-ai').onclick     = () => _setModeBtn(true);
+  document.getElementById('ai-first-ai').onclick    = () => _setAIFirst(true);
+  document.getElementById('ai-first-human').onclick = () => _setAIFirst(false);
+  document.getElementById('ai-hw-auto').onclick  = () => _setAIHW(true);
+  document.getElementById('ai-hw-manual').onclick = () => _setAIHW(false);
+
   document.getElementById('btn-start-game').addEventListener('click', () => {
     const name1 = document.getElementById('setup-name-1').value.trim() || 'Player 1';
-    const name2 = document.getElementById('setup-name-2').value.trim() || 'Player 2';
+    const name2 = _aiMode ? 'AI' : (document.getElementById('setup-name-2').value.trim() || 'Player 2');
     const elo1  = document.getElementById('setup-elo-1').value.trim() || '1200';
     const elo2  = document.getElementById('setup-elo-2').value.trim() || '1200';
     const activeTC = document.querySelector('.tc-btn.tc-active');
@@ -4872,7 +5039,6 @@ function showReportDialog(player) {
 
     function _ppReadMs(fId) {
       const val = parseInt(document.getElementById(fId)?.value)||0;
-      // Find the active unit button (has blue background style)
       const unitBtns = document.getElementById(fId)?.parentElement?.querySelectorAll('button[data-unit]');
       let unit = 'min';
       unitBtns?.forEach(b => { if(b.style.background && b.style.background.includes('68,136,255')) unit = b.dataset.unit; });
@@ -4882,18 +5048,34 @@ function showReportDialog(player) {
     if (mode==='blitz')  timeMs  = _ppReadMs('tc-blitz-val')||10*60*1000;
     else if (mode==='turn') { tcTurnMs=_ppReadMs('tc-turn-val')||5*60*1000; timeMs=tcTurnMs; }
 
+    // ── AI config ─────────────────────────────────────────────
+    if (_aiMode) {
+      // AI slot: if AI goes first it's player 1, else player 2
+      window._AI_ENABLED  = true;
+      window._AI_SLOT     = _aiGoesFirst ? 1 : 2;
+      window._AI_AUTO_HW  = _aiAutoHW;
+      window._aiThinking  = false;
+    } else {
+      window._AI_ENABLED  = false;
+    }
+
     PLAYER_CONFIG = {
       names:    ['', name1, name2],
       elos:     ['', elo1, elo2],
       timeMs,
       tcMode:   mode,
-      tcTurnMs, // for turn mode
+      tcTurnMs,
       advancedMode: document.getElementById('setup-advanced').checked || !!(window._savedAdvancedMode),
     };
 
     G = makeInitialState();
     G._p1name = name1; G._p2name = name2;
-    G._turnStart = null; // start clean — no prior state to capture
+    // AI goes first = AI is firstMover (sets up HW first)
+    if (_aiMode) {
+      G.firstMover    = window._AI_SLOT;
+      G.currentPlayer = window._AI_SLOT;
+    }
+    G._turnStart = null;
     G._turnStart = JSON.stringify(G);
     document.getElementById('startup-modal').remove();
     const _lbr = document.getElementById('btn-lobby-row');
@@ -4902,6 +5084,7 @@ function showReportDialog(player) {
     initChat();
     renderPlayerCards();
     render();
+    patchPassBannerForAI();
   });
 
   // Pre-check advanced mode checkbox if player has it saved
