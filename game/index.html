@@ -5364,11 +5364,8 @@ import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getAuth, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getDatabase, ref, get, set, update, push, onValue, onChildAdded, onDisconnect }
+import { getDatabase, ref, get, set, update, push, onValue, onChildAdded, onDisconnect, runTransaction }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-
-window._db = getDatabase(app);
-window._firebaseRefs = { ref, get, runTransaction };
 
 import { firebaseConfig } from '/firebase-config.js';
 
@@ -5376,6 +5373,11 @@ const params  = new URLSearchParams(window.location.search);
 const ROOM_ID = params.get('room');
 const MY_SLOT = parseInt(params.get('player')) || 0;
 const OPP_SLOT = 3 - MY_SLOT; // 1→2, 2→1
+
+window._firebaseRefs = { ref, get, runTransaction };
+// db for AI counter — works in pass-and-play too
+const _aiCountDb = getDatabase(initializeApp(firebaseConfig, 'ai-count'));
+window._db = window._db || _aiCountDb;
 
 if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   // Pass-and-play — nothing to do
@@ -5385,6 +5387,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   const auth  = getAuth(fbApp);
   const db    = getDatabase(fbApp);
   window._db = db;
+  window._firebaseRefs = { ref, get, runTransaction };
   let _started = false;
 
 function showAuthWall(msg, isWrongAccount) {
