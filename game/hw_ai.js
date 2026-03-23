@@ -274,126 +274,7 @@
     const mySystems  = new Set();
     const oppSystems = new Set();
 
-    // ── Per-system scoring ─────────────────────────────────
-    st.systems.forEach(sys => {
-      const myShips  = sys.ships.filter(s => s.owner === aiPlayer);
-      const oppShips = sys.ships.filter(s => s.owner === opp);
-
-      // Raw ship power — size² weighted
-      myShips.forEach(s  => { score += s.size * s.size; });
-      oppShips.forEach(s => { score -= s.size * s.size; });
-
-      if (myShips.length)  mySystems.add(sys.id);
-      if (oppShips.length) oppSystems.add(sys.id);
-
-      // Spread bonus: ships in mid systems
-      if (!sys.isHomeworld && myShips.length)  score += 3;
-      if (!sys.isHomeworld && oppShips.length) score -= 2;
-
-      // ── Doomsday Machine setup ─────────────────────────
-      // Ships of opponent HW star colors positioned 1 hop from opp HW
-      if (oppHW && sys.id !== oppHW.id && connected(sys, oppHW)) {
-        const oppHWColors = new Set(oppHW.stars.map(s => s.color));
-        myShips.forEach(s => {
-          if (oppHWColors.has(s.color)) score += s.size * 8; // aligned for catastrophe
-        });
-        score += myShips.length * 4; // any ship 1 hop away = general threat
-      }
-
-      // Ships already IN opponent HW
-      if (sys.isHomeworld === opp) {
-        myShips.forEach(s => { score += s.size * 10; });
-        // Direct assault path: large ship in opp HW = near win
-        const bigInvader = myShips.reduce((m, s) => s.size > m ? s.size : m, 0);
-        if (bigInvader >= 3) score += 20;
-      }
-
-      // ── Catastrophe pressure in opponent HW ───────────
-      if (sys.isHomeworld === opp) {
-        COLORS.forEach(c => {
-          const p = cataPressure(sys, c);
-          if (p >= 3) score += p * 20; // one move from catastrophe
-          else if (p === 2) score += 8;
-        });
-      }
-
-      // Catastrophe staging in mid systems
-      if (!sys.isHomeworld) {
-        COLORS.forEach(c => {
-          const p = cataPressure(sys, c);
-          if (p >= 3) score += p * 6;
-        });
-      }
-
-      // ── Own HW: penalize same-color stacking (cata risk) ─
-      if (sys.isHomeworld === aiPlayer) {
-        const colorCounts = {};
-        sys.ships.filter(s => s.owner === aiPlayer).forEach(s => {
-          colorCounts[s.color] = (colorCounts[s.color] || 0) + 1;
-        });
-        Object.values(colorCounts).forEach(count => {
-          if (count >= 2) score -= 8 * (count - 1); // each duplicate = risk
-        });
-        // Also count star colors — star + ship of same color = danger
-        sys.stars.forEach(st => {
-          const sameColorShips = sys.ships.filter(s => s.color === st.color).length;
-          if (sameColorShips >= 1) score -= 6;
-          if (sameColorShips >= 2) score -= 12; // very dangerous
-        });
-      }
-
-      // ── Investment: green ship parked at large star ────
-      if (!sys.isHomeworld) {
-        const hasLargeStar = sys.stars.some(s => s.size === 3);
-        if (hasLargeStar) {
-          myShips.filter(s => s.color === 'green').forEach(s => {
-            score += 4; // green at large star = investment potential
-          });
-        }
-      }
-    });
-
-    // ── Paralysis detection ────────────────────────────────
-        // 1 ship at HW with no build (green) and no move (yellow) = trapped
-        if (myHW) {
-          const hwShips = myHW.ships.filter(s => s.owner === aiPlayer);
-          if (hwShips.length === 1) {
-            const powers = new Set();
-            myHW.stars.forEach(s => powers.add(s.color));
-            hwShips.forEach(s => powers.add(s.color));
-            if (!powers.has('green')) score -= 20; // can't build
-            if (!powers.has('yellow')) score -= 15; // can't move out
-            if (!powers.has('green') && !powers.has('yellow')) score -= 30; // fully paralyzed
-          }
-          // Also penalize total ship count of 1 anywhere in the game
-          const totalMyShips = st.systems.reduce((n, s) =>
-            n + s.ships.filter(sh => sh.owner === aiPlayer).length, 0);
-          if (totalMyShips === 1) score -= 15;
-        }
-    
-    // ── Own HW safety ──────────────────────────────────────
-    if (myHW) {
-      const myDefenders = myHW.ships.filter(s => s.owner === aiPlayer);
-      const bigDefender = myDefenders.length
-        ? Math.max(...myDefenders.map(s => s.size)) : 0;
-      score += bigDefender * 8;       // large ship at home = strong defense
-      score += myHW.stars.length * 10;
-
-      // Penalize enemy ships in my HW
-      myHW.ships.filter(s => s.owner !== aiPlayer).forEach(s => {
-        score -= s.size * 8;
-      });
-    }
-
-    // ── Opponent HW vulnerability ──────────────────────────
-    if (oppHW) {
-      score -= oppHW.stars.length * 5;
-      const oppDefenders = oppHW.ships.filter(s => s.owner === opp).length;
-      if (oppDefenders === 0) score += 25; // exposed HW = near win
-      if (oppHW.stars.length === 1) score += 30; // one cata from win
-    }
-
-    // ── Bank economy — color monopoly / freeze ─────────────
+    // ── Precompute color sets ──────────────────────────────
     const myColors  = new Set();
     const oppColors = new Set();
     st.systems.forEach(sys => {
@@ -401,41 +282,245 @@
       sys.ships.filter(s => s.owner === opp).forEach(s => oppColors.add(s.color));
     });
 
-    // Reward having colors opponent lacks (freeze-out)
+    // ── Per-system scoring ─────────────────────────────────
+    st.systems.forEach(sys => {
+      const myShips  = sys.ships.filter(s => s.owner === aiPlayer);
+      const oppShips = sys.ships.filter(s => s.owner === opp);
+
+      if (myShips.length)  mySystems.add(sys.id);
+      if (oppShips.length) oppSystems.add(sys.id);
+
+      // Raw ship power — size² weighted
+      myShips.forEach(s  => { score += s.size * s.size; });
+      oppShips.forEach(s => { score -= s.size * s.size; });
+
+      // Spread bonus
+      if (!sys.isHomeworld && myShips.length)  score += 3;
+      if (!sys.isHomeworld && oppShips.length) score -= 2;
+
+      // ── Doomsday positioning ───────────────────────────
+      if (oppHW && sys.id !== oppHW.id && connected(sys, oppHW)) {
+        const oppHWColors = new Set(oppHW.stars.map(s => s.color));
+        myShips.forEach(s => {
+          if (oppHWColors.has(s.color)) score += s.size * 8;
+        });
+        score += myShips.length * 4;
+      }
+
+      // Ships IN opponent HW
+      if (sys.isHomeworld === opp) {
+        myShips.forEach(s => { score += s.size * 10; });
+        const bigInvader = myShips.reduce((m, s) => s.size > m ? s.size : m, 0);
+        if (bigInvader >= 3) score += 20;
+      }
+
+      // ── Catastrophe pressure in opp HW ────────────────
+      if (sys.isHomeworld === opp) {
+        COLORS.forEach(c => {
+          const p = cataPressure(sys, c);
+          if (p >= 3) score += p * 20;
+          else if (p === 2) score += 8;
+        });
+      }
+
+      // Cata staging in mid systems
+      if (!sys.isHomeworld) {
+        COLORS.forEach(c => {
+          const p = cataPressure(sys, c);
+          if (p >= 3) score += p * 6;
+        });
+      }
+
+      // ── Overpopulation TRAP ────────────────────────────
+      // Opponent has 2 same-color pieces in a system + we have that color = move in
+      if (!sys.isHomeworld) {
+        COLORS.forEach(c => {
+          const oppCount = sys.ships.filter(s => s.owner === opp && s.color === c).length
+                         + sys.stars.filter(s => s.color === c).length;
+          if (oppCount === 2 && myColors.has(c)) score += 12; // we can complete the cata
+          if (oppCount === 3 && myColors.has(c)) score += 25; // one move from cata
+        });
+      }
+
+      // ── Own HW: same-color stacking penalty ───────────
+      if (sys.isHomeworld === aiPlayer) {
+        const colorCounts = {};
+        sys.ships.filter(s => s.owner === aiPlayer).forEach(s => {
+          colorCounts[s.color] = (colorCounts[s.color] || 0) + 1;
+        });
+        Object.values(colorCounts).forEach(count => {
+          if (count >= 2) score -= 8 * (count - 1);
+        });
+        sys.stars.forEach(star => {
+          const sameColorShips = sys.ships.filter(s => s.color === star.color).length;
+          if (sameColorShips >= 1) score -= 6;
+          if (sameColorShips >= 2) score -= 12;
+        });
+      }
+
+      // ── Investment: green at large star ───────────────
+      if (!sys.isHomeworld) {
+        const hasLargeStar = sys.stars.some(s => s.size === 3);
+        if (hasLargeStar) {
+          myShips.filter(s => s.color === 'green').forEach(() => { score += 4; });
+        }
+      }
+    });
+
+    // ── Own HW safety ──────────────────────────────────────
+    if (myHW) {
+      const myDefenders  = myHW.ships.filter(s => s.owner === aiPlayer);
+      const bigDefender  = myDefenders.length
+        ? Math.max(...myDefenders.map(s => s.size)) : 0;
+      score += bigDefender * 8;
+      score += myHW.stars.length * 10;
+
+      // Enemy ships in my HW
+      myHW.ships.filter(s => s.owner !== aiPlayer).forEach(s => {
+        score -= s.size * 8;
+      });
+
+      // ── Paralysis detection ──────────────────────────
+      if (myDefenders.length === 1) {
+        const hwPowers = new Set();
+        myHW.stars.forEach(s => hwPowers.add(s.color));
+        myDefenders.forEach(s => hwPowers.add(s.color));
+        if (!hwPowers.has('green'))  score -= 20;
+        if (!hwPowers.has('yellow')) score -= 15;
+        if (!hwPowers.has('green') && !hwPowers.has('yellow')) score -= 30;
+      }
+
+      // ── Deterrent principle: red access at HW ─────────
+      // Red ship AT HW (physical, can't be taken) = strong deterrent
+      const redShipAtHW = myHW.ships.some(s => s.owner === aiPlayer && s.color === 'red');
+      const redStarAtHW = myHW.stars.some(s => s.color === 'red');
+      const hasRedAccess = redShipAtHW || redStarAtHW;
+
+      // Check if opponent has ships 1 hop from my HW
+      const oppNearMyHW = st.systems.some(sys =>
+        sys.id !== myHW.id &&
+        connected(sys, myHW) &&
+        sys.ships.some(s => s.owner === opp)
+      );
+      if (oppNearMyHW && !hasRedAccess) score -= 20; // no deterrent, opponent nearby
+      if (oppNearMyHW && hasRedAccess)  score += 8;  // deterrent working
+      if (redShipAtHW) score += 8; // physical red ship = best deterrent
+
+      // ── HW invasion threat ────────────────────────────
+      // Count opponent ships that could reach my HW in 1-2 moves
+      let invasionThreat = 0;
+      st.systems.forEach(sys => {
+        if (sys.id === myHW.id) return;
+        const oppHere = sys.ships.filter(s => s.owner === opp);
+        if (connected(sys, myHW)) {
+          // 1 hop away
+          invasionThreat += oppHere.reduce((sum, s) => sum + s.size, 0);
+        } else {
+          // 2 hops away — check if any connected system connects to myHW
+          const connToMyHW = st.systems.some(mid =>
+            mid.id !== sys.id && mid.id !== myHW.id &&
+            connected(sys, mid) && connected(mid, myHW)
+          );
+          if (connToMyHW) invasionThreat += oppHere.reduce((sum, s) => sum + s.size * 0.4, 0);
+        }
+      });
+      score -= invasionThreat * 3;
+
+      // Total ship count guard
+      const totalMyShips = st.systems.reduce((n, s) =>
+        n + s.ships.filter(sh => sh.owner === aiPlayer).length, 0);
+      if (totalMyShips === 1) score -= 15;
+    }
+
+    // ── Opponent HW vulnerability ──────────────────────────
+    if (oppHW) {
+      score -= oppHW.stars.length * 5;
+      const oppDefenders = oppHW.ships.filter(s => s.owner === opp).length;
+      if (oppDefenders === 0) score += 25;
+      if (oppHW.stars.length === 1) score += 30;
+
+      // Check if opponent lacks red near their HW = easier to invade
+      const oppRedAtHW = oppHW.ships.some(s => s.owner === opp && s.color === 'red')
+                      || oppHW.stars.some(s => s.color === 'red');
+      if (!oppRedAtHW) score += 12; // no deterrent = safe to invade
+    }
+
+    // ── Bank economy ───────────────────────────────────────
+    // Freeze-out scoring
     COLORS.forEach(c => {
       if (myColors.has(c) && !oppColors.has(c)) {
-        score += 10; // opponent frozen out of this color
-        if (c === 'yellow') score += 6; // no movement = crippling
-        if (c === 'red')    score += 4; // no attack ability
-        if (c === 'green')  score += 4; // no building
+        score += 10;
+        if (c === 'yellow') score += 6;
+        if (c === 'red')    score += 4;
+        if (c === 'green')  score += 4;
       }
-    });
-
-    // Penalize lacking a color opponent has
-    COLORS.forEach(c => {
       if (!myColors.has(c) && oppColors.has(c)) score -= 5;
     });
-
-    // Reward having all 4 colors (full tech)
     if (myColors.size === 4) score += 8;
 
-    // ── Bank scarcity awareness ─────────────────────────────
-    // Reward if opponent would be forced to take last piece of a color
+    // ── Bank scarcity + skip threat ────────────────────────
     COLORS.forEach(c => {
-      const total = SIZES.reduce((sum, sz) => sum + st.bank[c][sz], 0);
-      if (total === 1) {
-        // Only one piece left — avoid taking it if it gives opp advantage
-        if (!myColors.has(c)) score -= 3; // we need it more
+      const bankBySize = SIZES.map(sz => st.bank[c][sz]);
+      const total = bankBySize.reduce((a, b) => a + b, 0);
+
+      if (total === 0 && myColors.has(c) && !oppColors.has(c)) score += 8;
+      if (total === 1 && !myColors.has(c)) score -= 3;
+
+      // Green sacrifice skip threat:
+      // If opponent has medium or large green, they can sacrifice to skip a size.
+      // Penalize being 2nd-to-last on any size if opponent has green.
+      const oppHasGreen = oppColors.has('green');
+      if (oppHasGreen) {
+        SIZES.forEach((sz, i) => {
+          const remaining = st.bank[c][sz];
+          if (remaining <= 2) score -= 4; // opponent may skip past this size
+          if (remaining <= 1) score -= 6; // very close to being skipped
+        });
       }
-      if (total === 0 && myColors.has(c) && !oppColors.has(c)) {
-        score += 8; // bank empty, we have it, they don't = full freeze
-      }
+
+      // Abandoning a system returns star to bank — check if that helps opponent
+      // (handled implicitly by move generator pruning last-ship-in-system moves)
+    });
+
+    // ── "If I do nothing" threat counter ──────────────────
+    // Approximate opponent's best immediate move score as a threat signal.
+    // If opponent can win immediately, that's already caught by isLoss.
+    // Here we penalize positions where opponent has many high-value options.
+    if (oppHW) {
+      const oppHWColors = new Set(oppHW.stars.map(s => s.color));
+      let oppThreatScore = 0;
+      st.systems.forEach(sys => {
+        const oppShipsHere = sys.ships.filter(s => s.owner === opp);
+        // Opponent ships of HW star colors near my HW = immediate threat
+        if (myHW && connected(sys, myHW)) {
+          oppShipsHere.forEach(s => {
+            if (oppHW.stars.some(st2 => st2.color === s.color)) oppThreatScore += s.size * 3;
+          });
+        }
+      });
+      score -= oppThreatScore;
+    }
+
+    // ── Who runs out of room first ─────────────────────────
+    // If both players building same color, check who hits overpopulation sooner
+    COLORS.forEach(c => {
+      if (!myColors.has(c) || !oppColors.has(c)) return;
+      const myCount  = st.systems.reduce((n, sys) =>
+        n + sys.ships.filter(s => s.owner === aiPlayer && s.color === c).length
+          + sys.stars.filter(s => s.color === c).length, 0);
+      const oppCount = st.systems.reduce((n, sys) =>
+        n + sys.ships.filter(s => s.owner === opp && s.color === c).length
+          + sys.stars.filter(s => s.color === c).length, 0);
+      // 3 = overpopulation threshold in any single system
+      // If we have more pieces of this color spread out, we're safer
+      if (myCount > oppCount) score += 3;
+      if (myCount < oppCount) score -= 3;
     });
 
     // ── Spread diversity ───────────────────────────────────
-    score += mySystems.size  * 2;
+    score += mySystems.size * 2;
     score -= oppSystems.size * 1;
-    score += myColors.size   * 3;
+    score += myColors.size  * 3;
 
     return score;
   }
