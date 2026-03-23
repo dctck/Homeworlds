@@ -265,18 +265,16 @@
   // - HW star safety
   function evaluate(st, aiPlayer) {
     const opp = 3 - aiPlayer;
-    if (isWin(st, aiPlayer)) return  10000;
+    if (isWin(st, aiPlayer))  return  10000;
     if (isLoss(st, aiPlayer)) return -10000;
 
     let score = 0;
-
     const myHW  = getHW(st, aiPlayer);
     const oppHW = getHW(st, opp);
-
-    // Count systems occupied per player
     const mySystems  = new Set();
     const oppSystems = new Set();
 
+    // ── Per-system scoring ─────────────────────────────────
     st.systems.forEach(sys => {
       const myShips  = sys.ships.filter(s => s.owner === aiPlayer);
       const oppShips = sys.ships.filter(s => s.owner === opp);
@@ -288,71 +286,156 @@
       if (myShips.length)  mySystems.add(sys.id);
       if (oppShips.length) oppSystems.add(sys.id);
 
-      // ── Spread bonus: reward ships being in mid systems ──
-      if (!sys.isHomeworld && myShips.length > 0)  score += 3;
-      if (!sys.isHomeworld && oppShips.length > 0) score -= 2;
+      // Spread bonus: ships in mid systems
+      if (!sys.isHomeworld && myShips.length)  score += 3;
+      if (!sys.isHomeworld && oppShips.length) score -= 2;
 
-      // ── Threat: my ships adjacent to (or already in) opponent HW ──
-      if (oppHW && sys.id !== oppHW.id && connected(sys, oppHW) && myShips.length > 0) {
-        score += myShips.reduce((sum, s) => sum + s.size * 4, 0); // big ships near opp HW = high threat
-      }
-      // My ships already IN opponent's HW
-      if (sys.isHomeworld === opp && myShips.length > 0) {
-        score += myShips.reduce((sum, s) => sum + s.size * 8, 0);
+      // ── Doomsday Machine setup ─────────────────────────
+      // Ships of opponent HW star colors positioned 1 hop from opp HW
+      if (oppHW && sys.id !== oppHW.id && connected(sys, oppHW)) {
+        const oppHWColors = new Set(oppHW.stars.map(s => s.color));
+        myShips.forEach(s => {
+          if (oppHWColors.has(s.color)) score += s.size * 8; // aligned for catastrophe
+        });
+        score += myShips.length * 4; // any ship 1 hop away = general threat
       }
 
-      // ── Catastrophe pressure in opponent's HW ──
+      // Ships already IN opponent HW
+      if (sys.isHomeworld === opp) {
+        myShips.forEach(s => { score += s.size * 10; });
+        // Direct assault path: large ship in opp HW = near win
+        const bigInvader = myShips.reduce((m, s) => s.size > m ? s.size : m, 0);
+        if (bigInvader >= 3) score += 20;
+      }
+
+      // ── Catastrophe pressure in opponent HW ───────────
       if (sys.isHomeworld === opp) {
         COLORS.forEach(c => {
           const p = cataPressure(sys, c);
-          if (p >= 3) score += p * 15; // very close to catastrophe → big bonus
-          else if (p === 2) score += 6;
+          if (p >= 3) score += p * 20; // one move from catastrophe
+          else if (p === 2) score += 8;
         });
       }
-      // Catastrophe pressure in mid systems (staging)
+
+      // Catastrophe staging in mid systems
       if (!sys.isHomeworld) {
         COLORS.forEach(c => {
           const p = cataPressure(sys, c);
-          if (p >= 3) score += p * 5;
+          if (p >= 3) score += p * 6;
         });
+      }
+
+      // ── Own HW: penalize same-color stacking (cata risk) ─
+      if (sys.isHomeworld === aiPlayer) {
+        const colorCounts = {};
+        sys.ships.filter(s => s.owner === aiPlayer).forEach(s => {
+          colorCounts[s.color] = (colorCounts[s.color] || 0) + 1;
+        });
+        Object.values(colorCounts).forEach(count => {
+          if (count >= 2) score -= 8 * (count - 1); // each duplicate = risk
+        });
+        // Also count star colors — star + ship of same color = danger
+        sys.stars.forEach(st => {
+          const sameColorShips = sys.ships.filter(s => s.color === st.color).length;
+          if (sameColorShips >= 1) score -= 6;
+          if (sameColorShips >= 2) score -= 12; // very dangerous
+        });
+      }
+
+      // ── Investment: green ship parked at large star ────
+      if (!sys.isHomeworld) {
+        const hasLargeStar = sys.stars.some(s => s.size === 3);
+        if (hasLargeStar) {
+          myShips.filter(s => s.color === 'green').forEach(s => {
+            score += 4; // green at large star = investment potential
+          });
+        }
       }
     });
 
+    // ── Paralysis detection ────────────────────────────────
+        // 1 ship at HW with no build (green) and no move (yellow) = trapped
+        if (myHW) {
+          const hwShips = myHW.ships.filter(s => s.owner === aiPlayer);
+          if (hwShips.length === 1) {
+            const powers = new Set();
+            myHW.stars.forEach(s => powers.add(s.color));
+            hwShips.forEach(s => powers.add(s.color));
+            if (!powers.has('green')) score -= 20; // can't build
+            if (!powers.has('yellow')) score -= 15; // can't move out
+            if (!powers.has('green') && !powers.has('yellow')) score -= 30; // fully paralyzed
+          }
+          // Also penalize total ship count of 1 anywhere in the game
+          const totalMyShips = st.systems.reduce((n, s) =>
+            n + s.ships.filter(sh => sh.owner === aiPlayer).length, 0);
+          if (totalMyShips === 1) score -= 15;
+        }
+    
     // ── Own HW safety ──────────────────────────────────────
     if (myHW) {
       const myDefenders = myHW.ships.filter(s => s.owner === aiPlayer);
       const bigDefender = myDefenders.length
         ? Math.max(...myDefenders.map(s => s.size)) : 0;
-      score += bigDefender * 6;        // reward having a large ship at home
-      score += myHW.stars.length * 8;  // losing a star is very bad
+      score += bigDefender * 8;       // large ship at home = strong defense
+      score += myHW.stars.length * 10;
 
       // Penalize enemy ships in my HW
-      const invaders = myHW.ships.filter(s => s.owner !== aiPlayer);
-      score -= invaders.reduce((sum, s) => sum + s.size * 6, 0);
+      myHW.ships.filter(s => s.owner !== aiPlayer).forEach(s => {
+        score -= s.size * 8;
+      });
     }
 
-    // ── Opponent HW star vulnerability ──────────────────────
+    // ── Opponent HW vulnerability ──────────────────────────
     if (oppHW) {
-      score -= oppHW.stars.length * 4;
-      // Reward if opponent has no defenders at home
+      score -= oppHW.stars.length * 5;
       const oppDefenders = oppHW.ships.filter(s => s.owner === opp).length;
-      if (oppDefenders === 0) score += 20;
+      if (oppDefenders === 0) score += 25; // exposed HW = near win
+      if (oppHW.stars.length === 1) score += 30; // one cata from win
     }
 
-    // ── Spread diversity bonus ─────────────────────────────
+    // ── Bank economy — color monopoly / freeze ─────────────
+    const myColors  = new Set();
+    const oppColors = new Set();
+    st.systems.forEach(sys => {
+      sys.ships.filter(s => s.owner === aiPlayer).forEach(s => myColors.add(s.color));
+      sys.ships.filter(s => s.owner === opp).forEach(s => oppColors.add(s.color));
+    });
+
+    // Reward having colors opponent lacks (freeze-out)
+    COLORS.forEach(c => {
+      if (myColors.has(c) && !oppColors.has(c)) {
+        score += 10; // opponent frozen out of this color
+        if (c === 'yellow') score += 6; // no movement = crippling
+        if (c === 'red')    score += 4; // no attack ability
+        if (c === 'green')  score += 4; // no building
+      }
+    });
+
+    // Penalize lacking a color opponent has
+    COLORS.forEach(c => {
+      if (!myColors.has(c) && oppColors.has(c)) score -= 5;
+    });
+
+    // Reward having all 4 colors (full tech)
+    if (myColors.size === 4) score += 8;
+
+    // ── Bank scarcity awareness ─────────────────────────────
+    // Reward if opponent would be forced to take last piece of a color
+    COLORS.forEach(c => {
+      const total = SIZES.reduce((sum, sz) => sum + st.bank[c][sz], 0);
+      if (total === 1) {
+        // Only one piece left — avoid taking it if it gives opp advantage
+        if (!myColors.has(c)) score -= 3; // we need it more
+      }
+      if (total === 0 && myColors.has(c) && !oppColors.has(c)) {
+        score += 8; // bank empty, we have it, they don't = full freeze
+      }
+    });
+
+    // ── Spread diversity ───────────────────────────────────
     score += mySystems.size  * 2;
     score -= oppSystems.size * 1;
-
-    // ── Color (tech) diversity ─────────────────────────────
-    const myColors = new Set();
-    st.systems.forEach(sys =>
-      sys.ships.filter(s => s.owner === aiPlayer).forEach(s => myColors.add(s.color))
-    );
-    score += myColors.size * 3;
-    // Blue is especially valuable early — trade access
-    if (myColors.has('blue'))   score += 3;
-    if (myColors.has('yellow')) score += 2; // mobility
-    if (myColors.has('red'))    score += 2; // attack ready
+    score += myColors.size   * 3;
 
     return score;
   }
@@ -444,22 +527,107 @@
   let _movesThisGame = []; // track move sigs this game
 
   function moveSignature(move, st, player) {
-    const opp   = 3 - player;
-    const oppHW = getHW(st, opp);
-    const sys   = sysById(st, move.sysId || move.fromSysId);
+    const opp    = 3 - player;
+    const oppHW  = getHW(st, opp);
+    const myHW   = getHW(st, player);
+    const sys    = sysById(st, move.sysId || move.fromSysId);
+
+    // ── Situation context ──────────────────────────────────
+    const turn = st.currentTurn || 0;
+    const phase = turn < 8 ? 'early' : turn < 20 ? 'mid' : 'late';
+
+    let myPow = 0, oppPow = 0;
+    st.systems.forEach(s => s.ships.forEach(sh => {
+      if (sh.owner === player) myPow += sh.size * sh.size;
+      else oppPow += sh.size * sh.size;
+    }));
+    const posture = myPow > oppPow + 3 ? 'winning'
+                  : myPow < oppPow - 3 ? 'losing' : 'even';
+
+    const oppHWStars     = oppHW?.stars?.length ?? 2;
+    const oppHWDefenders = oppHW?.ships?.filter(s => s.owner === opp).length ?? 1;
+    const hwPressure     = oppHWStars <= 1    ? 'critical'
+                         : oppHWDefenders === 0 ? 'exposed' : 'normal';
+
+    const myHWInvaders = myHW?.ships?.filter(s => s.owner !== player).length ?? 0;
+    const myHWDanger   = myHWInvaders > 0 ? 'danger' : 'safe';
+
+    // ── Color economy context ──────────────────────────────
+    const myColors  = new Set();
+    const oppColors = new Set();
+    st.systems.forEach(s => {
+      s.ships.filter(sh => sh.owner === player).forEach(sh => myColors.add(sh.color));
+      s.ships.filter(sh => sh.owner !== player).forEach(sh => oppColors.add(sh.color));
+    });
+
     switch (move.type) {
-      case 'build':        return sys?.isHomeworld === player ? 'build_home' : 'build_mid';
-      case 'trade':        return 'trade';
-      case 'discover':     return 'discover';
-      case 'sacrifice':    return 'sacrifice';
-      case 'attack':       return sys?.isHomeworld === opp ? 'attack_opp_hw' : 'attack_mid';
-      case 'catastrophe':  return sys?.isHomeworld === opp ? 'catastrophe_opp_hw' : 'catastrophe_mid';
+
+      case 'build': {
+        const atHome = sys?.isHomeworld === player;
+        // Building a color opponent lacks = freeze bonus context
+        const freezes = !oppColors.has(move.color) && myColors.has(move.color);
+        // Taking last bank piece of this color
+        const bankTotal = SIZES.reduce((sum, sz) => sum + st.bank[move.color][sz], 0);
+        const takesLast = bankTotal === 1;
+        if (freezes)   return `build_freeze_${move.color}_${phase}`;
+        if (takesLast) return `build_last_${move.color}_${phase}`;
+        return `build_${atHome ? 'home' : 'mid'}_${phase}_${posture}`;
+      }
+
+      case 'trade': {
+        // Trading into a color opp lacks = freeze context
+        const freezes = !oppColors.has(move.newColor);
+        return `trade_${freezes ? 'freeze' : 'normal'}_${phase}`;
+      }
+
+      case 'discover': {
+        // Discover a large star = investment potential
+        const bigStar = move.starSize === 3;
+        return `discover_${bigStar ? 'large' : 'small'}_${phase}_${posture}`;
+      }
+
+      case 'sacrifice': {
+        // Green sacrifice near large star = investment cash-in
+        const ship = sys?.ships?.find(s => s.id === move.shipId);
+        const hasLargeStar = sys?.stars?.some(s => s.size === 3);
+        if (ship?.color === 'green' && hasLargeStar) return `sacrifice_invest_${phase}`;
+        // Sacrifice near opp HW = tactical
+        const nearOppHW = oppHW && sys && connected(sys, oppHW);
+        return `sacrifice_${nearOppHW ? 'tactical' : 'general'}_${phase}_${posture}_${hwPressure}`;
+      }
+
+      case 'attack': {
+        const atOppHW = sys?.isHomeworld === opp;
+        // Check if this capture gives us color monopoly
+        const target = sys?.ships?.find(s => s.id === move.targetId);
+        const captureFreeze = target && !oppColors.has(target.color);
+        if (captureFreeze) return `attack_freeze_${phase}`;
+        return `attack_${atOppHW ? 'opp_hw' : 'mid'}_${posture}_${myHWDanger}`;
+      }
+
+      case 'catastrophe': {
+        const atOppHW = sys?.isHomeworld === opp;
+        // Destroying last star = win path
+        const winsNow  = atOppHW && oppHWStars <= 1;
+        if (winsNow) return 'cata_win_now';
+        return `cata_${atOppHW ? 'opp_hw' : 'mid'}_${hwPressure}_${phase}`;
+      }
+
       case 'move': {
         const toSys = sysById(st, move.toSysId);
-        if (toSys?.isHomeworld === opp) return 'move_into_opp_hw';
-        if (oppHW && toSys && connected(toSys, oppHW)) return 'move_toward_opp';
-        return 'move_other';
+        const ship  = sys?.ships?.find(s => s.id === move.shipId);
+        // Doomsday positioning: moving ship of opp HW star color to 1-hop position
+        const oppHWColors  = new Set((oppHW?.stars || []).map(s => s.color));
+        const isDoomsdayMove = ship && oppHWColors.has(ship.color)
+                             && oppHW && toSys && connected(toSys, oppHW)
+                             && toSys.id !== oppHW.id;
+        if (isDoomsdayMove) return `move_doomsday_${phase}_${hwPressure}`;
+        if (toSys?.isHomeworld === opp)               return `move_into_opp_hw_${posture}`;
+        if (oppHW && toSys && connected(toSys, oppHW)) return `move_toward_opp_${phase}_${posture}`;
+        if (toSys?.isHomeworld === player)             return `move_retreat_${myHWDanger}`;
+        return `move_other_${phase}`;
       }
+
       default: return 'pass';
     }
   }
