@@ -1291,7 +1291,7 @@ body::before {
 <!-- Hide immediately if this is an online game (?room=) — module will replace contents -->
 <script>if(new URLSearchParams(location.search).get('room')){document.addEventListener('DOMContentLoaded',function(){var m=document.getElementById('startup-modal');if(m)m.style.display='none';});}</script>
 <div id="startup-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:200;display:flex;align-items:center;justify-content:center;">
-  <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:32px;width:420px;max-width:95vw;">
+  <div style="background:#0c1120;border:1px solid #1c2840;border-radius:12px;padding:32px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto;">
     <div style="font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900;color:#ddeeff;letter-spacing:4px;text-align:center;margin-bottom:6px;">HOMEWORLDS</div>
     <div style="font-size:12px;color:#304050;letter-spacing:3px;text-align:center;margin-bottom:28px;text-transform:uppercase">Two-Player Setup</div>
 
@@ -1341,7 +1341,7 @@ body::before {
 <!-- AI options (hidden by default) -->
 <div id="ai-options" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #1c2840;border-radius:6px;background:rgba(255,255,255,0.02);">
 
-  <div id="ai-game-count" style="margin-top:12px;padding-top:8px;padding-bottom:8px;border-bottom:1px solid #1c2840;font-family:'Share Tech Mono',monospace;font-size:12px;color:#4a6478;letter-spacing:1px;text-align:center;">
+  <div id="ai-game-count" style="margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1c2840;font-family:'Share Tech Mono',monospace;font-size:12px;color:#4a6478;letter-spacing:1px;text-align:center;">
     <span id="ai-count-num">—</span> AI games (global)
   </div>
 
@@ -1355,7 +1355,7 @@ body::before {
     <button id="ai-hw-auto" style="flex:1;padding:7px;background:rgba(34,221,119,0.1);border:1px solid #22dd77;color:#22dd77;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">AI CHOOSES</button>
     <button id="ai-hw-manual" style="flex:1;padding:7px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">YOU SET IT UP</button>
   </div>
-  <div id="ai-hw-hint" style="font-size:11px;color:#2a4055;margin-top:8px;line-height:1.6;letter-spacing:0.5px;">AI will choose its own homeworld stars and ship.</div>
+  <div id="ai-hw-hint" style="font-size:11px;color:#4a6478;margin-top:8px;line-height:1.6;letter-spacing:0.5px;">AI will choose its own homeworld stars and ship.</div>
 </div>
 
 <div style="display:flex;gap:10px;margin-top:0;">
