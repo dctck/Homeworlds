@@ -1341,7 +1341,7 @@ body::before {
 <!-- AI options (hidden by default) -->
 <div id="ai-options" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #1c2840;border-radius:6px;background:rgba(255,255,255,0.02);">
 
-  <div id="ai-game-count" style="margin-top:12px;padding-top:10px;border-top:1px solid #1c2840;font-family:'Share Tech Mono',monospace;font-size:12px;color:#2a4055;letter-spacing:1px;text-align:center;">
+  <div id="ai-game-count" style="margin-top:12px;padding-top:8px;padding-bottom:8px;border-bottom:1px solid #1c2840;font-family:'Share Tech Mono',monospace;font-size:12px;color:#4a6478;letter-spacing:1px;text-align:center;">
     <span id="ai-count-num">—</span> AI games (global)
   </div>
 
@@ -5111,6 +5111,7 @@ function showReportDialog(player) {
       if (!window._db || !window._firebaseRefs) return;
       const { ref, get } = window._firebaseRefs;
       get(ref(window._db, 'ai_games_total')).then(snap => {
+        console.log('[AI counter] snap val:', snap.val());
         const n = snap.val() || 2;
         const el = document.getElementById('ai-count-num');
         if (el) el.textContent = n.toLocaleString();
