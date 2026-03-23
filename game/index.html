@@ -2839,8 +2839,7 @@ function renderBoard() {
     }
   }
   // During setup: show confirm token on current player's zone when setup is done
-  if (G.phase === 'SETUP' && G.setupDone && !(window._AI_ENABLED && G.currentPlayer === window._AI_SLOT)) {
-    const setupZone = G.currentPlayer === 1 ? zP1 : zP2;
+  if (G.phase === 'SETUP' && G.setupDone && !(window._AI_ENABLED && window._AI_AUTO_HW && G.currentPlayer === window._AI_SLOT)) {    const setupZone = G.currentPlayer === 1 ? zP1 : zP2;
     setupZone.appendChild(makeSetupToken(G.currentPlayer));
   }
 
