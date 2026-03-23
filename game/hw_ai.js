@@ -406,6 +406,13 @@
       if (oppNearMyHW && hasRedAccess)  score += 8;  // deterrent working
       if (redShipAtHW) score += 8; // physical red ship = best deterrent
 
+      // ── Paralysis override — trumps all red bonuses ───
+      const hwPowersAll = new Set();
+      myHW.stars.forEach(s => hwPowersAll.add(s.color));
+      myHW.ships.filter(s => s.owner === aiPlayer).forEach(s => hwPowersAll.add(s.color));
+      const isParalyzed = !hwPowersAll.has('green') && !hwPowersAll.has('yellow');
+      if (isParalyzed) score -= 60;
+
       // ── HW invasion threat ────────────────────────────
       // Count opponent ships that could reach my HW in 1-2 moves
       let invasionThreat = 0;
@@ -660,8 +667,15 @@
       }
 
       case 'trade': {
-        // Trading into a color opp lacks = freeze context
         const freezes = !oppColors.has(move.newColor);
+        // Detect paralysis trade: trading away last green/yellow ship
+        // when HW has no green/yellow star = self-imprisonment
+        const hwStarColors = new Set((myHW?.stars || []).map(s => s.color));
+        const ship = sys?.ships?.find(s => s.id === move.shipId);
+        const losingGreen  = ship?.color === 'green' && !hwStarColors.has('green');
+        const losingYellow = ship?.color === 'yellow' && !hwStarColors.has('yellow');
+        const onlyShip = sys?.ships?.filter(s => s.owner === player).length === 1;
+        if (onlyShip && (losingGreen || losingYellow)) return `trade_paralysis_${phase}`;
         return `trade_${freezes ? 'freeze' : 'normal'}_${phase}`;
       }
 
