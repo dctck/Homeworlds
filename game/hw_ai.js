@@ -6,7 +6,7 @@
 // ============================================================
 
 (function () {
-
+  window.HW_AI_VERSION = 'v3-paralysis';
   const COLORS = ['red', 'blue', 'yellow', 'green'];
   const SIZES  = [1, 2, 3];
 
