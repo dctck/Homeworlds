@@ -1339,8 +1339,13 @@ body::before {
 </div>
 
 <!-- AI options (hidden by default) -->
-<div id="ai-options" style="display:none;margin-bottom:16px;padding:12px;border:1px solid #1c2840;border-radius:6px;background:rgba(255,255,255,0.02);">
-  <div style="font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#304050;margin-bottom:8px;">WHO SETS UP FIRST</div>
+<div id="ai-options" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #1c2840;border-radius:6px;background:rgba(255,255,255,0.02);">
+
+  <div id="ai-game-count" style="margin-top:12px;padding-top:10px;border-top:1px solid #1c2840;font-family:'Share Tech Mono',monospace;font-size:12px;color:#2a4055;letter-spacing:1px;text-align:center;">
+    <span id="ai-count-num">—</span> AI games (global)
+  </div>
+
+  <div style="font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;color:#304050;margin-bottom:8px;">WHO SETS UP FIRST</div>
   <div style="display:flex;gap:8px;margin-bottom:14px;">
     <button id="ai-first-ai" style="flex:1;padding:7px;background:rgba(255,68,85,0.12);border:1px solid #ff4455;color:#ff6677;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">AI FIRST</button>
     <button id="ai-first-human" style="flex:1;padding:7px;background:transparent;border:1px solid #1c2840;color:#304050;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .15s;">YOU FIRST</button>
@@ -1380,7 +1385,7 @@ if (!window._savedAdvancedMode) {
 // ── AI config ────────────────────────────────────────────────
 
 window._AI_ENABLED = false;
-window._AI_SLOT    = 1;   // AI is player 1 — sets up HW first, human reacts as P2
+window._AI_SLOT    = 2; 
 window._aiThinking = false;
 
 // ── Suppress pass-device banner when playing AI ──────────────
@@ -5099,13 +5104,40 @@ function showReportDialog(player) {
   const sb = document.getElementById('btn-start-game');
   sb.onmouseenter = () => { sb.style.background='rgba(34,102,255,0.25)'; sb.style.color='#88aaff'; };
   sb.onmouseleave = () => { sb.style.background='rgba(34,102,255,0.15)'; sb.style.color='#4488ff'; };
+
+  // Load global AI game count
+  try {
+    const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
+    const { firebaseConfig } = await import('/firebase-config.js');
+    const _cApp = initializeApp(firebaseConfig, 'ai-counter');
+    const _cDb  = getDatabase(_cApp);
+    get(ref(_cDb, 'ai_games_total')).then(snap => {
+      const n = snap.val() || 2;
+      const el = document.getElementById('ai-count-num');
+      if (el) el.textContent = n.toLocaleString();
+    }).catch(() => {});
+  } catch(e) {}
+
+
 })();
 
 // AI game-end learning hook — registered once at page load
-window.addEventListener('gameEnded', ({ detail }) => {
-  if (!window._AI_ENABLED || !window.HW_AI?.onGameEnd) return;
-  const aiWon = detail.winner === window._AI_SLOT;
-  window.HW_AI.onGameEnd(aiWon);
+window.addEventListener('gameEnded', async ({ detail }) => {
+  if (!window._AI_ENABLED) return;
+  if (window.HW_AI?.onGameEnd) {
+    const aiWon = detail.winner === window._AI_SLOT;
+    window.HW_AI.onGameEnd(aiWon);
+  }
+  // Increment global AI game counter in Firebase
+  try {
+    const { getDatabase, ref, runTransaction } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
+    const { firebaseConfig } = await import('/firebase-config.js');
+    const _cApp = initializeApp(firebaseConfig, 'ai-counter');
+    const _cDb  = getDatabase(_cApp);
+    await runTransaction(ref(_cDb, 'ai_games_total'), cur => (cur || 2) + 1);
+  } catch(e) {}
 });
 
 // ============================================================
