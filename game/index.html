@@ -5106,18 +5106,17 @@ function showReportDialog(player) {
   sb.onmouseleave = () => { sb.style.background='rgba(34,102,255,0.15)'; sb.style.color='#4488ff'; };
 
   // Load global AI game count
-  try {
-    const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
-    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
-    const { firebaseConfig } = await import('/firebase-config.js');
-    const _cApp = initializeApp(firebaseConfig, 'ai-counter');
-    const _cDb  = getDatabase(_cApp);
-    get(ref(_cDb, 'ai_games_total')).then(snap => {
-      const n = snap.val() || 2;
-      const el = document.getElementById('ai-count-num');
-      if (el) el.textContent = n.toLocaleString();
-    }).catch(() => {});
-  } catch(e) {}
+  setTimeout(() => {
+    try {
+      if (!window._db || !window._firebaseRefs) return;
+      const { ref, get } = window._firebaseRefs;
+      get(ref(window._db, 'ai_games_total')).then(snap => {
+        const n = snap.val() || 2;
+        const el = document.getElementById('ai-count-num');
+        if (el) el.textContent = n.toLocaleString();
+      }).catch(() => {});
+    } catch(e) {}
+  }, 500);
 
 
 })();
@@ -5131,12 +5130,8 @@ window.addEventListener('gameEnded', async ({ detail }) => {
   }
   // Increment global AI game counter in Firebase
   try {
-    const { getDatabase, ref, runTransaction } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
-    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
-    const { firebaseConfig } = await import('/firebase-config.js');
-    const _cApp = initializeApp(firebaseConfig, 'ai-counter');
-    const _cDb  = getDatabase(_cApp);
-    await runTransaction(ref(_cDb, 'ai_games_total'), cur => (cur || 2) + 1);
+    const { ref, runTransaction } = window._firebaseRefs;
+    await runTransaction(ref(window._db, 'ai_games_total'), cur => (cur || 2) + 1);
   } catch(e) {}
 });
 
@@ -5371,6 +5366,10 @@ import { getAuth, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getDatabase, ref, get, set, update, push, onValue, onChildAdded, onDisconnect }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+window._db = getDatabase(app);
+window._firebaseRefs = { ref, get, runTransaction };
+
 import { firebaseConfig } from '/firebase-config.js';
 
 const params  = new URLSearchParams(window.location.search);
@@ -5385,6 +5384,7 @@ if (!ROOM_ID || (MY_SLOT !== 1 && MY_SLOT !== 2)) {
   const fbApp = initializeApp(firebaseConfig);
   const auth  = getAuth(fbApp);
   const db    = getDatabase(fbApp);
+  window._db = db;
   let _started = false;
 
 function showAuthWall(msg, isWrongAccount) {
