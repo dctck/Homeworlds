@@ -2310,6 +2310,9 @@ function showWin(winnerPlayer) {
   // Lobby — mark exit, room deleted only when both players exit
   document.getElementById('wo-lobby').onclick = async () => {
     if (typeof window._markExited === 'function') await window._markExited();
+    window._AI_ENABLED = false;
+    window._aiThinking = false;
+    localStorage.removeItem('hw_ai_config');
     location.href = '/lobby/';
   };
 
@@ -2361,6 +2364,9 @@ function showDraw() {
 
   document.getElementById('wd-lobby').onclick = async () => {
     if (typeof window._markExited === 'function') await window._markExited();
+    window._AI_ENABLED = false;
+    window._aiThinking = false;
+    localStorage.removeItem('hw_ai_config');
     location.href = '/lobby/';
   };
   document.getElementById('wd-review').onclick = async () => {
@@ -5608,7 +5614,14 @@ function showAuthWall(msg, isWrongAccount) {
       return;
     }
     const snap = await get(ref(db, `rooms/${ROOM_ID}`));
-    if (!snap.exists()) { alert('Room not found.'); location.href = '/lobby/'; return; }
+    if (!snap.exists()) { 
+      alert('Room not found.');
+      window._AI_ENABLED = false;
+      window._aiThinking = false;
+      localStorage.removeItem('hw_ai_config');
+      location.href = '/lobby/';
+      return; 
+    }
     const room = snap.val();
     const expected = MY_SLOT === 1 ? room.player1?.uid : room.player2?.uid;
     if (expected !== user.uid) {
@@ -5727,6 +5740,12 @@ function showAuthWall(msg, isWrongAccount) {
   }
 
   async function launchMatch(room, user) {
+
+    // Always disable AI for online games — AI is pass-and-play only
+    window._AI_ENABLED  = false;
+    window._aiThinking  = false;
+    localStorage.removeItem('hw_ai_config');
+
     if (_started) return;
     _started = true;
 
