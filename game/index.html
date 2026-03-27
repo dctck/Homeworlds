@@ -6035,7 +6035,7 @@ function showAuthWall(msg, isWrongAccount) {
       }
 
       // ── Fire queued premove if MY turn just arrived ────────
-      if (incoming.currentPlayer === MY_SLOT && window._premoves?.length > 0 && window._tryFirePremove) {
+      if (d.writtenBy !== 'premove-cf' && incoming.currentPlayer === MY_SLOT && window._premoves?.length > 0 && window._tryFirePremove) {
         setTimeout(window._tryFirePremove, 250);
       }
       // Remove any waiting banner before showing the turn banner
