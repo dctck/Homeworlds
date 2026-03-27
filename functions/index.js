@@ -20,6 +20,130 @@ const { getDatabase }    = require('firebase-admin/database');
 
 initializeApp();
 
+// ── Pure game logic (for server-side premove execution) ──────────────────────
+const L2C_CF = { r:'red', b:'blue', y:'yellow', g:'green' };
+
+function _systemSizes(sys) { return new Set(sys.stars.map(s => s.size)); }
+function _isConnected(s1, s2) { const a=_systemSizes(s1),b=_systemSizes(s2); for(const sz of a) if(b.has(sz)) return false; return true; }
+function _findSys(G, name) { return G.systems.find(s => s.name === name); }
+function _largest(sys, p) { const s=sys.ships.filter(s=>s.owner===p); return s.length?s.reduce((m,x)=>x.size>m.size?x:m):null; }
+function _consume(G) { if(G.sacrificePool.count>0) G.sacrificePool.count--; else G.turnUsed=true; }
+function _clean(G) { G.systems=G.systems.filter(s=>s.isHomeworld||s.ships.length>0||s.stars.length>0); }
+function _nextId(G) { G._uid=(G._uid||0)+1; return G._uid; }
+function _syncUid(G) {
+  let m=0;
+  (G.systems||[]).forEach(s=>{m=Math.max(m,s.id||0);(s.ships||[]).forEach(sh=>{m=Math.max(m,sh.id||0);});});
+  G._uid=m;
+}
+function _checkWin(G) {
+  for(let p=1;p<=2;p++){
+    const hw=G.systems.find(s=>s.isHomeworld===p);
+    if(!hw||hw.stars.length===0||!hw.ships.some(s=>s.owner===p)) return 3-p;
+  }
+  return null;
+}
+
+function _execAction(G, notation, player) {
+  const p=notation.trim().split(/\s+/), v=p[0];
+  const bail=(r)=>{console.warn(`[PREMOVE CF] ✗ "${notation}" — ${r}`);return false;};
+  G._pendingActions=G._pendingActions||[];
+  try {
+    if(v==='skip'){G._pendingActions.push(notation);return true;}
+
+    if(v==='build'){
+      const col=L2C_CF[p[1][0]],sysName=p[2],sys=_findSys(G,sysName);
+      if(!sys) return bail('system not found: '+sysName);
+      const hasPow=sys.stars.some(s=>s.color==='green')||sys.ships.some(s=>s.owner===player&&s.color==='green')||G.sacrificePool.color==='green';
+      if(!hasPow) return bail('no green power in '+sysName);
+      const sz=[1,2,3].find(s=>G.bank[col][s]>0);
+      if(!sz) return bail('bank empty for '+col);
+      if(!sys.ships.find(s=>s.owner===player)) return bail('no own ship in '+sysName);
+      G.bank[col][sz]--;
+      sys.ships.push({id:_nextId(G),color:col,size:sz,owner:player});
+      G._pendingActions.push(notation);
+      _consume(G);_clean(G);return true;
+    }
+
+    if(v==='trade'){
+      const col=L2C_CF[p[1][0]],size=+p[1][1],sysName=p[2],newCol=L2C_CF[p[3]];
+      const sys=_findSys(G,sysName); if(!sys) return bail('system not found: '+sysName);
+      const ship=sys.ships.find(s=>s.owner===player&&s.color===col&&s.size===size);
+      if(!ship) return bail(`no own ${col}${size} in ${sysName}`);
+      const hasPow=sys.stars.some(s=>s.color==='blue')||sys.ships.some(s=>s.owner===player&&s.color==='blue')||G.sacrificePool.color==='blue';
+      if(!hasPow) return bail('no blue power in '+sysName);
+      if(G.bank[newCol][size]<=0) return bail('bank empty for '+newCol+size);
+      G.bank[col][size]++;G.bank[newCol][size]--;ship.color=newCol;
+      G._pendingActions.push(notation);_consume(G);return true;
+    }
+
+    if(v==='move'){
+      const col=L2C_CF[p[1][0]],size=+p[1][1],fromN=p[2],toN=p[3];
+      const fromSys=_findSys(G,fromN),toSys=_findSys(G,toN);
+      if(!fromSys) return bail('source not found: '+fromN);
+      if(!toSys)   return bail('dest not found: '+toN);
+      const ship=fromSys.ships.find(s=>s.owner===player&&s.color===col&&s.size===size);
+      if(!ship) return bail(`no own ${col}${size} in ${fromN}`);
+      if(!_isConnected(fromSys,toSys)) return bail(`${fromN} and ${toN} not connected`);
+      const hasPow=fromSys.stars.some(s=>s.color==='yellow')||fromSys.ships.some(s=>s.owner===player&&s.color==='yellow')||G.sacrificePool.color==='yellow';
+      if(!hasPow) return bail('no yellow power in '+fromN);
+      fromSys.ships=fromSys.ships.filter(s=>s.id!==ship.id);toSys.ships.push(ship);
+      G._pendingActions.push(notation);_consume(G);_clean(G);return true;
+    }
+
+    if(v==='discover'){
+      const col=L2C_CF[p[1][0]],size=+p[1][1],fromN=p[2],sCol=L2C_CF[p[3][0]],sSz=+p[3][1],starName=p[4];
+      const fromSys=_findSys(G,fromN); if(!fromSys) return bail('source not found: '+fromN);
+      const ship=fromSys.ships.find(s=>s.owner===player&&s.color===col&&s.size===size);
+      if(!ship) return bail(`no own ${col}${size} in ${fromN}`);
+      if(G.bank[sCol][sSz]<=0) return bail(`bank empty for star ${sCol}${sSz}`);
+      const hasPow=fromSys.stars.some(s=>s.color==='yellow')||fromSys.ships.some(s=>s.owner===player&&s.color==='yellow')||G.sacrificePool.color==='yellow';
+      if(!hasPow) return bail('no yellow power in '+fromN);
+      if(fromSys.isHomeworld===player&&fromSys.ships.filter(s=>s.owner===player).length<=1) return bail('last ship in homeworld');
+      G.bank[sCol][sSz]--;
+      const newSys={id:_nextId(G),name:starName||('Star'+G._uid),isHomeworld:null,discoveredBy:player,stars:[{color:sCol,size:sSz}],ships:[]};
+      fromSys.ships=fromSys.ships.filter(s=>s.id!==ship.id);newSys.ships.push(ship);
+      G.systems.push(newSys);
+      G._pendingActions.push(notation);_consume(G);_clean(G);return true;
+    }
+
+    if(v==='hijack'){
+      const col=L2C_CF[p[1][0]],size=+p[1][1],sysName=p[2];
+      const sys=_findSys(G,sysName); if(!sys) return bail('system not found: '+sysName);
+      const target=sys.ships.find(s=>s.owner!==player&&s.color===col&&s.size===size);
+      if(!target) return bail(`no enemy ${col}${size} in ${sysName}`);
+      const lg=_largest(sys,player);
+      if(!lg||lg.size<target.size) return bail(`own largest (${lg?.size}) < target (${size})`);
+      const hasPow=sys.stars.some(s=>s.color==='red')||sys.ships.some(s=>s.owner===player&&s.color==='red')||G.sacrificePool.color==='red';
+      if(!hasPow) return bail('no red power in '+sysName);
+      target.owner=player;
+      G._pendingActions.push(notation);_consume(G);return true;
+    }
+
+    if(v==='sacrifice'){
+      const col=L2C_CF[p[1][0]],size=+p[1][1],sysName=p[2];
+      const sys=_findSys(G,sysName); if(!sys) return bail('system not found: '+sysName);
+      const ship=sys.ships.find(s=>s.owner===player&&s.color===col&&s.size===size);
+      if(!ship) return bail(`no own ${col}${size} in ${sysName}`);
+      if(sys.isHomeworld===player&&sys.ships.filter(s=>s.owner===player).length===1) return bail('only ship in homeworld');
+      G.bank[ship.color][ship.size]++;
+      sys.ships=sys.ships.filter(s=>s.id!==ship.id);
+      G.sacrificePool={color:ship.color,count:ship.size};G.turnUsed=true;
+      G._pendingActions.push(notation);_clean(G);return true;
+    }
+
+    if(v==='catastrophe'){
+      const sysName=p[1],color=L2C_CF[p[2]];
+      const sys=_findSys(G,sysName); if(!sys) return bail('system not found: '+sysName);
+      sys.stars.filter(s=>s.color===color).forEach(s=>G.bank[s.color][s.size]++);
+      sys.ships.filter(s=>s.color===color).forEach(s=>G.bank[s.color][s.size]++);
+      sys.stars=sys.stars.filter(s=>s.color!==color);sys.ships=sys.ships.filter(s=>s.color!==color);
+      G._pendingActions.push(notation);_clean(G);return true;
+    }
+
+  } catch(e){console.error('[PREMOVE CF] exec error:',e);return false;}
+  return bail('unknown verb: '+v);
+}
+
 // ── Web Push (VAPID) ──────────────────────────────────────────────────────
 const webpush = require('web-push');
 
@@ -403,6 +527,106 @@ async function sendTurnEmail(email, message, roomId, playerSlot) {
     `,
   }).catch(err => console.warn(`[EMAIL NOTIF] Failed to ${email}:`, err.message));
 }
+
+// ── Trigger: execute queued premove when opponent finishes their turn ─────────
+exports.executePremove = onValueWritten(
+  { ref: 'rooms/{roomId}/game', region: 'us-central1' },
+  async event => {
+    const after = event.data.after.val();
+    if (!after?.gJson) return null;
+    // Prevent re-triggering on our own writes
+    if (after.writtenBy === 'premove-cf') return null;
+
+    const roomId = event.params.roomId;
+    const db = getDatabase();
+
+    // Load room to check status
+    const roomSnap = await db.ref(`rooms/${roomId}`).get();
+    const room = roomSnap.val();
+    if (!room || room.status !== 'playing') return null;
+
+    let G;
+    try { G = JSON.parse(after.gJson); } catch(e) { return null; }
+    if (G.phase !== 'PLAY') return null;
+
+    const currentPlayer = G.currentPlayer;
+
+    // Check for queued premoves for this player
+    const pmSnap = await db.ref(`rooms/${roomId}/premoves/${currentPlayer}`).get();
+    if (!pmSnap.exists() || !pmSnap.val()) return null;
+
+    let premoves;
+    try { premoves = JSON.parse(pmSnap.val()); } catch(e) { return null; }
+    if (!premoves?.length) return null;
+
+    const pm = premoves[0];
+    console.log(`[PREMOVE CF] Firing player ${currentPlayer} T${pm.turnFor}:`, pm.actions);
+
+    // Sync uid counter to avoid ID collisions
+    _syncUid(G);
+
+    // Execute all actions in this premove
+    for (const action of pm.actions) {
+      if (!_execAction(G, action, currentPlayer)) {
+        console.warn(`[PREMOVE CF] Invalid — clearing premoves for player ${currentPlayer}`);
+        await db.ref(`rooms/${roomId}/premoves/${currentPlayer}`).set(null);
+        return null;
+      }
+    }
+
+    // Drain any leftover sacrifice pool (partial sacrifice premoves are allowed)
+    G.sacrificePool = { color: null, count: 0 };
+
+    // Commit turn log
+    const actions = G._pendingActions || [];
+    if (actions.length > 0) {
+      G.log = G.log || [];
+      G.log.push({ turn: G.currentTurn, player: currentPlayer, actions: [...actions] });
+      G.currentTurn++;
+    }
+    G._pendingActions = [];
+
+    // Flip turn
+    G.currentPlayer = currentPlayer === 1 ? 2 : 1;
+    G.turnUsed = false;
+    G.selectedShipId = null;
+    G.movingFromSysId = null;
+    G.interaction = 'IDLE';
+    G.history = null;
+    G._turnStart = null;
+    G._turnStart = JSON.stringify(G);
+
+    // Check win
+    const winner = _checkWin(G);
+    if (winner) { G.phase = 'OVER'; G.winner = winner; }
+
+    // Remove fired premove, save remainder
+    premoves.shift();
+    await db.ref(`rooms/${roomId}/premoves/${currentPlayer}`).set(
+      premoves.length > 0 ? JSON.stringify(premoves) : null
+    );
+
+    // Write new game state — writtenBy 'premove-cf' prevents re-trigger
+    const ts = Date.now();
+    await db.ref(`rooms/${roomId}/game`).set({
+      gJson: JSON.stringify(G),
+      writtenBy: 'premove-cf',
+      ts,
+    });
+
+    // Update room root so onTurnChange fires notification to next player
+    const roomUpdate = { currentPlayer: G.currentPlayer, currentTurn: G.currentTurn };
+    if (G.phase === 'OVER') {
+      roomUpdate.status = 'archived';
+      roomUpdate.winner = G.winner;
+      roomUpdate.winnerName = room[`player${G.winner}`]?.name || `Player ${G.winner}`;
+    }
+    await db.ref(`rooms/${roomId}`).update(roomUpdate);
+
+    console.log(`[PREMOVE CF] ✓ Player ${currentPlayer} premove done → now player ${G.currentPlayer}'s turn`);
+    return null;
+  }
+);
 
 /**
  * sendVerifCode({ uid, email })
