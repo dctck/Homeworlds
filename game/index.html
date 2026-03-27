@@ -1409,18 +1409,26 @@ function migrateDuplicateShipIds(g) {
   
   console.log('[HW MIGRATE] Duplicate ship IDs detected — fixing...');
   
-  // Second pass — reassign IDs to duplicates
-  // Keep highest existing ID as baseline
-  let maxId = 0;
+  // Fix duplicate system IDs first
+  let maxSysId = 0;
+  g.systems.forEach(sys => { if (sys.id > maxSysId) maxSysId = sys.id; });
+  const seenSys = new Set();
   g.systems.forEach(sys => {
-    sys.ships.forEach(s => { if (s.id > maxId) maxId = s.id; });
+    if (seenSys.has(sys.id)) {
+      sys.id = ++maxSysId;
+      console.log('[HW MIGRATE] Reassigned system id to', maxSysId);
+    } else {
+      seenSys.add(sys.id);
+    }
   });
-  
+
+  // Fix duplicate ship IDs
+  let maxId = maxSysId + 100;
   const seen2 = new Set();
   g.systems.forEach(sys => {
     sys.ships.forEach(s => {
       if (seen2.has(s.id)) {
-        s.id = ++maxId; // reassign duplicate
+        s.id = ++maxId;
         console.log('[HW MIGRATE] Reassigned ship id to', s.id);
       } else {
         seen2.add(s.id);
