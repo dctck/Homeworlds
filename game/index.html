@@ -1388,7 +1388,8 @@ if (!window._savedAdvancedMode) {
 // ── Migrate legacy game states with duplicate ship IDs ──────
 // Games created before window._gameUid = 1000 fix may have
 // colliding ship IDs across players. Run once on load.
-function migrateDuplicateShipIds(g) {
+function migrateDuplicateIds(g) {
+  window._migrationRan = true;
   if (!g || !g.systems) return g;
   
   const seenIds = new Map(); // id → first ship found
@@ -5243,7 +5244,7 @@ function showReportDialog(player) {
           tcTurnMs: _th.tcTurnMs || 0,
           advancedMode: !!(window._savedAdvancedMode),
         };
-        G = migrateDuplicateShipIds(sg);
+        G = migrateDuplicateIds(sg);
         if (_th.timers) G.timers = _th.timers; // restore exact timer values
         document.getElementById('startup-modal').remove();
         const _lbr2 = document.getElementById('btn-lobby-row');
@@ -5833,7 +5834,7 @@ function showAuthWall(msg, isWrongAccount) {
       if (g.phase === 'PLAY') {
         g._turnStart = JSON.stringify(g); // snap for reset on rejoin
       }
-      window.G = migrateDuplicateShipIds(g);
+      window.G = migrateDuplicateIds(g);
       window.renderPlayerCards();
       window.render();
 
@@ -5981,7 +5982,7 @@ function showAuthWall(msg, isWrongAccount) {
 
       if (incoming.phase === 'OVER') {
         console.log(`[HW RECV] Received OVER state from Firebase — winner=${incoming.winner} log.length=${incoming.log?.length ?? 0}`);
-        window.G = migrateDuplicateShipIds(incoming);
+        window.G = migrateDuplicateIds(incoming);
         window.render();
         // Mark MY hasUnseenResult when I receive the OVER state from opponent
         // (the gameEnded handler only fires on the client that triggers the win)
