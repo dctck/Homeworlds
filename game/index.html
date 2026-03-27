@@ -1051,7 +1051,7 @@ body::before {
 }
 </style>
 
-<script src="hw_ai.js"></script>
+<script src="hw_ai.js?v=6-styles"></script>
 
 </head>
 <body>
@@ -1373,7 +1373,7 @@ body::before {
   </div>
 </div>
 
-<script>
+<script>  
 // ============================================================
 //  COLORBLIND MODE
 //  Symbol overlays: each color gets a unique geometric shape.
@@ -1385,13 +1385,71 @@ if (!window._savedAdvancedMode) {
   window._savedAdvancedMode = localStorage.getItem('hw_advanced') === '1';
 }
 
-
+// ── Migrate legacy game states with duplicate ship IDs ──────
+// Games created before window._gameUid = 1000 fix may have
+// colliding ship IDs across players. Run once on load.
+function migrateDuplicateShipIds(g) {
+  if (!g || !g.systems) return g;
+  
+  const seenIds = new Map(); // id → first ship found
+  let needsFix = false;
+  
+  // First pass — detect duplicates
+  g.systems.forEach(sys => {
+    sys.ships.forEach(s => {
+      if (seenIds.has(s.id)) {
+        needsFix = true;
+      } else {
+        seenIds.set(s.id, s);
+      }
+    });
+  });
+  
+  if (!needsFix) return g; // no migration needed
+  
+  console.log('[HW MIGRATE] Duplicate ship IDs detected — fixing...');
+  
+  // Second pass — reassign IDs to duplicates
+  // Keep highest existing ID as baseline
+  let maxId = 0;
+  g.systems.forEach(sys => {
+    sys.ships.forEach(s => { if (s.id > maxId) maxId = s.id; });
+  });
+  
+  const seen2 = new Set();
+  g.systems.forEach(sys => {
+    sys.ships.forEach(s => {
+      if (seen2.has(s.id)) {
+        s.id = ++maxId; // reassign duplicate
+        console.log('[HW MIGRATE] Reassigned ship id to', s.id);
+      } else {
+        seen2.add(s.id);
+      }
+    });
+  });
+  
+  // Sync global uid counter so new ships don't collide
+  window._gameUid = Math.max(window._gameUid || 0, maxId + 1);
+  console.log('[HW MIGRATE] Done. gameUid now:', window._gameUid);
+  
+  return g;
+}
 
 // ── AI config ────────────────────────────────────────────────
 
 window._AI_ENABLED = false;
 window._AI_SLOT    = 2; 
 window._aiThinking = false;
+
+try {
+  const cfg = JSON.parse(localStorage.getItem('hw_ai_config') || 'null');
+  if (cfg?.enabled) {
+    window._AI_ENABLED = true;
+    window._AI_SLOT    = cfg.slot || 2;
+    window._AI_AUTO_HW = cfg.autoHW;
+    window._AI_STYLE   = cfg.style || 'consensus';
+  }
+} catch(e) {}
 
 // ── Suppress pass-device banner when playing AI ──────────────
 // Patch showPassBanner so it never shows when AI is involved.
@@ -1409,6 +1467,11 @@ function patchPassBannerForAI() {
 
 // ── AI homeworld setup ────────────────────────────────────────
 function triggerAISetup() {
+
+  window._AI_STYLE = window.HW_AI.pickStyle();
+  const oppHW = G.systems.find(s => s.isHomeworld === (3 - window._AI_SLOT));
+  const { star1, star2, shipColor } = window.HW_AI.pickSetup(G.bank, oppHW?.stars || [], window._AI_STYLE);
+
   if (!window._AI_ENABLED || !window.HW_AI) return;
   if (!window._AI_AUTO_HW) return; // human is manually setting up AI's HW
   if (G.phase !== 'SETUP' || G.currentPlayer !== window._AI_SLOT) return;
@@ -1446,6 +1509,9 @@ function triggerAISetup() {
 
 // ── AI play turn ──────────────────────────────────────────────
 function triggerAITurn() {
+
+  const move = window.HW_AI.pickMove(G, window._AI_SLOT, window._AI_STYLE);
+
   if (!window._AI_ENABLED || !window.HW_AI) return;
   if (G.phase !== 'PLAY' || G.currentPlayer !== window._AI_SLOT) return;
   if (window._aiThinking) return;
@@ -1523,6 +1589,40 @@ function executeAIMove(move) {
       target.owner = player;
       break;
     }
+    case 'sacrifice_chain': {
+      const sys  = findSystem(move.sysId); if (!sys) break;
+      const ship = findShip(move.shipId);  if (!ship) break;
+      logAction(Note.sacrifice(ship, sys.name));
+      G.bank[ship.color][ship.size]++;
+      sys.ships = sys.ships.filter(s=>s.id!==move.shipId);
+      G.sacrificePool = { color: move.sacColor, count: move.sacCount };
+      cleanSystems();
+      // Execute chained actions
+      (move.actions||[]).forEach(action => {
+        if (action.type==='move') {
+          const from = findSystem(action.fromSysId);
+          const to   = findSystem(action.toSysId);
+          const sh   = findShip(action.shipId);
+          if (from&&to&&sh) {
+            logAction(Note.move(sh, from.name, to.name));
+            from.ships = from.ships.filter(s=>s.id!==sh.id);
+            to.ships.push(sh);
+            G.sacrificePool.count--;
+            cleanSystems();
+          }
+        } else if (action.type==='attack') {
+          const sys2 = findSystem(action.sysId);
+          const tgt  = findShip(action.targetId);
+          if (sys2&&tgt) {
+            logAction(Note.hijack(tgt, sys2.name));
+            tgt.owner = player;
+            G.sacrificePool.count--;
+          }
+        }
+      });
+      G.sacrificePool = { color: null, count: 0 };
+      break;
+    }
     case 'catastrophe': {
       // Direct mutation — skip triggerCatastrophe() animation path
       const sys = findSystem(move.sysId); if (!sys) break;
@@ -1549,6 +1649,39 @@ function executeAIMove(move) {
       logAction(Note.skip());
       break;
   }
+
+  // ── Auto-trigger catastrophe if eligible after AI move ──
+  const eligibleCatas = (() => {
+    const list = [];
+    G.systems.forEach(sys => {
+      ['red','blue','yellow','green'].forEach(c => {
+        const n = sys.stars.filter(s=>s.color===c).length
+                + sys.ships.filter(s=>s.color===c).length;
+        if (n >= 4) list.push({ sysId: sys.id, color: c, sys });
+      });
+    });
+    return list;
+  })();
+
+  // Trigger ALL eligible catastrophes before ending turn
+  eligibleCatas.forEach(({sysId, color, sys}) => {
+    logAction(Note.catastrophe(sys.name, color));
+    const c = color;
+    sys.stars.filter(s=>s.color===c).forEach(s=>G.bank[s.color][s.size]++);
+    sys.ships.filter(s=>s.color===c).forEach(s=>G.bank[s.color][s.size]++);
+    sys.stars = sys.stars.filter(s=>s.color!==c);
+    sys.ships = sys.ships.filter(s=>s.color!==c);
+    if (!sys.isHomeworld) {
+      if (sys.ships.length===0||sys.stars.length===0) {
+        sys.stars.forEach(s=>G.bank[s.color][s.size]++);
+        sys.ships.forEach(s=>G.bank[s.color][s.size]++);
+        G.systems = G.systems.filter(sx=>sx.id!==sys.id);
+      }
+    } else if (sys.stars.length===0) {
+      sys.ships.forEach(s=>G.bank[s.color][s.size]++);
+      sys.ships = [];
+    }
+  });
 
   // doEndTurn handles: commit, player flip, checkWin, render — everything
   G.turnUsed = true;
@@ -5040,6 +5173,15 @@ function showReportDialog(player) {
       window._AI_ENABLED  = false;
     }
 
+    if (_aiMode) {
+      localStorage.setItem('hw_ai_config', JSON.stringify({
+        enabled: true, slot: 2, autoHW: _aiAutoHW,
+        style: window._AI_STYLE || 'consensus'
+      }));
+    } else {
+      localStorage.removeItem('hw_ai_config');
+    }
+
     PLAYER_CONFIG = {
       names:    ['', name1, name2],
       elos:     ['', elo1, elo2],
@@ -5093,12 +5235,25 @@ function showReportDialog(player) {
           tcTurnMs: _th.tcTurnMs || 0,
           advancedMode: !!(window._savedAdvancedMode),
         };
-        G = sg;
+        G = migrateDuplicateShipIds(sg);
         if (_th.timers) G.timers = _th.timers; // restore exact timer values
         document.getElementById('startup-modal').remove();
         const _lbr2 = document.getElementById('btn-lobby-row');
         if (_lbr2) _lbr2.style.display = 'block';
         window._autoSave = true;
+
+        try {
+          const cfg = JSON.parse(localStorage.getItem('hw_ai_config') || 'null');
+          if (cfg?.enabled) {
+            window._AI_ENABLED  = true;
+            window._AI_SLOT     = cfg.slot || 2;
+            window._AI_AUTO_HW  = cfg.autoHW;
+            window._AI_STYLE    = cfg.style || 'consensus';
+            window._aiThinking  = false;
+            patchPassBannerForAI();
+          }
+        } catch(e) {}
+
         initChat(); renderPlayerCards(); render();
       };
     }
@@ -5670,7 +5825,7 @@ function showAuthWall(msg, isWrongAccount) {
       if (g.phase === 'PLAY') {
         g._turnStart = JSON.stringify(g); // snap for reset on rejoin
       }
-      window.G = g;
+      window.G = migrateDuplicateShipIds(g);
       window.renderPlayerCards();
       window.render();
 
@@ -5818,7 +5973,7 @@ function showAuthWall(msg, isWrongAccount) {
 
       if (incoming.phase === 'OVER') {
         console.log(`[HW RECV] Received OVER state from Firebase — winner=${incoming.winner} log.length=${incoming.log?.length ?? 0}`);
-        window.G = incoming;
+        window.G = migrateDuplicateShipIds(incoming);
         window.render();
         // Mark MY hasUnseenResult when I receive the OVER state from opponent
         // (the gameEnded handler only fires on the client that triggers the win)
