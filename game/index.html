@@ -6393,12 +6393,16 @@ function showAuthWall(msg, isWrongAccount) {
   // ── Lock input when it's not my turn ─────────────────────────
   if (!window._premoveShipClickPatched) {
     window._premoveShipClickPatched = true;
-    const _origShipClick = window.onShipClick;
+    window._realShipClick = window.onShipClick; // save true original on window
     window.onShipClick = function(id) {
-      if (window._ONLINE?.active && G.currentPlayer !== MY_SLOT) return;
-      _origShipClick(id);
+      // Allow click if: not online, OR it's my turn, OR premove mode is active
+      if (window._ONLINE?.active && 
+          G.currentPlayer !== MY_SLOT && 
+          !window._premoveMode) return;
+      window._realShipClick(id);
     };
   }
+
   const _origBankClick = window.onBankClick;
   window.onBankClick = function(c, sz) {
     if (window._ONLINE?.active && G.currentPlayer !== MY_SLOT) return;
