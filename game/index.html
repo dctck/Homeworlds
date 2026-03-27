@@ -1391,56 +1391,58 @@ if (!window._savedAdvancedMode) {
 function migrateDuplicateIds(g) {
   window._migrationRan = true;
   if (!g || !g.systems) return g;
-  
-  const seenIds = new Map(); // id → first ship found
+
   let needsFix = false;
-  
-  // First pass — detect duplicates
+
+  // Check for duplicate system IDs
+  const sysIdSet = new Set();
+  g.systems.forEach(sys => {
+    if (sysIdSet.has(sys.id)) needsFix = true;
+    else sysIdSet.add(sys.id);
+  });
+
+  // Check for duplicate ship IDs
+  const shipIdSet = new Set();
   g.systems.forEach(sys => {
     sys.ships.forEach(s => {
-      if (seenIds.has(s.id)) {
-        needsFix = true;
-      } else {
-        seenIds.set(s.id, s);
-      }
+      if (shipIdSet.has(s.id)) needsFix = true;
+      else shipIdSet.add(s.id);
     });
   });
-  
-  if (!needsFix) return g; // no migration needed
-  
-  console.log('[HW MIGRATE] Duplicate ship IDs detected — fixing...');
-  
-  // Fix duplicate system IDs first
+
+  if (!needsFix) return g;
+
+  console.log('[HW MIGRATE] Duplicates detected — fixing...');
+
+  // Fix system IDs first
   let maxSysId = 0;
   g.systems.forEach(sys => { if (sys.id > maxSysId) maxSysId = sys.id; });
   const seenSys = new Set();
   g.systems.forEach(sys => {
     if (seenSys.has(sys.id)) {
       sys.id = ++maxSysId;
-      console.log('[HW MIGRATE] Reassigned system id to', maxSysId);
+      console.log('[HW MIGRATE] Reassigned system id to', maxSysId, sys.name);
     } else {
       seenSys.add(sys.id);
     }
   });
 
-  // Fix duplicate ship IDs
+  // Fix ship IDs
   let maxId = maxSysId + 100;
-  const seen2 = new Set();
+  const seenShips = new Set();
   g.systems.forEach(sys => {
     sys.ships.forEach(s => {
-      if (seen2.has(s.id)) {
+      if (seenShips.has(s.id)) {
         s.id = ++maxId;
         console.log('[HW MIGRATE] Reassigned ship id to', s.id);
       } else {
-        seen2.add(s.id);
+        seenShips.add(s.id);
       }
     });
   });
-  
-  // Sync global uid counter so new ships don't collide
+
   window._gameUid = Math.max(window._gameUid || 0, maxId + 1);
-  console.log('[HW MIGRATE] Done. gameUid now:', window._gameUid);
-  
+  console.log('[HW MIGRATE] Done. gameUid:', window._gameUid);
   return g;
 }
 
