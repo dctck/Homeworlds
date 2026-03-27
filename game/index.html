@@ -4619,6 +4619,10 @@ window._pmForcedStarName = null;
           if (last?.shadowAfter) window._pmShadowG = JSON.parse(JSON.stringify(last.shadowAfter));
           console.log(`[PREMOVE] Restored ${window._premoves.length} premove(s) from Firebase`);
           window.renderPremovePanel();
+          if (window.G?.currentPlayer === window._ONLINE?.mySlot && window.G?.phase === 'PLAY') {
+            console.log('[PREMOVE] My turn on restore — attempting fire');
+            setTimeout(window._tryFirePremove, 600);
+          }
         } catch(e) { console.warn('[PREMOVE] load parse failed:', e); }
       }
     }).catch(e => console.warn('[PREMOVE] load failed:', e));
@@ -5890,7 +5894,7 @@ function showAuthWall(msg, isWrongAccount) {
       } else if (g.currentPlayer === MY_SLOT) {
         window.render();
         if (g.phase === 'PLAY') startTimerTick();
-        if (window._premoves?.length > 0 && window._tryFirePremove) setTimeout(window._tryFirePremove, 250);
+        if (window._premoves?.length > 0 && window._tryFirePremove) setTimeout(window._tryFirePremove, 800);
       } else {
         showWaiting('Waiting for opponent…');
         if (g.phase === 'PLAY') startTimerTick();
