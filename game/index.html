@@ -2938,9 +2938,7 @@ function directAttack(targetShip, sys) {
 
 
 function renderBoard() {
-  console.log('[renderBoard] phase:', G?.phase, 'systems:', G?.systems?.length,
-  'hw1 ships:', G?.systems?.find(s=>s.isHomeworld===1)?.ships?.length,
-  'hw2 ships:', G?.systems?.find(s=>s.isHomeworld===2)?.ships?.length); //delete this
+  //console.log('[renderBoard] phase:', G?.phase, 'systems:', G?.systems?.length, 'hw1 ships:', G?.systems?.find(s=>s.isHomeworld===1)?.ships?.length, 'hw2 ships:', G?.systems?.find(s=>s.isHomeworld===2)?.ships?.length); //delete this
 
   const zP1  = document.getElementById('zone-p1');
   const zP2  = document.getElementById('zone-p2');
@@ -3062,7 +3060,7 @@ function renderSetupPreview(zone) {
     ph.textContent = 'Select stars from stash';
     card.appendChild(ph);
     zone.appendChild(card);
-    console.log('[SETUP] empty preview shown for P' + G.currentPlayer);
+    //console.log('[SETUP] empty preview shown for P' + G.currentPlayer);
     return;
   }
 
@@ -3079,7 +3077,7 @@ function renderSetupPreview(zone) {
     wrap.title = `Remove ${star.color} size-${star.size} star`;
     wrap.innerHTML = starImgHTML(star.color, star.size);
     wrap.dataset.animKey = 'setuppreview:' + star.color + ':' + star.size + ':' + (star._pid || idx);
-    console.log('[SETUP] preview star stamped:', wrap.dataset.animKey);
+    //console.log('[SETUP] preview star stamped:', wrap.dataset.animKey);
     wrap.onmouseenter = () => wrap.style.filter = 'drop-shadow(0 0 8px rgba(255,80,80,0.9))';
     wrap.onmouseleave = () => wrap.style.filter = '';
     const _stampTime = Date.now();
@@ -3096,7 +3094,7 @@ function renderSetupPreview(zone) {
   });
   card.appendChild(starsDiv);
   zone.appendChild(card);
-  console.log('[SETUP] preview rendered:', G.setupCache.stars.length, 'stars for P' + G.currentPlayer);
+  //console.log('[SETUP] preview rendered:', G.setupCache.stars.length, 'stars for P' + G.currentPlayer);
 }
 
 function renderSystem(sys) {
@@ -6004,6 +6002,15 @@ function showAuthWall(msg, isWrongAccount) {
       }
 
       window.render();
+
+      // If premove mode is active and it's now my turn — exit premove mode cleanly
+      if (window._premoveMode && incoming.currentPlayer === MY_SLOT) {
+        window._pmOrigG     = null;
+        window._pmShadowG   = null;
+        window._premoveMode = false;
+        console.log('[PREMOVE] Cancelled premove mode — my turn arrived');
+      }
+
       // ── Fire queued premove if MY turn just arrived ────────
       if (incoming.currentPlayer === MY_SLOT && window._premoves?.length > 0 && window._tryFirePremove) {
         setTimeout(window._tryFirePremove, 250);
@@ -6384,11 +6391,14 @@ function showAuthWall(msg, isWrongAccount) {
   };
 
   // ── Lock input when it's not my turn ─────────────────────────
-  const _origShipClick = window.onShipClick;
-  window.onShipClick = function(id) {
-    if (window._ONLINE?.active && G.currentPlayer !== MY_SLOT) return;
-    _origShipClick(id);
-  };
+  if (!window._premoveShipClickPatched) {
+    window._premoveShipClickPatched = true;
+    const _origShipClick = window.onShipClick;
+    window.onShipClick = function(id) {
+      if (window._ONLINE?.active && G.currentPlayer !== MY_SLOT) return;
+      _origShipClick(id);
+    };
+  }
   const _origBankClick = window.onBankClick;
   window.onBankClick = function(c, sz) {
     if (window._ONLINE?.active && G.currentPlayer !== MY_SLOT) return;
