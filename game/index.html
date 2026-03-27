@@ -4472,9 +4472,16 @@ window._pmForcedStarName = null;
     if (!window.G || window.G.currentPlayer === MY) return;
     window._pmOrigG = window.G;
     // Build shadow G from accumulator or real G
-    let shadow = window._pmShadowG
-      ? JSON.parse(JSON.stringify(window._pmShadowG))
-      : JSON.parse(JSON.stringify(window.G));
+    let shadow;
+    if (window._pmShadowG) {
+      shadow = JSON.parse(JSON.stringify(window._pmShadowG));
+    } else if (window._premoves.length > 0) {
+      const last = window._premoves[window._premoves.length - 1];
+      shadow = JSON.parse(JSON.stringify(last.shadowAfter));
+      shadow.currentTurn += 2;
+    } else {
+      shadow = JSON.parse(JSON.stringify(window.G));
+    }
     shadow.currentPlayer   = MY;
     shadow.turnUsed        = false;
     shadow.sacrificePool   = { color:null, count:0 };
@@ -4484,7 +4491,8 @@ window._pmForcedStarName = null;
     shadow._pendingActions = [];
     shadow._turnStart      = JSON.stringify(shadow);
     window._pmShadowG      = shadow;
-    window.G = shadow;
+    window._pmShadowClean  = JSON.parse(JSON.stringify(shadow));
+    window.G = shadow;    
     window._premoveMode = true;
     render();
     window.renderPremovePanel();
@@ -4544,8 +4552,19 @@ window._pmForcedStarName = null;
 
   // ── Fire queued premove when MY turn arrives ─────────────
   window._tryFirePremove = function() {
+    console.log('[PREMOVE] tryFire — premoves:', window._premoves.length,
+    'mySlot:', window._ONLINE?.mySlot,
+    'currentPlayer:', window.G?.currentPlayer,
+    'phase:', window.G?.phase,
+    'premoveMode:', window._premoveMode);
     if (!window._premoves.length || !window._ONLINE?.active) return;
-    if (window._premoveMode) _exit();
+    if (window._premoveMode) {
+      // Exit mode without restoring stale _pmOrigG — incoming G already set by onValue
+      window._pmOrigG = null;
+      window._pmShadowG = null;
+      window._pmShadowClean = null;
+      window._premoveMode = false;
+    }
     const MY = window._ONLINE.mySlot;
     if (!window.G || window.G.currentPlayer !== MY || window.G.phase !== 'PLAY') return;
 
@@ -4743,8 +4762,8 @@ window._pmForcedStarName = null;
           if (hasMoves) {
             cb.textContent = 'RESET';
             cb.onclick = () => {
-              const base = window._pmShadowG
-                ? JSON.parse(JSON.stringify(window._pmShadowG))
+              const base = window._pmShadowClean
+                ? JSON.parse(JSON.stringify(window._pmShadowClean))
                 : JSON.parse(JSON.stringify(window._pmOrigG || window.G));
               base.currentPlayer   = window._ONLINE.mySlot;
               base.turnUsed        = false;
