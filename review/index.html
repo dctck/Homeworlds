@@ -4184,6 +4184,7 @@ function startPuzzle(data, puzzleId, user, db) {
   if (ps) ps.style.display = 'none';
 
   _appMode = 'sandbox';
+  document.body.classList.add('sandbox-mode');
   _puzzleMeta = { id: puzzleId, player: data.puzzlePlayer, goalMoves: data.goalMoves, db, user, data };
   _puzzleTurnSnaps = [];
 
