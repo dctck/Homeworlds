@@ -4234,8 +4234,8 @@ function startPuzzle(data, puzzleId, user, db) {
 
   const movesBox = document.createElement('div');
   movesBox.style.cssText = 'flex:1;background:rgba(255,255,255,0.03);border:1px solid #2a3850;border-radius:4px;padding:6px 8px;text-align:center';
-  movesBox.innerHTML = '<div style="font-size:10px;color:#506070;letter-spacing:1px;margin-bottom:2px">MOVES</div>' +
-    '<div style="font-size:10px;color:#506070;letter-spacing:1px;margin-bottom:2px">MOVES</div>' +
+  movesBox.innerHTML = '<div style="font-size:10px;color:#506070;letter-spacing:1px;margin-bottom:2px">TURNS</div>' +
+    '<div id="puzzle-moves" style="font-family:Orbitron,sans-serif;font-size:20px;font-weight:700;color:#4488ff">0</div>';
 
   statsRow.appendChild(goalBox);
   statsRow.appendChild(movesBox);
