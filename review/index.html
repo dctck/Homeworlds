@@ -1720,12 +1720,13 @@ function makeTurnToken(player) {
 
   // Hold-to-reset button: only show when current player has actions to undo (not opponent's token)
   const isMyTurn = !window._ONLINE?.active || G.currentPlayer === window._ONLINE?.mySlot;
-  const canReset = G.phase === 'PLAY' && isMyTurn && (G.history || (G._pendingActions?.length > 0));
-  // Puzzle: Previous Move button (hold)
-  if (_puzzleMeta && _puzzleTurnSnaps.length > 0) {
+  const playerHasMoved = !!(G.turnUsed || G.history || G._pendingActions?.length);
+  const canReset = G.phase === 'PLAY' && isMyTurn && (_puzzleMeta ? playerHasMoved : !!(G._turnStart || G.history || G._pendingActions?.length));
+  // Puzzle: Previous Turn button — only when no moves made this turn
+  if (_puzzleMeta && _puzzleTurnSnaps.length > 0 && !playerHasMoved) {
     const prevBtn = document.createElement('button');
     prevBtn.className = 'hold-reset-btn';
-    prevBtn.textContent = 'PREV MOVE';
+    prevBtn.textContent = 'PREV TURN';
     const prevFill = document.createElement('div');
     prevFill.className = 'hold-reset-fill';
     prevBtn.appendChild(prevFill);
@@ -1748,20 +1749,18 @@ function makeTurnToken(player) {
     function cancelPrevHold() {
       if (_pt) { _pt(); _pt = null; }
       prevBtn.classList.remove('holding');
-      prevBtn.childNodes[0].textContent = 'PREV MOVE';
+      prevBtn.childNodes[0].textContent = 'PREV TURN';
       prevFill.style.width = '0%';
     }
     function doPrevMove() {
       cancelPrevHold();
-      console.log('[doPrevMove] called, snaps length:', _puzzleTurnSnaps.length, '_appMode:', _appMode); //delete this
       if (_puzzleTurnSnaps.length === 0) return;
-      G = JSON.parse(_puzzleTurnSnaps.pop());
-      console.log('[doPrevMove] G restored, phase:', G.phase, 'currentPlayer:', G.currentPlayer, 'systems:', G.systems.length); //delete this
+      const snapStr = _puzzleTurnSnaps.pop();
+      G = JSON.parse(snapStr);
+      G._turnStart = snapStr; // restore so reset works within this turn
       const moveEl = document.getElementById('puzzle-moves');
       if (moveEl) moveEl.textContent = _puzzleTurnSnaps.length;
-      console.log('[doPrevMove] about to render');  //delete this
       render();
-      console.log('[doPrevMove] render done');  //delete this
     }
     prevBtn.addEventListener('mousedown', startPrevHold);
     prevBtn.addEventListener('touchstart', startPrevHold, { passive: false });
@@ -4236,7 +4235,7 @@ function startPuzzle(data, puzzleId, user, db) {
   const movesBox = document.createElement('div');
   movesBox.style.cssText = 'flex:1;background:rgba(255,255,255,0.03);border:1px solid #2a3850;border-radius:4px;padding:6px 8px;text-align:center';
   movesBox.innerHTML = '<div style="font-size:10px;color:#506070;letter-spacing:1px;margin-bottom:2px">MOVES</div>' +
-    '<div id="puzzle-moves" style="font-family:Orbitron,sans-serif;font-size:20px;font-weight:700;color:#4488ff">0</div>';
+    '<div style="font-size:10px;color:#506070;letter-spacing:1px;margin-bottom:2px">MOVES</div>' +
 
   statsRow.appendChild(goalBox);
   statsRow.appendChild(movesBox);
@@ -4288,7 +4287,7 @@ function renderPuzzleSolvers(data) {
     solvers.slice(0, 10).forEach((s, i) => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:#4a6080';
-      row.innerHTML = `<span style="color:${i===0?'#ffcc00':'#4a6080'}">${i===0?'🏆 ':''}${esc(s.name)}</span><span style="color:#2a4060">${s.moves} move${s.moves!==1?'s':''}</span>`;
+      row.innerHTML = `<span style="color:${i===0?'#ffcc00':'#4a6080'}">${i===0?'🏆 ':''}${esc(s.name)}</span><span style="color:#2a4060">${s.moves} turn${s.moves!==1?'s':''}</span>`;
       div.appendChild(row);
     });
   }
@@ -4359,7 +4358,7 @@ function puzzleCheckResult(won) {
     });
     overlay.innerHTML = `
       <div style="font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;color:#22dd77;letter-spacing:4px;text-shadow:0 0 30px rgba(34,221,119,0.6)">PUZZLE SOLVED!</div>
-      <div style="font-size:13px;color:#4a8060;letter-spacing:2px">Completed in ${moveCount} move${moveCount!==1?'s':''} · Goal was ${_puzzleMeta.goalMoves}</div>
+      <div style="font-size:13px;color:#4a8060;letter-spacing:2px">Completed in ${moveCount} turn${moveCount!==1?'s':''} · Goal was ${_puzzleMeta.goalMoves}</div>
       <div style="display:flex;gap:12px;margin-top:8px">
         <button onclick="location.reload()" style="padding:11px 24px;background:rgba(34,221,119,0.12);border:1px solid #22dd77;color:#22dd77;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">TRY AGAIN</button>
         <button onclick="location.href='/lobby/'" style="padding:11px 24px;background:transparent;border:1px solid #2a3850;color:#4a6080;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:4px">LOBBY</button>
